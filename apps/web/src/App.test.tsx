@@ -178,6 +178,8 @@ describe('voting round navigation', () => {
       .mockResolvedValueOnce(response([closedRound]))
       .mockResolvedValueOnce(response(results))
       .mockResolvedValueOnce(response(resetRound))
+      .mockResolvedValueOnce(response([{ ...election, status: 'IN_PROGRESS' }]))
+      .mockResolvedValueOnce(response({ ...election, status: 'IN_PROGRESS' }))
       .mockResolvedValueOnce(response(reconfiguredRound));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -301,8 +303,7 @@ describe('election administration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Register church' }));
 
     expect(await screen.findByRole('heading', { name: 'Department elections' })).toBeInTheDocument();
-    expect(screen.getByText(/Setup and nominations/)).toBeInTheDocument();
-    expect(screen.queryByText(/Voting and nominations are not available yet/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Voting is not available yet/)).not.toBeInTheDocument();
     expect(screen.getByText(/Current church: Grace Church/)).toBeInTheDocument();
     expect(fetchMock.mock.calls[2][0]).toBe('http://localhost:8080/api/churches');
     expect(fetchMock.mock.calls[2][1]).toMatchObject({
@@ -365,6 +366,90 @@ describe('election administration', () => {
     fireEvent.click(screen.getByRole('button', { name: /Previous position/ }));
     expect(await screen.findByRole('heading', { name: 'Position 1 of 2' })).toBeInTheDocument();
     expect(fetchMock.mock.calls[3][0]).toBe('http://localhost:8080/api/elections/election-1');
+  });
+
+  it.each([
+    { status: 'SETUP' as const, label: 'Setup', departmentName: 'Finance' },
+    { status: 'IN_PROGRESS' as const, label: 'In progress', departmentName: 'Operations' },
+    { status: 'COMPLETE' as const, label: 'Complete', departmentName: 'Governance' },
+  ])('shows the $label election status consistently in list and detail', async ({ status, label, departmentName }) => {
+    const statusElection = { ...election, id: `election-${status}`, departmentName, status };
+    const elections = [statusElection];
+    const fetchMock = signedInFetch([church], elections);
+    fetchMock.mockResolvedValueOnce(response(statusElection));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+
+    const accessibleStatusName = `Election status: ${label}`;
+    expect(await screen.findByRole('group', { name: accessibleStatusName })).toHaveTextContent(label);
+    expect(screen.queryByText('Voting is not available yet.')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(departmentName) }));
+    expect(await screen.findByRole('group', { name: accessibleStatusName })).toHaveTextContent(label);
+  });
+
+  it('refreshes election status after nomination intake starts and when returning to the list', async () => {
+    const progressedElection = { ...election, status: 'IN_PROGRESS' as const };
+    const openIntake = {
+      id: 'intake-1',
+      accessToken: 'share-token',
+      nameLimit: 3,
+      status: 'OPEN',
+      submissions: [],
+      consolidatedNames: null,
+    };
+    const fetchMock = signedInFetch([church], [election]);
+    fetchMock
+      .mockResolvedValueOnce(response(election))
+      .mockResolvedValueOnce(response({}, 404))
+      .mockResolvedValueOnce(response(openIntake, 201))
+      .mockResolvedValueOnce(response([progressedElection]))
+      .mockResolvedValueOnce(response(progressedElection))
+      .mockResolvedValueOnce(eventStreamResponse([`event: intake\ndata: ${JSON.stringify(openIntake)}\n\n`]))
+      .mockResolvedValueOnce(response([progressedElection]))
+      .mockResolvedValueOnce(response(progressedElection));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage nominations' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Create intake' }));
+
+    expect(await screen.findByRole('group', { name: 'Election status: In progress' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /All elections/ }));
+    expect(await screen.findByRole('group', { name: 'Election status: In progress' })).toBeInTheDocument();
+    const refreshCalls = fetchMock.mock.calls.slice(-2);
+    expect(refreshCalls[0]?.[0]).toBe('http://localhost:8080/api/elections');
+    expect(refreshCalls[1]?.[0]).toBe('http://localhost:8080/api/elections/election-1');
+  });
+
+  it('ignores a stale status response after opening election detail again', async () => {
+    const progressedElection = { ...election, status: 'IN_PROGRESS' as const };
+    let resolveStaleStatus!: (value: ReturnType<typeof response>) => void;
+    const staleStatusResponse = new Promise<ReturnType<typeof response>>((resolve) => {
+      resolveStaleStatus = resolve;
+    });
+    const fetchMock = signedInFetch([church], [election]);
+    fetchMock
+      .mockResolvedValueOnce(response(election))
+      .mockResolvedValueOnce(response(election))
+      .mockResolvedValueOnce(response([progressedElection]))
+      .mockReturnValueOnce(staleStatusResponse)
+      .mockResolvedValueOnce(response(election));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
+    fireEvent.click(screen.getByRole('button', { name: /All elections/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
+    expect(await screen.findByRole('group', { name: 'Election status: Setup' })).toBeInTheDocument();
+
+    resolveStaleStatus(response(progressedElection));
+    await act(async () => { await staleStatusResponse; });
+    expect(screen.getByRole('group', { name: 'Election status: Setup' })).toBeInTheDocument();
   });
 
   it('requires the exact position name and refreshes election state after deletion', async () => {
@@ -698,6 +783,8 @@ describe('election administration', () => {
       .mockResolvedValueOnce(response(election))
       .mockResolvedValueOnce(response({}, 404))
       .mockResolvedValueOnce(response(openIntake, 201))
+      .mockResolvedValueOnce(response([{ ...election, status: 'IN_PROGRESS' }]))
+      .mockResolvedValueOnce(response({ ...election, status: 'IN_PROGRESS' }))
       .mockResolvedValueOnce(eventStreamResponse([`event: intake\ndata: ${JSON.stringify(openIntake)}\n\n`]))
       .mockResolvedValueOnce(response(closedIntake))
       .mockResolvedValueOnce(response(savedSnapshot))
@@ -714,6 +801,8 @@ describe('election administration', () => {
       .mockResolvedValueOnce(response(eliminatedResults))
       .mockResolvedValueOnce(response(undoneResults))
       .mockResolvedValueOnce(response(electedResults))
+      .mockResolvedValueOnce(response([{ ...election, status: 'IN_PROGRESS' }]))
+      .mockResolvedValueOnce(response({ ...election, status: 'IN_PROGRESS' }))
       .mockResolvedValueOnce(response({
         id: 'round-2', roundNumber: 2, status: 'DRAFT', selectionCount: 1,
         candidates: [{ id: 'candidate-1-round-2', name: 'Riley Chen', sequence: 1 }],
@@ -773,17 +862,17 @@ describe('election administration', () => {
     expect(configurationDisclosure).not.toHaveAttribute('open');
     fireEvent.click(configurationSummary as HTMLElement);
     expect(configurationDisclosure).toHaveAttribute('open');
-    expect(fetchMock.mock.calls[7][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations/close');
-    expect(fetchMock.mock.calls[7][1].method).toBe('POST');
-    expect(fetchMock.mock.calls[8][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations/consolidation');
-    expect(fetchMock.mock.calls[8][1]).toMatchObject({
+    expect(fetchMock.mock.calls[9][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations/close');
+    expect(fetchMock.mock.calls[9][1].method).toBe('POST');
+    expect(fetchMock.mock.calls[10][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations/consolidation');
+    expect(fetchMock.mock.calls[10][1]).toMatchObject({
       method: 'PUT',
       body: JSON.stringify({ candidateNames: ['Riley Chen', 'Morgan Diaz'] }),
     });
 
     expect(await screen.findByRole('heading', { name: 'Voting round configuration' })).toBeInTheDocument();
-    expect(fetchMock.mock.calls[9][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
-    expect(fetchMock.mock.calls[9][1].method).toBe('GET');
+    expect(fetchMock.mock.calls[11][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
+    expect(fetchMock.mock.calls[11][1].method).toBe('GET');
     expect(screen.getByLabelText('Number of selections allowed')).toHaveValue(null);
             expect(screen.queryByText('Candidates for this round')).not.toBeInTheDocument();
             expect(screen.getByRole('list', { name: 'Candidates in this poll' })).toHaveTextContent('Riley ChenMorgan Diaz');
@@ -794,10 +883,10 @@ describe('election administration', () => {
     expect(screen.getByRole('button', { name: 'Create draft round' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Create draft round' }));
     expect(await screen.findByText('Draft round configuration saved.')).toBeInTheDocument();
-    expect(fetchMock.mock.calls[10][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
-    expect(fetchMock.mock.calls[10][1]).toMatchObject({ method: 'POST', body: JSON.stringify({ candidateNames: ['Riley Chen', 'Morgan Diaz'], selectionCount: 2 }) });
-    expect(fetchMock.mock.calls[11][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
-    expect(fetchMock.mock.calls[11][1]).toMatchObject({
+    expect(fetchMock.mock.calls[12][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
+    expect(fetchMock.mock.calls[12][1]).toMatchObject({ method: 'POST', body: JSON.stringify({ candidateNames: ['Riley Chen', 'Morgan Diaz'], selectionCount: 2 }) });
+    expect(fetchMock.mock.calls[13][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
+    expect(fetchMock.mock.calls[13][1]).toMatchObject({
       method: 'POST',
       body: JSON.stringify({ candidateNames: ['Riley Chen', 'Morgan Diaz'], selectionCount: 2 }),
     });
@@ -810,8 +899,8 @@ describe('election administration', () => {
     expect(initialRoundDisclosure).not.toHaveAttribute('open');
     fireEvent.click(initialRoundDisclosure?.querySelector('summary') as HTMLElement);
     expect(initialRoundDisclosure).toHaveAttribute('open');
-    expect(fetchMock.mock.calls[12][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds/round-1');
-    expect(fetchMock.mock.calls[12][1]).toMatchObject({
+    expect(fetchMock.mock.calls[14][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds/round-1');
+    expect(fetchMock.mock.calls[14][1]).toMatchObject({
       method: 'PUT',
       body: JSON.stringify({ candidateNames: ['Riley Chen', 'Morgan Diaz'], selectionCount: 1 }),
     });
@@ -827,8 +916,8 @@ describe('election administration', () => {
     fireEvent.change(expectedVoterInput, { target: { value: '16' } });
     expect(screen.getByText(/automatically close after 15 ballots/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Confirm and start' }));
-    expect(fetchMock.mock.calls[13][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds/round-1/start');
-    expect(fetchMock.mock.calls[13][1]).toMatchObject({ method: 'POST', body: JSON.stringify({ expectedVoterCount: 16 }) });
+    expect(fetchMock.mock.calls[15][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds/round-1/start');
+    expect(fetchMock.mock.calls[15][1]).toMatchObject({ method: 'POST', body: JSON.stringify({ expectedVoterCount: 16 }) });
     expect(await screen.findByText(/Voting is active\. Share the private ballot link/)).toBeInTheDocument();
     expect(await screen.findByText('Ballots submitted: 7 of 16 expected')).toBeInTheDocument();
     const progressMessage = screen.getByText('Ballots submitted: 7 of 16 expected').parentElement;

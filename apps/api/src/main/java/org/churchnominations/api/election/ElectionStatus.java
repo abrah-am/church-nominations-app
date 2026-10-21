@@ -1,5 +1,7 @@
 package org.churchnominations.api.election;
 
 public enum ElectionStatus {
-    SETUP
+    SETUP,
+    IN_PROGRESS,
+    COMPLETE
 }

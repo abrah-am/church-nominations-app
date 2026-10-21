@@ -56,8 +56,12 @@ The Compose database uses PostgreSQL 16, binds only to `127.0.0.1:5433`, reports
 set -a
 . ./.env
 set +a
-./gradlew devBootRun
+export JAVA_HOME="/path/to/jdk-25/Contents/Home"
+export PATH="$JAVA_HOME/bin:$PATH"
+./gradlew -Dorg.gradle.java.installations.paths="$JAVA_HOME" devBootRun
 ```
+
+Replace the `JAVA_HOME` example with the JDK 25 installation directory on your machine. Gradle must be able to discover this installation as its Java 25 toolchain. On macOS, a JDK installed in a standard system location can be located with `/usr/libexec/java_home -v 25`; for a JDK installed elsewhere, use its `Contents/Home` directory. For example, if your JDK is under `~/.jdk`, set `JAVA_HOME` to that installation's `Contents/Home` path.
 
 `devBootRun` enables local HTTP Basic authentication backed by registered email/password accounts and binds the API to loopback only. The `bootRun` task does not enable local authentication; business endpoints remain denied outside the `dev` profile. Set `CORS_ALLOWED_ORIGIN` if the frontend is not at `http://localhost:5173`. Do not put secrets in frontend environment variables; Vite exposes them to the browser. The POC does not yet send password-reset email.
 
@@ -67,7 +71,12 @@ In one terminal, start the API:
 
 ```sh
 cd apps/api
-./gradlew devBootRun
+set -a
+. ./.env
+set +a
+export JAVA_HOME="/path/to/jdk-25/Contents/Home"
+export PATH="$JAVA_HOME/bin:$PATH"
+./gradlew -Dorg.gradle.java.installations.paths="$JAVA_HOME" devBootRun
 ```
 
 In another terminal, install frontend dependencies and start Vite:
