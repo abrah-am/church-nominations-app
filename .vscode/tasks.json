@@ -16,6 +16,113 @@
 			"isBackground": true,
 			"problemMatcher": [],
 			"group": "build"
+		},
+		{
+			"label": "Check API tests for voting rounds",
+			"type": "shell",
+			"command": "env",
+			"args": [
+				"JAVA_HOME=/Users/abraham/.jdk/jdk-25.0.2/jdk-25.0.2+10/Contents/Home",
+				"PATH=/Users/abraham/.jdk/jdk-25.0.2/jdk-25.0.2+10/Contents/Home/bin:$PATH",
+				"./apps/api/gradlew",
+				"-p",
+				"apps/api",
+				"test",
+				"--console=plain"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check API tests for voting rounds final",
+			"type": "shell",
+			"command": "env",
+			"args": [
+				"JAVA_HOME=/Users/abraham/.jdk/jdk-25.0.2/jdk-25.0.2+10/Contents/Home",
+				"PATH=/Users/abraham/.jdk/jdk-25.0.2/jdk-25.0.2+10/Contents/Home/bin:$PATH",
+				"./apps/api/gradlew",
+				"-p",
+				"apps/api",
+				"test",
+				"--console=plain"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Focused expected-count ballot integration test",
+			"type": "shell",
+			"command": "./apps/api/gradlew",
+			"args": [
+				"-p",
+				"apps/api",
+				"test",
+				"--tests",
+				"org.churchnominations.api.election.PostgresElectionIntegrationTest.privateBallotsEnforceLifecycleRosterIsolationAndCutoffRules",
+				"--console=plain"
+			],
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Focused expected-count ballot test with JDK 25",
+			"type": "shell",
+			"command": "env",
+			"args": [
+				"JAVA_HOME=/Users/abraham/.jdk/jdk-25.0.2/jdk-25.0.2+10/Contents/Home",
+				"PATH=/Users/abraham/.jdk/jdk-25.0.2/jdk-25.0.2+10/Contents/Home/bin:$PATH",
+				"./apps/api/gradlew",
+				"-p",
+				"apps/api",
+				"-Dorg.gradle.java.installations.paths=/Users/abraham/.jdk/jdk-25.0.2/jdk-25.0.2+10/Contents/Home",
+				"test",
+				"--tests",
+				"org.churchnominations.api.election.PostgresElectionIntegrationTest.privateBallotsEnforceLifecycleRosterIsolationAndCutoffRules",
+				"--console=plain"
+			],
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Re-run focused expected-count ballot test",
+			"type": "shell",
+			"command": "env",
+			"args": [
+				"JAVA_HOME=/Users/abraham/.jdk/jdk-25.0.2/jdk-25.0.2+10/Contents/Home",
+				"PATH=/Users/abraham/.jdk/jdk-25.0.2/jdk-25.0.2+10/Contents/Home/bin:$PATH",
+				"./apps/api/gradlew",
+				"-p",
+				"apps/api",
+				"-Dorg.gradle.java.installations.paths=/Users/abraham/.jdk/jdk-25.0.2/jdk-25.0.2+10/Contents/Home",
+				"test",
+				"--tests",
+				"org.churchnominations.api.election.PostgresElectionIntegrationTest.privateBallotsEnforceLifecycleRosterIsolationAndCutoffRules",
+				"--console=plain"
+			],
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Check backend diff",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"diff",
+				"--check"
+			],
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "List changed backend files",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"status",
+				"--short"
+			],
+			"problemMatcher": [],
+			"group": "test"
 		}
 	]
 }

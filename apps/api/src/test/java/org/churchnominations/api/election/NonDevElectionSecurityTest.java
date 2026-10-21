@@ -56,5 +56,17 @@ class NonDevElectionSecurityTest {
                                                 .contentType(MediaType.APPLICATION_JSON)
                                                 .content("{\"names\":[\"Nominee\"]}"))
                                 .andExpect(status().isForbidden());
+                        mockMvc.perform(get("/api/polls/{token}", token)
+                                                        .header("X-Voting-Device-Token", token))
+                                        .andExpect(status().isNotFound());
+                        mockMvc.perform(put("/api/polls/{token}/ballot", token)
+                                                        .header("X-Voting-Device-Token", token)
+                                                        .contentType(MediaType.APPLICATION_JSON)
+                                                        .content("{\"candidateIds\":[\"" + token + "\"]}"))
+                                        .andExpect(status().isNotFound());
+                        mockMvc.perform(post("/api/polls/{token}/ballot", token)
+                                                        .contentType(MediaType.APPLICATION_JSON)
+                                                        .content("{\"candidateIds\":[\"" + token + "\"]}"))
+                                        .andExpect(status().isForbidden());
         }
 }

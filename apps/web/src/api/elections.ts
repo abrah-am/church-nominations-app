@@ -76,3 +76,11 @@ export function createElection(credentials: string, configuration: ElectionConfi
 export function updateElection(credentials: string, id: string, configuration: ElectionConfiguration): Promise<Election> {
   return request<Election>(`/api/elections/${encodeURIComponent(id)}`, credentials, 'PUT', configuration);
 }
+
+export function deleteElectionPosition(credentials: string, electionId: string, positionId: string): Promise<void> {
+  return request<void>(
+    `/api/elections/${encodeURIComponent(electionId)}/positions/${encodeURIComponent(positionId)}`,
+    credentials,
+    'DELETE',
+  );
+}

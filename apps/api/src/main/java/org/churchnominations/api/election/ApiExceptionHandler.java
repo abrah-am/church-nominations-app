@@ -1,5 +1,8 @@
 package org.churchnominations.api.election;
 
+import org.churchnominations.api.election.voting.InvalidVotingRoundRequestException;
+import org.churchnominations.api.election.voting.VotingRoundConflictException;
+import org.churchnominations.api.election.voting.VotingRoundNotFoundException;
 import org.churchnominations.api.church.ChurchAlreadyExistsException;
 import org.churchnominations.api.board.BoardAlreadyExistsException;
 import org.churchnominations.api.board.BoardNotFoundException;
@@ -22,6 +25,24 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    @ExceptionHandler(VotingRoundNotFoundException.class)
+    ResponseEntity<Map<String, String>> votingRoundNotFound() {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("error", "not_found", "message", "Voting round not found"));
+    }
+
+    @ExceptionHandler(VotingRoundConflictException.class)
+    ResponseEntity<Map<String, String>> votingRoundConflict() {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "voting_round_state_conflict", "message", "Voting round cannot be configured in the current state"));
+    }
+
+    @ExceptionHandler(InvalidVotingRoundRequestException.class)
+    ResponseEntity<Map<String, String>> invalidVotingRoundRequest() {
+        return ResponseEntity.badRequest()
+                .body(Map.of("error", "validation_failed", "message", "Request body is invalid"));
+    }
+
     @ExceptionHandler(NominationIntakeNotFoundException.class)
     ResponseEntity<Map<String, String>> nominationIntakeNotFound() {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)

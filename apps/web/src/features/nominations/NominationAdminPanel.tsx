@@ -1,0 +1,1024 @@
+import { FormEvent, useEffect, useState } from 'react';
+import {
+	NominationIntake,
+	NominationsApiError,
+	closeNominationIntake,
+	createNominationIntake,
+	getNominationIntake,
+	saveNominationConsolidation,
+	streamNominationIntake,
+} from '../../api/nominations';
+import {
+	CandidateDecision,
+	RoundsApiError,
+	VotingRound,
+	VotingRoundProgress,
+	VotingRoundResult,
+	createVotingRound,
+	getVotingRoundProgress,
+	getVotingRoundResults,
+	listVotingRounds,
+	revealVotingRound,
+	saveCandidateDecision,
+	undoCandidateDecision,
+	updateVotingRound,
+} from '../../api/rounds';
+import {
+	closeVotingRound,
+	reopenVotingRound,
+	resetVotingRound,
+	startVotingRound,
+} from '../../api/voting';
+import { getCandidateRecommendation } from '../elections/candidateRecommendations';
+
+export type NominationAdminPanelProps = {
+	credentials: string;
+	electionId: string;
+	positionId: string;
+	positionName: string;
+	openingCount: number;
+};
+
+function normalizeNominationIntake(intake: NominationIntake): NominationIntake {
+	return {
+		...intake,
+		submissions: Array.isArray(intake.submissions)
+			? intake.submissions.filter((submission) => submission && typeof submission.id === 'string' && typeof submission.name === 'string')
+			: [],
+	};
+}
+
+export default function NominationAdminPanel({ credentials, electionId, positionId, positionName, openingCount }: NominationAdminPanelProps) {
+	const [isExpanded, setIsExpanded] = useState(false);
+	const [intakeDetailsOpen, setIntakeDetailsOpen] = useState(true);
+	const [consolidationDetailsOpen, setConsolidationDetailsOpen] = useState(false);
+	const [intake, setIntake] = useState<NominationIntake | null>(null);
+	const [nameLimit, setNameLimit] = useState('5');
+	const [candidateDraft, setCandidateDraft] = useState('');
+	const [confirmed, setConfirmed] = useState(false);
+	const [isLoading, setIsLoading] = useState(false);
+	const [error, setError] = useState('');
+	const [consolidationError, setConsolidationError] = useState('');
+	const [streamStatus, setStreamStatus] = useState('');
+	const [copied, setCopied] = useState(false);
+	const [rounds, setRounds] = useState<VotingRound[]>([]);
+	const [draftRoundId, setDraftRoundId] = useState<string | null>(null);
+	const [selectionCount, setSelectionCount] = useState('');
+	const [roundsLoading, setRoundsLoading] = useState(false);
+	const [roundsReady, setRoundsReady] = useState(false);
+	const [roundsSaving, setRoundsSaving] = useState(false);
+	const [roundsError, setRoundsError] = useState('');
+	const [roundsSuccess, setRoundsSuccess] = useState('');
+	const [roundsLoadAttempt, setRoundsLoadAttempt] = useState(0);
+	const [startRoundId, setStartRoundId] = useState<string | null>(null);
+	const [expectedVoterCount, setExpectedVoterCount] = useState('1');
+	const [reopenRoundId, setReopenRoundId] = useState<string | null>(null);
+	const [resetRoundId, setResetRoundId] = useState<string | null>(null);
+	const [revealRoundId, setRevealRoundId] = useState<string | null>(null);
+	const [roundResults, setRoundResults] = useState<Record<string, VotingRoundResult>>({});
+	const [roundProgress, setRoundProgress] = useState<Record<string, VotingRoundProgress>>({});
+	const [unrevealedRoundIds, setUnrevealedRoundIds] = useState<string[]>([]);
+	const [decisionDrafts, setDecisionDrafts] = useState<Record<string, { decision: CandidateDecision; reason: string }>>({});
+	const [savingDecisionCandidateId, setSavingDecisionCandidateId] = useState<string | null>(null);
+	const [electedCandidateId, setElectedCandidateId] = useState<string | null>(null);
+	const [roundLifecycleBusy, setRoundLifecycleBusy] = useState(false);
+	const [copiedRoundId, setCopiedRoundId] = useState<string | null>(null);
+	const confirmedNames = intake?.status === 'CLOSED' && Array.isArray(intake.consolidatedNames)
+		? intake.consolidatedNames
+		: [];
+	const hasSavedSnapshot = confirmedNames.length > 0;
+	const snapshotKey = JSON.stringify(confirmedNames);
+	const activeRound = rounds.find((round) => round.status === 'ACTIVE');
+	const hasActiveRound = Boolean(activeRound);
+	const activeRoundIdsKey = rounds.filter((round) => round.status === 'ACTIVE').map((round) => round.id).join(',');
+	const draftRound = rounds.find((round) => round.id === draftRoundId);
+	const latestRound = [...rounds].sort((first, second) => first.roundNumber - second.roundNumber)[rounds.length - 1];
+	const latestClosedRound = [...rounds]
+		.filter((round) => round.status === 'CLOSED')
+		.sort((first, second) => second.roundNumber - first.roundNumber)[0];
+	const candidateOptions = latestClosedRound
+		? (roundResults[latestClosedRound.id]?.candidates ?? [])
+			.filter((candidate) => candidate.decision === 'ADVANCED')
+			.map((candidate) => candidate.name)
+		: draftRound
+			? draftRound.candidates.map((candidate) => candidate.name)
+			: confirmedNames;
+
+	useEffect(() => {
+		if (!hasSavedSnapshot) {
+			setRounds([]);
+			setDraftRoundId(null);
+			setSelectionCount('');
+			setRoundResults({});
+			setUnrevealedRoundIds([]);
+			setRoundsError('');
+			setRoundsReady(false);
+			setRoundsLoading(false);
+			return;
+		}
+
+		let isCurrent = true;
+		setRoundsLoading(true);
+		setRoundsReady(false);
+		setRoundsError('');
+		setRoundsSuccess('');
+		setRoundResults({});
+		setUnrevealedRoundIds([]);
+		listVotingRounds(credentials, electionId, positionId).then((loaded) => {
+			if (!isCurrent) return;
+			setRounds(loaded);
+			const draft = loaded
+				.filter((round) => round.status === 'DRAFT')
+				.sort((first, second) => second.roundNumber - first.roundNumber)[0];
+			setDraftRoundId(draft?.id ?? null);
+			setSelectionCount(draft ? String(draft.selectionCount) : '');
+			const closedRounds = loaded.filter((round) => round.status === 'CLOSED');
+			return Promise.all(closedRounds.map(async (round) => {
+				try {
+					const result = await getVotingRoundResults(credentials, electionId, positionId, round.id);
+					return { roundId: round.id, result };
+				} catch (requestError) {
+					if (requestError instanceof RoundsApiError && requestError.status === 404) return { roundId: round.id, result: null };
+					throw requestError;
+				}
+			})).then((loadedResults) => {
+				if (!isCurrent) return;
+				setRoundResults(Object.fromEntries(loadedResults.filter((entry) => entry.result !== null).map((entry) => [entry.roundId, entry.result as VotingRoundResult])));
+				setUnrevealedRoundIds(loadedResults.filter((entry) => entry.result === null).map((entry) => entry.roundId));
+				setRoundsReady(true);
+			});
+		}).catch((requestError: unknown) => {
+			if (!isCurrent) return;
+			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not load voting round configuration.');
+		}).finally(() => {
+			if (isCurrent) setRoundsLoading(false);
+		});
+
+		return () => { isCurrent = false; };
+	}, [credentials, electionId, positionId, hasSavedSnapshot, snapshotKey, roundsLoadAttempt]);
+
+	useEffect(() => {
+		const activeRoundIds = activeRoundIdsKey ? activeRoundIdsKey.split(',') : [];
+		let isCurrent = true;
+		const inFlight = new Set<string>();
+
+		setRoundProgress((current) => Object.fromEntries(Object.entries(current).filter(([roundId]) => activeRoundIds.includes(roundId))));
+		if (activeRoundIds.length === 0) return () => { isCurrent = false; };
+
+		const pollProgress = async () => {
+			await Promise.all(activeRoundIds.map(async (roundId) => {
+				if (inFlight.has(roundId)) return;
+				inFlight.add(roundId);
+				try {
+					const progress = await getVotingRoundProgress(credentials, electionId, positionId, roundId);
+					if (!isCurrent) return;
+					setRoundProgress((current) => ({ ...current, [roundId]: progress }));
+					if (progress.status === 'CLOSED') {
+						try {
+							const result = await getVotingRoundResults(credentials, electionId, positionId, roundId);
+							if (!isCurrent) return;
+							setRoundResults((current) => ({ ...current, [roundId]: result }));
+							setUnrevealedRoundIds((current) => current.filter((id) => id !== roundId));
+						} catch (requestError) {
+							if (!isCurrent) return;
+							if (requestError instanceof RoundsApiError && requestError.status === 404) {
+								setRoundResults((current) => {
+									const next = { ...current };
+									delete next[roundId];
+									return next;
+								});
+								setUnrevealedRoundIds((current) => current.includes(roundId) ? current : [...current, roundId]);
+							} else {
+								setRoundsError(requestError instanceof Error ? requestError.message : 'Could not refresh voting round results.');
+							}
+						}
+						if (!isCurrent) return;
+					}
+					if (progress.status !== 'ACTIVE') {
+						setRounds((current) => current.map((round) => round.id === roundId ? { ...round, status: progress.status } : round));
+					}
+				} catch {
+					// Keep the latest known count if a polling request fails.
+				} finally {
+					inFlight.delete(roundId);
+				}
+			}));
+		};
+
+		void pollProgress();
+		const intervalId = window.setInterval(() => { void pollProgress(); }, 5000);
+		return () => {
+			isCurrent = false;
+			window.clearInterval(intervalId);
+		};
+	}, [credentials, electionId, positionId, activeRoundIdsKey]);
+
+	async function loadIntake() {
+		setIsExpanded(true);
+		setIsLoading(true);
+		setError('');
+		try {
+			const normalized = normalizeNominationIntake(await getNominationIntake(credentials, electionId, positionId));
+			setIntake(normalized);
+			setIntakeDetailsOpen(normalized.status === 'OPEN');
+			setConsolidationDetailsOpen(normalized.status === 'CLOSED' && !normalized.consolidatedNames);
+			setCandidateDraft((normalized.consolidatedNames ?? alphabeticalNames(normalized.submissions.map((submission) => submission.name))).join('\n'));
+		} catch (requestError) {
+			if (requestError instanceof NominationsApiError && requestError.status === 404) {
+				setIntake(null);
+			} else {
+				setError(requestError instanceof Error ? requestError.message : 'Could not load nomination intake.');
+			}
+		} finally {
+			setIsLoading(false);
+		}
+	}
+
+	useEffect(() => {
+		if (!isExpanded || !intakeDetailsOpen || intake?.status !== 'OPEN') {
+			setStreamStatus('');
+			return;
+		}
+
+		const controller = new AbortController();
+		let intakeClosed = false;
+		let pollInterval: number | undefined;
+		let pollInFlight = false;
+
+		const applySnapshot = (snapshot: NominationIntake) => {
+			const normalized = normalizeNominationIntake(snapshot);
+			intakeClosed = normalized.status === 'CLOSED';
+			setIntake(normalized);
+			if (normalized.status === 'CLOSED') {
+				setIntakeDetailsOpen(false);
+				setConsolidationDetailsOpen(!normalized.consolidatedNames);
+				setCandidateDraft((normalized.consolidatedNames ?? alphabeticalNames(normalized.submissions.map((submission) => submission.name))).join('\n'));
+			}
+			setStreamStatus('');
+		};
+
+		const pollSnapshot = async () => {
+			if (controller.signal.aborted || pollInFlight) return;
+			pollInFlight = true;
+			try {
+				applySnapshot(await getNominationIntake(credentials, electionId, positionId));
+			} catch {
+				// Keep the latest stream snapshot if the fallback request also fails.
+			} finally {
+				pollInFlight = false;
+			}
+		};
+
+		const startPolling = () => {
+			if (controller.signal.aborted || pollInterval !== undefined || intakeClosed) return;
+			setStreamStatus('Live updates unavailable. Refreshing submissions periodically.');
+			void pollSnapshot();
+			pollInterval = window.setInterval(() => { void pollSnapshot(); }, 5000);
+		};
+
+		void streamNominationIntake(credentials, electionId, positionId, controller.signal, applySnapshot)
+			.then(async () => {
+				if (controller.signal.aborted || intakeClosed) return;
+				try {
+					applySnapshot(await getNominationIntake(credentials, electionId, positionId));
+				} catch {
+					// Fall back to snapshots when the stream ends without a closing event.
+				}
+				if (!intakeClosed) startPolling();
+			})
+			.catch(() => {
+				if (!controller.signal.aborted) startPolling();
+			});
+
+		return () => {
+			controller.abort();
+			if (pollInterval !== undefined) window.clearInterval(pollInterval);
+		};
+	}, [credentials, electionId, positionId, isExpanded, intakeDetailsOpen, intake?.status]);
+
+	async function createIntake(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		setIsLoading(true);
+		setError('');
+		try {
+			const created = normalizeNominationIntake(await createNominationIntake(credentials, electionId, positionId, Number(nameLimit)));
+			setIntake(created);
+			setIntakeDetailsOpen(true);
+			setConsolidationDetailsOpen(false);
+		} catch (requestError) {
+			setError(requestError instanceof Error ? requestError.message : 'Could not create nomination intake.');
+		} finally {
+			setIsLoading(false);
+		}
+	}
+
+	async function closeIntake() {
+		setIsLoading(true);
+		setError('');
+		try {
+			const closed = normalizeNominationIntake(await closeNominationIntake(credentials, electionId, positionId));
+			setIntake(closed);
+			setIntakeDetailsOpen(false);
+			setConsolidationDetailsOpen(!closed.consolidatedNames);
+			setCandidateDraft((closed.consolidatedNames ?? alphabeticalNames(closed.submissions.map((submission) => submission.name))).join('\n'));
+			setConfirmed(false);
+		} catch (requestError) {
+			setError(requestError instanceof Error ? requestError.message : 'Could not close nomination intake.');
+		} finally {
+			setIsLoading(false);
+		}
+	}
+
+	async function saveConsolidation(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		if (!intake || intake.status !== 'CLOSED' || !confirmed) return;
+		setConsolidationError('');
+		const candidateNames = uniqueNames(candidateDraft.split('\n'));
+		if (candidateNames.length === 0) {
+			setConsolidationError('Add at least one candidate name before saving the snapshot.');
+			return;
+		}
+		setIsLoading(true);
+		setError('');
+		try {
+			const saved = await saveNominationConsolidation(credentials, electionId, positionId, candidateNames);
+			setIntake((current) => current ? { ...current, consolidatedNames: saved.candidateNames } : current);
+			setCandidateDraft(saved.candidateNames.join('\n'));
+			setConfirmed(false);
+			setIntakeDetailsOpen(false);
+			setConsolidationDetailsOpen(false);
+		} catch (requestError) {
+			const details = requestError instanceof Error ? requestError.message : 'Please try again.';
+			setConsolidationError(`Could not save the candidate list. Your edits are still here; review them and retry. ${details}`);
+		} finally {
+			setIsLoading(false);
+		}
+	}
+
+	function editConsolidatedCandidates() {
+		if (!intake?.consolidatedNames || rounds.length > 0 || draftRoundId) return;
+		setCandidateDraft(intake.consolidatedNames.join('\n'));
+		setConfirmed(false);
+		setIntake((current) => current ? { ...current, consolidatedNames: null } : current);
+		setConsolidationDetailsOpen(true);
+	}
+
+	async function saveRoundConfiguration(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		if (!hasSavedSnapshot) return;
+		const candidateNames = candidateOptions;
+		const requestedSelectionCount = Number(selectionCount);
+		if (!Number.isInteger(requestedSelectionCount) || requestedSelectionCount < 1 || requestedSelectionCount > candidateNames.length) {
+			setRoundsError('Enter a selection count from 1 through the number of candidates in this round.');
+			setRoundsSuccess('');
+			return;
+		}
+		if (candidateNames.length === 0) {
+			setRoundsError('No candidates are available for this round.');
+			setRoundsSuccess('');
+			return;
+		}
+
+		setRoundsSaving(true);
+		setRoundsError('');
+		setRoundsSuccess('');
+		try {
+			const configuration = { candidateNames, selectionCount: requestedSelectionCount };
+			const saved = draftRoundId
+				? await updateVotingRound(credentials, electionId, positionId, draftRoundId, configuration)
+				: await createVotingRound(credentials, electionId, positionId, configuration);
+			setRounds((current) => [...current.filter((round) => round.id !== saved.id), saved]
+				.sort((first, second) => first.roundNumber - second.roundNumber));
+			setDraftRoundId(saved.id);
+			setSelectionCount(String(saved.selectionCount));
+			setRoundsSuccess('Draft round configuration saved.');
+		} catch (requestError) {
+			setRoundsError(requestError instanceof RoundsApiError || requestError instanceof Error
+				? requestError.message
+				: 'Could not save the draft round configuration.');
+		} finally {
+			setRoundsSaving(false);
+		}
+	}
+
+	function openStartDialog(round: VotingRound) {
+		if (round.selectionCount === null) return;
+		const mostRecentCount = [...rounds]
+			.filter((item) => Number.isInteger(item.expectedVoterCount) && Number(item.expectedVoterCount) > 0)
+			.sort((first, second) => second.roundNumber - first.roundNumber)[0]?.expectedVoterCount;
+		setExpectedVoterCount((round.resetCount ?? 0) > 0 ? '' : String(mostRecentCount ?? 1));
+		setStartRoundId(round.id);
+		setRoundsError('');
+	}
+
+	async function startRound(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		if (!credentials || !intake || !startRoundId) return;
+		const count = Number(expectedVoterCount);
+		if (!Number.isInteger(count) || count < 1) {
+			setRoundsError('Enter an expected voter count of at least 1.');
+			return;
+		}
+		setRoundLifecycleBusy(true);
+		setRoundsError('');
+		try {
+			const active = await startVotingRound(credentials, electionId, positionId, startRoundId, count);
+			setRounds((current) => current.map((round) => round.id === active.id ? active : round));
+			setDraftRoundId(null);
+			setStartRoundId(null);
+			setRoundsSuccess('Voting is active. Share the private ballot link with voters.');
+		} catch (requestError) {
+			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not start voting.');
+		} finally {
+			setRoundLifecycleBusy(false);
+		}
+	}
+
+	async function closeRound(round: VotingRound) {
+		if (!credentials) return;
+		setRoundLifecycleBusy(true);
+		setRoundsError('');
+		setRoundsSuccess('');
+		try {
+			const closed = await closeVotingRound(credentials, electionId, positionId, round.id);
+			setRounds((current) => current.map((item) => item.id === closed.id ? closed : item));
+			setRoundResults((current) => {
+				const next = { ...current };
+				delete next[closed.id];
+				return next;
+			});
+			setUnrevealedRoundIds((current) => current.includes(closed.id) ? current : [...current, closed.id]);
+			setRoundsSuccess(`Round ${closed.roundNumber} is closed.`);
+		} catch (requestError) {
+			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not close voting.');
+		} finally {
+			setRoundLifecycleBusy(false);
+		}
+	}
+
+	async function confirmRevealRound() {
+		if (!credentials || !revealRoundId) return;
+		const round = rounds.find((item) => item.id === revealRoundId);
+		if (!round || round.status !== 'CLOSED') return;
+		setRoundLifecycleBusy(true);
+		setRoundsError('');
+		setRoundsSuccess('');
+		try {
+			const result = await revealVotingRound(credentials, electionId, positionId, round.id);
+			setRoundResults((current) => ({ ...current, [round.id]: result }));
+			setUnrevealedRoundIds((current) => current.filter((id) => id !== round.id));
+			setRevealRoundId(null);
+			setRoundsSuccess(`Results for round ${round.roundNumber} are revealed to administrators.`);
+		} catch (requestError) {
+			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not reveal round results.');
+		} finally {
+			setRoundLifecycleBusy(false);
+		}
+	}
+
+	async function saveCandidateOutcome(roundId: string, candidateId: string, electedConfirmed = false) {
+		if (!credentials) return;
+		const draft = decisionDrafts[candidateId] ?? { decision: 'ADVANCED' as CandidateDecision, reason: '' };
+		const reason = draft.reason.trim();
+		if (draft.decision === 'ELECTED' && !electedConfirmed) {
+			setElectedCandidateId(candidateId);
+			return;
+		}
+		const result = roundResults[roundId];
+		if (!result) return;
+		setSavingDecisionCandidateId(candidateId);
+		setRoundsError('');
+		setRoundsSuccess('');
+		try {
+			const saved = await saveCandidateDecision(credentials, electionId, positionId, roundId, candidateId, {
+				decision: draft.decision,
+				...(reason ? { reason } : {}),
+			});
+			const updatedResult = 'roundId' in saved
+				? saved
+				: {
+					...result,
+					candidates: result.candidates.map((candidate) => candidate.id === saved.id ? { ...candidate, ...saved } : candidate),
+				};
+			setRoundResults((current) => ({ ...current, [roundId]: updatedResult }));
+			setElectedCandidateId(null);
+			setRoundsSuccess('Candidate decision saved.');
+		} catch (requestError) {
+			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not save the candidate decision.');
+		} finally {
+			setSavingDecisionCandidateId(null);
+		}
+	}
+
+	async function undoCandidateOutcome(roundId: string, candidateId: string) {
+		if (!credentials) return;
+		setSavingDecisionCandidateId(candidateId);
+		setRoundsError('');
+		setRoundsSuccess('');
+		try {
+			const updatedResult = await undoCandidateDecision(credentials, electionId, positionId, roundId, candidateId);
+			setRoundResults((current) => ({ ...current, [roundId]: updatedResult }));
+			const restoredCandidate = updatedResult.candidates.find((candidate) => candidate.id === candidateId);
+			if (restoredCandidate) {
+				setDecisionDrafts((current) => ({
+					...current,
+					[candidateId]: { decision: 'ADVANCED', reason: '' },
+				}));
+			}
+			setRoundsSuccess('Candidate decision undone. Mark the candidate Advanced to include them in the next round.');
+		} catch (requestError) {
+			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not undo the candidate decision.');
+		} finally {
+			setSavingDecisionCandidateId(null);
+		}
+	}
+
+	async function confirmReopenRound() {
+		if (!credentials || !reopenRoundId) return;
+		setRoundLifecycleBusy(true);
+		setRoundsError('');
+		setRoundsSuccess('');
+		try {
+			const reopened = await reopenVotingRound(credentials, electionId, positionId, reopenRoundId);
+			setRounds((current) => current.map((round) => round.id === reopened.id ? reopened : round));
+			setRoundResults((current) => {
+				const next = { ...current };
+				delete next[reopened.id];
+				return next;
+			});
+			setUnrevealedRoundIds((current) => current.filter((id) => id !== reopened.id));
+			setReopenRoundId(null);
+			setRoundsSuccess(`Round ${reopened.roundNumber} is active again.`);
+		} catch (requestError) {
+			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not reopen voting.');
+		} finally {
+			setRoundLifecycleBusy(false);
+		}
+	}
+
+	async function confirmResetRound() {
+		if (!credentials || !resetRoundId) return;
+		const round = rounds.find((item) => item.id === resetRoundId);
+		if (!round || round.status !== 'CLOSED' || rounds.some((item) => item.roundNumber > round.roundNumber)) return;
+		setRoundLifecycleBusy(true);
+		setRoundsError('');
+		setRoundsSuccess('');
+		try {
+			const reset = await resetVotingRound(credentials, electionId, positionId, round.id);
+			setRounds((current) => current.map((item) => item.id === reset.id ? reset : item));
+			setDraftRoundId(reset.id);
+			setSelectionCount('');
+			setExpectedVoterCount('');
+			setRoundProgress((current) => {
+				const next = { ...current };
+				delete next[reset.id];
+				return next;
+			});
+			setRoundResults((current) => {
+				const next = { ...current };
+				delete next[reset.id];
+				return next;
+			});
+			setUnrevealedRoundIds((current) => current.filter((id) => id !== reset.id));
+			setResetRoundId(null);
+			setRoundsSuccess(`Round ${reset.roundNumber} reset. Ballots and current decisions were permanently deleted; candidate roster preserved. Reset count: ${reset.resetCount ?? 0}.`);
+		} catch (requestError) {
+			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not reset the round.');
+		} finally {
+			setRoundLifecycleBusy(false);
+		}
+	}
+
+	async function copyVotingLink(round: VotingRound) {
+		if (!round.accessToken) return;
+		const shareUrl = `${window.location.origin}/vote/${encodeURIComponent(round.accessToken)}`;
+		try {
+			await navigator.clipboard.writeText(shareUrl);
+			setCopiedRoundId(round.id);
+		} catch {
+			setRoundsError('Could not copy the voting link. Select and copy the URL instead.');
+		}
+	}
+
+	async function copyShareUrl() {
+		if (!intake) return;
+		const shareUrl = `${window.location.origin}/nominate/${encodeURIComponent(intake.accessToken)}`;
+		try {
+			await navigator.clipboard.writeText(shareUrl);
+			setCopied(true);
+		} catch {
+			setError('Could not copy the link. Select and copy the share URL instead.');
+		}
+	}
+
+	return (
+		<section className="nomination-admin" aria-labelledby="nomination-admin-title">
+			<div className="section-heading">
+				<div><h2 id="nomination-admin-title">Nomination intake</h2><p>Collect anonymous name suggestions for {positionName}.</p></div>
+				{!isExpanded && <button className="secondary-button" type="button" onClick={loadIntake}>Manage nominations</button>}
+			</div>
+			{isExpanded && isLoading && <p className="state-message" role="status">Loading nomination intake…</p>}
+			{error && <p className="error-message" role="alert">{error}</p>}
+			{streamStatus && <p className="state-message" role="status">{streamStatus}</p>}
+			{isExpanded && !isLoading && !intake && (
+				<form className="intake-create" onSubmit={createIntake}>
+					<label htmlFor="nomination-name-limit">Maximum names per visitor</label>
+					<div className="intake-controls">
+						<input id="nomination-name-limit" type="number" min="1" step="1" value={nameLimit} onChange={(event) => setNameLimit(event.target.value)} required />
+						<button className="primary-button" type="submit" disabled={isLoading}>Create intake</button>
+					</div>
+				</form>
+			)}
+			{isExpanded && !isLoading && intake && (
+					<section className="workflow-details intake-details">
+						<button className="workflow-disclosure-trigger" type="button" aria-expanded={intakeDetailsOpen} onClick={() => setIntakeDetailsOpen((open) => !open)}>
+							<span>Nomination submissions</span><span>{intake.status === 'OPEN' ? 'Open' : 'Closed'} · {intake.submissions.length} submissions{intake.consolidatedNames ? ` · ${intake.consolidatedNames.length} candidates` : ''}</span>
+							<span className="workflow-disclosure-icon" aria-hidden="true">{intakeDetailsOpen ? '−' : '+'}</span>
+						</button>
+						{intakeDetailsOpen && <div className="intake-content">
+					<div className="detail-summary intake-summary">
+						<div><span className="summary-label">Intake status</span><span className={`row-status ${intake.status === 'CLOSED' ? 'closed-status' : ''}`}>{intake.status === 'OPEN' ? 'Open' : 'Closed'}</span></div>
+						<div><span className="summary-label">Name limit</span><strong>{intake.nameLimit}</strong></div>
+						<div aria-live="polite" aria-atomic="true"><span className="summary-label">Suggestions</span><strong>{intake.submissions.length}</strong></div>
+					</div>
+					{intake.status === 'OPEN' ? (
+						<>
+							<label className="share-label" htmlFor="nomination-share-url">Share link</label>
+							<div className="intake-controls share-controls">
+								<input id="nomination-share-url" value={`${window.location.origin}/nominate/${encodeURIComponent(intake.accessToken)}`} readOnly onFocus={(event) => event.currentTarget.select()} />
+								<button className="secondary-button" type="button" onClick={copyShareUrl}>{copied ? 'Copied' : 'Copy link'}</button>
+							</div>
+							<p className="form-note">Anyone with this link can submit or update names until you close nominations.</p>
+							<div className="section-heading nomination-submissions-heading"><div><h3>Submitted names</h3><p>Names only. No visitor or device identity is shown.</p></div></div>
+							{intake.submissions.length === 0 ? <p className="state-message">No names have been submitted yet.</p> : (
+								<ul className="member-list" aria-label="Anonymous submitted names">
+									{intake.submissions.map((submission) => <li key={submission.id}>{submission.name}</li>)}
+								</ul>
+							)}
+							<div className="form-actions"><button className="secondary-button" type="button" disabled={isLoading} onClick={closeIntake}>Close nominations</button></div>
+							<p className="form-note">Closing disables the public link. Submitted names remain available for review.</p>
+						</>
+					) : (
+						<>
+							<div className="section-heading nomination-submissions-heading"><div><h3>Submitted names</h3><p>Anonymous submissions remain available for review.</p></div></div>
+							{intake.submissions.length === 0 ? <p className="state-message">No submissions to review.</p> : (
+								<ul className="member-list" aria-label="Anonymous submitted names">
+									{intake.submissions.map((submission) => <li key={submission.id}>{submission.name}</li>)}
+								</ul>
+							)}
+						</>
+					)}
+					</div>}
+				</section>
+			)}
+			{isExpanded && !isLoading && intake?.status === 'CLOSED' && (
+				<p className="state-message intake-closure-status" role="status" aria-live="polite" aria-atomic="true">
+					{intake.submissions.length === 0
+						? 'Nominations are closed and no names were submitted. You can enter candidates manually in the list below to continue.'
+						: intake.consolidatedNames
+							? 'Nominations are closed. The public link is disabled, submissions are read-only, and the candidate list is saved.'
+							: 'Nominations are closed. The public link is disabled and submissions are read-only. Review them, then refine and save the candidate list below.'}
+				</p>
+			)}
+			{isExpanded && !isLoading && intake?.status === 'CLOSED' && !intake.consolidatedNames && (
+				<section className="workflow-details consolidation-details">
+					<button className="workflow-disclosure-trigger" type="button" aria-expanded={consolidationDetailsOpen} onClick={() => setConsolidationDetailsOpen((open) => !open)}>
+						<span>Review and consolidate candidates</span><span>{uniqueNames(candidateDraft.split('\n')).length} unique names</span>
+						<span className="workflow-disclosure-icon" aria-hidden="true">{consolidationDetailsOpen ? '−' : '+'}</span>
+					</button>
+					{consolidationDetailsOpen && (
+					<form className="consolidation-form" onSubmit={saveConsolidation}>
+						<label htmlFor="consolidated-candidates">Unique candidate list</label>
+						<p className="form-note">Names are listed alphabetically. Edit the final list, one per line; duplicate entries are removed when saved.</p>
+						{consolidationError && <p className="error-message" role="alert">{consolidationError}</p>}
+						<textarea id="consolidated-candidates" rows={Math.max(4, Math.min(10, candidateDraft.split('\n').length))} value={candidateDraft} onChange={(event) => { setCandidateDraft(event.target.value); setConfirmed(false); setConsolidationError(''); }} />
+						<label className="confirmation-label"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} /> <span>I confirm this is the final candidate list to save as the consolidation snapshot.</span></label>
+						<div className="form-actions"><button className="primary-button" type="submit" disabled={isLoading || !confirmed}>{isLoading ? 'Saving…' : 'Save consolidation snapshot'}</button></div>
+					</form>
+					)}
+				</section>
+			)}
+			{isExpanded && !isLoading && intake?.status === 'CLOSED' && intake.consolidatedNames && (
+				<section className="workflow-details consolidation-details">
+					<button className="workflow-disclosure-trigger" type="button" aria-expanded={consolidationDetailsOpen} onClick={() => setConsolidationDetailsOpen((open) => !open)}>
+						<span>Candidate consolidation</span><span>{intake.consolidatedNames.length} candidates · Saved</span>
+						<span className="workflow-disclosure-icon" aria-hidden="true">{consolidationDetailsOpen ? '−' : '+'}</span>
+					</button>
+					{consolidationDetailsOpen && (
+					<div className="consolidation-complete">
+						<ul className="member-list" aria-label="Confirmed candidate list">
+							{intake.consolidatedNames.map((name) => <li key={name}>{name}</li>)}
+						</ul>
+						<p className="state-message" role="status">Consolidation snapshot saved with {intake.consolidatedNames.length} {intake.consolidatedNames.length === 1 ? 'candidate' : 'candidates'}.</p>
+					</div>
+					)}
+				</section>
+			)}
+			{isExpanded && hasSavedSnapshot && (
+				<details className="workflow-details voting-round-configuration" open>
+					<summary>Voting round configuration <span>{rounds.length} {rounds.length === 1 ? 'round' : 'rounds'} · {hasActiveRound ? 'Voting active' : draftRoundId ? 'Draft ready' : 'Setup'}</span></summary>
+					<section aria-labelledby="voting-round-title">
+							<div className="section-heading">
+						<div><h3 id="voting-round-title">Voting round configuration</h3><p>{latestRound ? 'Candidates marked Advanced in the preceding round continue automatically.' : 'The consolidated list is the complete candidate roster for this poll.'}</p></div>
+					</div>
+					{roundsLoading && <p className="state-message" role="status">Loading draft round configuration…</p>}
+					{roundsError && <p className="error-message" role="alert">{roundsError}</p>}
+					{roundsError && !roundsLoading && !roundsReady && <button className="secondary-button" type="button" onClick={() => setRoundsLoadAttempt((attempt) => attempt + 1)}>Retry loading rounds</button>}
+					{!roundsLoading && roundsReady && (
+						<>
+							{activeRound && (
+								<button
+									className="secondary-button active-round-jump"
+									type="button"
+									onClick={() => {
+										const activeRoundElement = document.getElementById(`round-${activeRound.id}`);
+										if (activeRoundElement instanceof HTMLDetailsElement) {
+											activeRoundElement.open = true;
+											activeRoundElement.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+										}
+									}}
+								>
+									Go to active round {activeRound.roundNumber}
+								</button>
+							)}
+							{rounds.length > 0 && (
+								<ul className="voting-round-list" aria-label="Voting rounds">
+									{rounds.map((round) => (
+										<li className="voting-round-item" key={round.id}>
+											<details id={`round-${round.id}`} className={`workflow-details round-details${round.status === 'ACTIVE' ? ' round-details-active' : ''}`} name="voting-rounds">
+												<summary><span>Round {round.roundNumber}</span><span>{round.status === 'DRAFT' ? 'Draft' : round.status === 'ACTIVE' ? 'Voting active now' : 'Closed'} · {round.candidates.length} candidates</span></summary>
+												<div className="round-detail-content">
+											<div className="voting-round-heading">
+												<h4>Round {round.roundNumber}</h4>
+												<span className={`row-status ${round.status === 'CLOSED' ? 'closed-status' : ''}`}>{round.status === 'DRAFT' ? 'Draft' : round.status === 'ACTIVE' ? 'Active' : 'Closed'}</span>
+											</div>
+													{round.status === 'DRAFT' ? (
+														<button className="primary-button" type="button" disabled={roundLifecycleBusy || round.selectionCount === null} onClick={() => openStartDialog(round)}>Start voting</button>
+											) : round.accessToken && (
+												<>
+													<label className="share-label" htmlFor={`voting-share-${round.id}`}>Public voting link</label>
+													<div className="intake-controls share-controls">
+														<input id={`voting-share-${round.id}`} value={`${window.location.origin}/vote/${encodeURIComponent(round.accessToken)}`} readOnly onFocus={(event) => event.currentTarget.select()} />
+														<button className="secondary-button" type="button" onClick={() => copyVotingLink(round)}>{copiedRoundId === round.id ? 'Copied' : 'Copy link'}</button>
+													</div>
+												</>
+											)}
+											{round.status === 'ACTIVE' && <button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => closeRound(round)}>Close voting</button>}
+											{round.status === 'ACTIVE' && roundProgress[round.id]?.status === 'ACTIVE' && (
+												<div className="round-progress" role="status">
+													<strong>Ballots submitted: {roundProgress[round.id].ballotsCast} of {roundProgress[round.id].expectedVoterCount} expected</strong>
+													<span>Ballots are counted per browser profile/link, not as verified people.</span>
+												</div>
+											)}
+											{round.status === 'CLOSED' && unrevealedRoundIds.includes(round.id) && <button className="primary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setRevealRoundId(round.id)}>Reveal results</button>}
+																			{round.status === 'CLOSED' && <button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setReopenRoundId(round.id)}>Reopen voting</button>}
+																			{round.status === 'CLOSED' && !rounds.some((item) => item.roundNumber > round.roundNumber) && <button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setResetRoundId(round.id)}>Reset round</button>}
+																			{(round.resetCount ?? 0) > 0 && <p className="form-note">Reset count: {round.resetCount}</p>}
+											{round.status === 'CLOSED' && roundResults[round.id] && (() => {
+												const result = roundResults[round.id];
+												return (
+													<details className="workflow-details result-details" open>
+														<summary>Revealed results <span>{result.ballotsCast} / {result.expectedVoterCount} ballots</span></summary>
+													<section className="round-results" aria-labelledby={`round-results-title-${round.id}`}>
+														<div className="section-heading"><div><h4 id={`round-results-title-${round.id}`}>Revealed results</h4><p>Aggregate totals only. Ballot choices are not shown.</p></div></div>
+														<dl className="round-result-summary">
+															<div><dt>Ballots cast</dt><dd>{result.ballotsCast} / {result.expectedVoterCount}</dd></div>
+															<div><dt>Majority threshold</dt><dd>{result.majorityThreshold}</dd></div>
+														</dl>
+														<ul className="round-result-candidates" aria-label={`Aggregate candidate votes for round ${round.roundNumber}`}>
+															{[...result.candidates]
+																.sort((first, second) => second.votes - first.votes || first.name.localeCompare(second.name))
+																.map((candidate) => {
+																const draft = decisionDrafts[candidate.id];
+																const isEliminated = candidate.decision === 'ELIMINATED';
+																const isElected = candidate.decision === 'ELECTED';
+																const electedCount = rounds
+																	.filter((priorRound) => priorRound.roundNumber < round.roundNumber)
+																	.flatMap((priorRound) => roundResults[priorRound.id]?.candidates ?? [])
+																	.filter((roundCandidate) => roundCandidate.decision === 'ELECTED').length;
+																const majorityCandidateCount = result.candidates
+																	.filter((roundCandidate) => roundCandidate.votes >= result.majorityThreshold).length;
+																const recommendation = getCandidateRecommendation(
+																	candidate.votes,
+																	result.majorityThreshold,
+																	openingCount,
+																	electedCount,
+																	majorityCandidateCount,
+																	round.roundNumber > 1 && round.selectionCount === 1,
+																	Math.min(...result.candidates.map((roundCandidate) => roundCandidate.votes)),
+																	round.selectionCount ?? 1,
+																);
+																return (
+																	<li className={isEliminated ? 'candidate-outcome candidate-eliminated' : isElected ? 'candidate-outcome candidate-elected' : candidate.decision === 'ADVANCED' ? 'candidate-outcome candidate-advanced' : 'candidate-outcome'} key={candidate.id}>
+																		<div className="round-result-candidate-heading">
+																			<strong>{candidate.name}</strong><span>{candidate.votes} {candidate.votes === 1 ? 'vote' : 'votes'}</span>
+																		</div>
+																		<p className="candidate-recommendation" role="note"><strong>Recommendation:</strong> {recommendation}</p>
+																		{candidate.decision && (
+																			<p className="candidate-decision-current">
+																				Current decision: <strong>{candidate.decision}</strong>{candidate.decisionReason ? `: ${candidate.decisionReason}` : ''}
+																				{candidate.decisionBy && <> <span>By {candidate.decisionBy}</span></>}
+																				{candidate.decisionAt && <> <time dateTime={candidate.decisionAt}>{new Date(candidate.decisionAt).toLocaleString()}</time></>}
+																			</p>
+																		)}
+																		{isEliminated ? (
+																			<button className="secondary-button" type="button" disabled={savingDecisionCandidateId === candidate.id} onClick={() => void undoCandidateOutcome(round.id, candidate.id)}>
+																				{savingDecisionCandidateId === candidate.id ? 'Undoing…' : 'Undo'}
+																			</button>
+																		) : !isElected && (
+																		<form className="candidate-decision-form" onSubmit={(event) => { event.preventDefault(); void saveCandidateOutcome(round.id, candidate.id); }}>
+																			<label htmlFor={`candidate-decision-${candidate.id}`}>Decision</label>
+																			<select
+																				id={`candidate-decision-${candidate.id}`}
+																				value={draft?.decision ?? candidate.decision ?? 'ADVANCED'}
+																				disabled={savingDecisionCandidateId === candidate.id}
+																				onChange={(event) => setDecisionDrafts((current) => ({
+																					...current,
+																					[candidate.id]: { decision: event.target.value as CandidateDecision, reason: current[candidate.id]?.reason ?? '' },
+																				}))}
+																			>
+																				<option value="ADVANCED">Advanced</option>
+																				<option value="ELIMINATED">Eliminated</option>
+																				<option value="ELECTED">Elected</option>
+																			</select>
+																			<label htmlFor={`candidate-reason-${candidate.id}`}>Reason (optional)</label>
+																			<input
+																				id={`candidate-reason-${candidate.id}`}
+																				value={draft?.reason ?? ''}
+																				placeholder="Add an optional reason"
+																				disabled={savingDecisionCandidateId === candidate.id}
+																				onChange={(event) => setDecisionDrafts((current) => ({
+																					...current,
+																					[candidate.id]: { decision: current[candidate.id]?.decision ?? candidate.decision ?? 'ADVANCED', reason: event.target.value },
+																				}))}
+																			/>
+																			<button className="secondary-button" type="submit" disabled={savingDecisionCandidateId === candidate.id}>
+																				{savingDecisionCandidateId === candidate.id ? 'Saving…' : 'Save decision'}
+																			</button>
+																		</form>
+																		)}
+																	</li>
+																);
+															})}
+														</ul>
+													</section>
+													</details>
+												);
+											})()}
+												</div>
+											</details>
+										</li>
+									))}
+								</ul>
+							)}
+							{draftRoundId && (() => {
+								const draft = rounds.find((round) => round.id === draftRoundId);
+								return draft ? (
+									<p className="state-message saved-round-summary" role="status">
+										Draft round {draft.roundNumber}: allows {draft.selectionCount} {draft.selectionCount === 1 ? 'selection' : 'selections'} from {draft.candidates.length} candidates.
+									</p>
+								) : null;
+							})()}
+							{hasActiveRound ? (
+								<p className="state-message" role="status">Next-round setup is available after the active round closes and results are reviewed.</p>
+							) : draftRoundId || rounds.length === 0 || candidateOptions.length > 0 ? (
+								<form className="round-configuration-form" onSubmit={saveRoundConfiguration}>
+									<div className="round-candidate-roster">
+										<span className="summary-label">{latestRound ? 'Candidates advancing to this round' : 'Candidates in this poll'}</span>
+										<ul aria-label={latestRound ? 'Candidates advancing to this round' : 'Candidates in this poll'}>
+											{candidateOptions.map((name) => <li key={name}>{name}</li>)}
+										</ul>
+										{!latestRound && rounds.length === 0 && !draftRoundId && (
+											<button className="secondary-button" type="button" onClick={editConsolidatedCandidates}>Edit candidate list</button>
+										)}
+									</div>
+									<label className="round-selection-count" htmlFor="round-selection-count">Number of selections allowed</label>
+									<input
+										id="round-selection-count"
+										type="number"
+										min="1"
+										max={candidateOptions.length}
+										step="1"
+										value={selectionCount}
+										onChange={(event) => setSelectionCount(event.target.value)}
+										required
+										disabled={roundsSaving}
+									/>
+									<div className="form-actions">
+										<button className="primary-button" type="submit" disabled={roundsSaving || roundsLoading}>
+											{roundsSaving ? 'Saving…' : draftRoundId ? 'Update draft round' : 'Create draft round'}
+										</button>
+									</div>
+								</form>
+							) : (
+								<p className="state-message" role="status">No candidates are ready for the next round. Reveal the preceding round and mark candidates Advanced to continue.</p>
+							)}
+							{roundsSuccess && <p className="state-message" role="status">{roundsSuccess}</p>}
+							{startRoundId && (() => {
+								const round = rounds.find((item) => item.id === startRoundId);
+								if (!round) return null;
+								const count = Number(expectedVoterCount);
+								const cutoffApplies = round.candidates.length === 2 && round.selectionCount === 1 && Number.isInteger(count) && count > 0 && count % 2 === 0;
+								return (
+									<div className="dialog-backdrop">
+										<section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="start-voting-title" aria-describedby="start-voting-description">
+											<h3 id="start-voting-title">Start voting for round {round.roundNumber}?</h3>
+											<p id="start-voting-description">Expected voter count: {Number.isInteger(Number(expectedVoterCount)) ? expectedVoterCount : 'not set'}. Confirm the count below; the round will become active immediately.</p>
+											<form onSubmit={startRound}>
+												<label htmlFor="expected-voter-count">Expected voter count</label>
+												<input id="expected-voter-count" type="number" min="1" step="1" value={expectedVoterCount} onChange={(event) => setExpectedVoterCount(event.target.value)} required autoFocus />
+												{cutoffApplies && <p className="cutoff-warning" role="note">With {count} expected voters, this two-candidate, one-selection round will automatically close after {count - 1} ballots.</p>}
+												<div className="form-actions dialog-actions">
+													<button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setStartRoundId(null)}>Cancel</button>
+													<button className="primary-button" type="submit" disabled={roundLifecycleBusy}>{roundLifecycleBusy ? 'Starting…' : 'Confirm and start'}</button>
+												</div>
+											</form>
+										</section>
+									</div>
+								);
+							})()}
+							{reopenRoundId && (
+								<div className="dialog-backdrop">
+									<section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="reopen-voting-title" aria-describedby="reopen-voting-description">
+										<h3 id="reopen-voting-title">Reopen voting for round {rounds.find((round) => round.id === reopenRoundId)?.roundNumber}?</h3>
+										<p id="reopen-voting-description">Reopening overrides this round’s automatic ballot-count limit. The administrator can close it again at any time.</p>
+										<div className="form-actions dialog-actions">
+											<button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setReopenRoundId(null)}>Cancel</button>
+											<button className="primary-button" type="button" disabled={roundLifecycleBusy} onClick={confirmReopenRound}>{roundLifecycleBusy ? 'Reopening…' : 'Confirm reopen'}</button>
+										</div>
+									</section>
+								</div>
+							)}
+							{resetRoundId && (() => {
+								const round = rounds.find((item) => item.id === resetRoundId);
+								if (!round || round.status !== 'CLOSED') return null;
+								return (
+									<div className="dialog-backdrop">
+										<section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-round-title" aria-describedby="reset-round-description">
+											<h3 id="reset-round-title">Reset this round?</h3>
+											<p id="reset-round-description">This permanently deletes ballots and current decisions. The candidate roster stays in place. Selection count and expected voter count are cleared; configure them again to start from zero.</p>
+											<div className="form-actions dialog-actions">
+												<button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setResetRoundId(null)}>Cancel</button>
+												<button className="primary-button" type="button" disabled={roundLifecycleBusy} onClick={confirmResetRound}>{roundLifecycleBusy ? 'Resetting…' : 'Reset round'}</button>
+											</div>
+										</section>
+									</div>
+								);
+							})()}
+							{revealRoundId && (() => {
+								const round = rounds.find((item) => item.id === revealRoundId);
+								if (!round || round.status !== 'CLOSED') return null;
+								return (
+									<div className="dialog-backdrop">
+										<section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="reveal-results-title" aria-describedby="reveal-results-description">
+											<h3 id="reveal-results-title">Reveal results for round {round.roundNumber}?</h3>
+											<p id="reveal-results-description">Aggregate results will become visible to administrators. Voter-linked data is never displayed.</p>
+											<div className="form-actions dialog-actions">
+												<button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setRevealRoundId(null)}>Cancel</button>
+												<button className="primary-button" type="button" disabled={roundLifecycleBusy} onClick={confirmRevealRound}>{roundLifecycleBusy ? 'Revealing…' : 'Confirm reveal'}</button>
+											</div>
+										</section>
+									</div>
+								);
+							})()}
+						</>
+					)}
+					</section>
+					{electedCandidateId && (() => {
+						const electedCandidate = Object.values(roundResults).flatMap((result) => result.candidates).find((candidate) => candidate.id === electedCandidateId);
+						if (!electedCandidate) return null;
+						return (
+							<div className="dialog-backdrop">
+								<section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="elected-confirmation-title">
+									<h3 id="elected-confirmation-title">Confirm elected outcome</h3>
+									<p>Are you sure you want to mark {electedCandidate.name} as elected?</p>
+									<div className="form-actions dialog-actions">
+										<button className="secondary-button" type="button" disabled={savingDecisionCandidateId === electedCandidateId} onClick={() => setElectedCandidateId(null)}>Cancel</button>
+										<button className="primary-button" type="button" disabled={savingDecisionCandidateId === electedCandidateId} onClick={() => {
+											const result = Object.values(roundResults).find((item) => item.candidates.some((candidate) => candidate.id === electedCandidateId));
+											if (result) void saveCandidateOutcome(result.roundId, electedCandidateId, true);
+										}}>{savingDecisionCandidateId === electedCandidateId ? 'Saving…' : 'Confirm elected'}</button>
+									</div>
+								</section>
+							</div>
+						);
+					})()}
+				</details>
+			)}
+		</section>
+	);
+}
+
+function uniqueNames(names: string[]): string[] {
+	const seen = new Set<string>();
+	return names.map((name) => name.trim()).filter((name) => {
+		const key = name.toLocaleLowerCase();
+		if (!name || seen.has(key)) return false;
+		seen.add(key);
+		return true;
+	});
+}
+
+function alphabeticalNames(names: string[]): string[] {
+	return uniqueNames(names).sort((first, second) => first.localeCompare(second, undefined, { sensitivity: 'base' }));
+}

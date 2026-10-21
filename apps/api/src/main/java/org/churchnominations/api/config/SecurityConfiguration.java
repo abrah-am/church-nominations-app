@@ -32,6 +32,8 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/nomination-intakes/**").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/api/nomination-intakes/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/polls/**").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/api/polls/**").permitAll()
                         .requestMatchers("/api/elections/**").hasRole("CHURCH_ADMIN")
                         .requestMatchers("/api/boards/**").hasRole("CHURCH_ADMIN")
                         .requestMatchers("/api/churches/**", "/api/auth/me").authenticated()
@@ -53,6 +55,8 @@ public class SecurityConfiguration {
                             .requestMatchers("/api/health").permitAll()
                             .requestMatchers(HttpMethod.GET, "/api/nomination-intakes/**").permitAll()
                             .requestMatchers(HttpMethod.PUT, "/api/nomination-intakes/**").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/api/polls/**").permitAll()
+                            .requestMatchers(HttpMethod.PUT, "/api/polls/**").permitAll()
                             .anyRequest().denyAll());
             return http.build();
         }

@@ -67,6 +67,85 @@ export function getNominationIntake(credentials: string, electionId: string, pos
   );
 }
 
+export async function streamNominationIntake(
+  credentials: string,
+  electionId: string,
+  positionId: string,
+  signal: AbortSignal,
+  onSnapshot: (snapshot: NominationIntake) => void,
+): Promise<void> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/elections/${encodeURIComponent(electionId)}/positions/${encodeURIComponent(positionId)}/nominations/stream`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'text/event-stream',
+        Authorization: authorizationHeader(credentials),
+      },
+      signal,
+    },
+  );
+
+  if (!response.ok) {
+    const message = response.status === 404
+      ? 'This nomination intake is unavailable.'
+      : response.status === 410
+        ? 'This nomination intake is closed.'
+        : `The request failed (HTTP ${response.status}).`;
+    throw new NominationsApiError(response.status, message);
+  }
+  if (!response.body) throw new Error('The live nomination stream did not provide a response body.');
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  const dispatch = (frame: string) => {
+    let eventName = '';
+    const data: string[] = [];
+    for (const line of frame.replace(/^\uFEFF/, '').split(/\r\n|\r|\n/)) {
+      if (!line || line.startsWith(':')) continue;
+      const separator = line.indexOf(':');
+      const field = separator === -1 ? line : line.slice(0, separator);
+      const value = separator === -1 ? '' : line.slice(separator + 1).replace(/^ /, '');
+      if (field === 'event') eventName = value;
+      if (field === 'data') data.push(value);
+    }
+    if (eventName === 'intake' && data.length > 0) onSnapshot(JSON.parse(data.join('\n')) as NominationIntake);
+  };
+
+  const consumeFrames = (flush = false) => {
+    let boundary = buffer.match(/\r\n\r\n|\n\n|\r\r/);
+    while (boundary?.index !== undefined) {
+      dispatch(buffer.slice(0, boundary.index));
+      buffer = buffer.slice(boundary.index + boundary[0].length);
+      boundary = buffer.match(/\r\n\r\n|\n\n|\r\r/);
+    }
+    if (flush && buffer) {
+      dispatch(buffer);
+      buffer = '';
+    }
+  };
+
+  const cancelReader = () => { void reader.cancel(); };
+  signal.addEventListener('abort', cancelReader, { once: true });
+  try {
+    while (!signal.aborted) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      consumeFrames();
+    }
+    if (!signal.aborted) {
+      buffer += decoder.decode();
+      consumeFrames(true);
+    }
+  } finally {
+    signal.removeEventListener('abort', cancelReader);
+    reader.releaseLock();
+  }
+}
+
 export function createNominationIntake(
   credentials: string,
   electionId: string,
