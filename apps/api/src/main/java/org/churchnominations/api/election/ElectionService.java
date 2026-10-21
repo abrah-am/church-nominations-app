@@ -42,9 +42,10 @@ public class ElectionService {
     public List<ElectionResponse> list(String accountEmail) {
         UUID churchId = getChurch(accountEmail).getId();
         List<Election> churchElections = elections.findAllByChurchIdOrderByDepartmentNameAscIdAsc(churchId);
-        Map<UUID, ElectionStatus> statuses = deriveStatuses(churchId, churchElections);
+        Map<UUID, ElectionSummary> summaries = deriveSummaries(churchId, churchElections);
         return churchElections.stream()
-                .map(election -> ElectionResponse.from(election, statuses.get(election.getId())))
+            .map(election -> ElectionResponse.from(election, summaries.get(election.getId()).status(),
+                summaries.get(election.getId()).positions()))
                 .toList();
     }
 
@@ -52,7 +53,8 @@ public class ElectionService {
         UUID churchId = getChurch(accountEmail).getId();
         Election election = elections.findByIdAndChurchId(id, churchId)
                 .orElseThrow(ElectionNotFoundException::new);
-        return ElectionResponse.from(election, deriveStatuses(churchId, List.of(election)).get(election.getId()));
+        ElectionSummary summary = deriveSummaries(churchId, List.of(election)).get(election.getId());
+        return ElectionResponse.from(election, summary.status(), summary.positions());
     }
 
     public ElectionPositionDetails getPositionForChurch(UUID electionId, UUID positionId, String accountEmail) {
@@ -90,7 +92,8 @@ public class ElectionService {
         Election election = new Election(churchId, request.departmentName());
         election.replaceSetup(request.departmentName(), mapPositions(request.positions()));
         election = elections.saveAndFlush(election);
-        return ElectionResponse.from(election, deriveStatuses(churchId, List.of(election)).get(election.getId()));
+        ElectionSummary summary = deriveSummaries(churchId, List.of(election)).get(election.getId());
+        return ElectionResponse.from(election, summary.status(), summary.positions());
     }
 
     @Transactional
@@ -139,7 +142,8 @@ public class ElectionService {
                 .toList();
         election.updateSetup(request.departmentName(), replacementPositions);
         election = elections.saveAndFlush(election);
-        return ElectionResponse.from(election, deriveStatuses(churchId, List.of(election)).get(election.getId()));
+        ElectionSummary summary = deriveSummaries(churchId, List.of(election)).get(election.getId());
+        return ElectionResponse.from(election, summary.status(), summary.positions());
     }
 
     @Transactional
@@ -172,7 +176,7 @@ public class ElectionService {
                 .toList();
     }
 
-    private Map<UUID, ElectionStatus> deriveStatuses(UUID churchId, List<Election> churchElections) {
+    private Map<UUID, ElectionSummary> deriveSummaries(UUID churchId, List<Election> churchElections) {
         if (churchElections.isEmpty()) {
             return Map.of();
         }
@@ -184,6 +188,29 @@ public class ElectionService {
         Map<UUID, List<PositionProgress>> progressByElection = new HashMap<>();
         jdbc.query("""
                 select election.id as election_id, position.id as position_id, position.opening_count,
+                    (select intake.status from nomination_intakes intake where intake.position_id = position.id)
+                        as intake_status,
+                    exists (
+                        select 1 from nomination_intakes intake
+                        join nomination_consolidated_names candidate on candidate.intake_id = intake.id
+                        where intake.position_id = position.id
+                    ) as has_consolidated_candidates,
+                    (select round.round_number from voting_rounds round
+                        where round.position_id = position.id order by round.round_number desc limit 1)
+                        as latest_round_number,
+                    (select round.status from voting_rounds round
+                        where round.position_id = position.id order by round.round_number desc limit 1)
+                        as latest_round_status,
+                    (select round.revealed_at is not null from voting_rounds round
+                        where round.position_id = position.id order by round.round_number desc limit 1)
+                        as latest_round_revealed,
+                    exists (
+                        select 1 from voting_round_candidate_decisions decision
+                        where decision.decision = 'ADVANCED'
+                            and decision.round_id = (select round.id from voting_rounds round
+                                where round.position_id = position.id
+                                order by round.round_number desc limit 1)
+                    ) as has_latest_advanced_candidate,
                     exists (
                         select 1 from nomination_intakes intake where intake.position_id = position.id
                     ) as has_intake,
@@ -207,15 +234,23 @@ public class ElectionService {
                 """.formatted(placeholders), result -> {
             UUID electionId = result.getObject("election_id", UUID.class);
             progressByElection.computeIfAbsent(electionId, ignored -> new ArrayList<>())
-                    .add(new PositionProgress(
+                .add(new PositionProgress(
+                    result.getObject("position_id", UUID.class),
                             result.getInt("opening_count"),
+                    result.getString("intake_status"),
+                    result.getBoolean("has_consolidated_candidates"),
+                    (Integer) result.getObject("latest_round_number"),
+                    result.getString("latest_round_status"),
+                    result.getObject("latest_round_revealed") != null
+                        && result.getBoolean("latest_round_revealed"),
+                    result.getBoolean("has_latest_advanced_candidate"),
                             result.getBoolean("has_intake"),
                             result.getBoolean("has_progressed_round"),
                             result.getBoolean("has_decision"),
                             result.getLong("elected_count")));
         }, parameters.toArray());
 
-        Map<UUID, ElectionStatus> statuses = new HashMap<>();
+        Map<UUID, ElectionSummary> summaries = new HashMap<>();
         for (Election election : churchElections) {
             List<PositionProgress> positionProgress = progressByElection.getOrDefault(election.getId(), List.of());
             ElectionStatus status;
@@ -228,13 +263,67 @@ public class ElectionService {
             } else {
                 status = ElectionStatus.SETUP;
             }
-            statuses.put(election.getId(), status);
+            Map<UUID, ElectionResponse.PositionProgressResponse> positions = new HashMap<>();
+            for (PositionProgress progress : positionProgress) {
+                positions.put(progress.positionId(), progress.response());
+            }
+            summaries.put(election.getId(), new ElectionSummary(status, Map.copyOf(positions)));
         }
-        return statuses;
+        return summaries;
+    }
+
+    private record ElectionSummary(
+            ElectionStatus status, Map<UUID, ElectionResponse.PositionProgressResponse> positions) {
     }
 
     private record PositionProgress(
-            int openingCount, boolean hasIntake, boolean hasProgressedRound, boolean hasDecision, long electedCount) {
+            UUID positionId,
+            int openingCount,
+            String intakeStatus,
+            boolean hasConsolidatedCandidates,
+            Integer latestRoundNumber,
+            String latestRoundStatus,
+            boolean latestRoundRevealed,
+            boolean hasLatestAdvancedCandidate,
+            boolean hasIntake,
+            boolean hasProgressedRound,
+            boolean hasDecision,
+            long electedCount) {
+        private ElectionResponse.PositionProgressResponse response() {
+            if (electedCount >= openingCount) {
+                return new ElectionResponse.PositionProgressResponse("COMPLETE", "COMPLETE", latestRoundNumber);
+            }
+            if (latestRoundNumber != null) {
+                if ("DRAFT".equals(latestRoundStatus)) {
+                    return new ElectionResponse.PositionProgressResponse("ROUND_DRAFT", "START_VOTING", latestRoundNumber);
+                }
+                if ("ACTIVE".equals(latestRoundStatus)) {
+                    return new ElectionResponse.PositionProgressResponse("ROUND_ACTIVE", "MONITOR_VOTING", latestRoundNumber);
+                }
+                if (!latestRoundRevealed) {
+                    return new ElectionResponse.PositionProgressResponse(
+                            "ROUND_CLOSED_UNREVEALED", "REVEAL_RESULTS", latestRoundNumber);
+                }
+                if (hasLatestAdvancedCandidate) {
+                    return new ElectionResponse.PositionProgressResponse(
+                            "CANDIDATES_ADVANCED", "CONFIGURE_NEXT_ROUND", latestRoundNumber);
+                }
+                return new ElectionResponse.PositionProgressResponse(
+                        "RESULTS_REVEALED", "RECORD_CANDIDATE_DECISIONS", latestRoundNumber);
+            }
+            if (intakeStatus == null) {
+                return new ElectionResponse.PositionProgressResponse("NOT_STARTED", "SET_UP_NOMINATIONS", null);
+            }
+            if ("OPEN".equals(intakeStatus)) {
+                return new ElectionResponse.PositionProgressResponse("NOMINATIONS_OPEN", "CLOSE_NOMINATIONS", null);
+            }
+            if (hasConsolidatedCandidates) {
+                return new ElectionResponse.PositionProgressResponse("CONSOLIDATED", "CONFIGURE_FIRST_ROUND", null);
+            }
+            return new ElectionResponse.PositionProgressResponse(
+                    "NOMINATIONS_CLOSED", "CONSOLIDATE_NOMINATIONS", null);
+        }
+
         private boolean hasProgress() {
             return hasIntake || hasProgressedRound || hasDecision;
         }

@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -22,6 +23,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
@@ -265,6 +267,119 @@ class ElectionControllerTest {
     }
 
     @Test
+    void derivesPositionWorkflowActionsAndPrioritizesLatestRoundAndCompletion() throws Exception {
+        String electionId = createElection("Workflow Summary", """
+                {"departmentName":"Workflow Summary","positions":[
+                  {"name":"Chair","openingCount":1},
+                  {"name":"Members","openingCount":2},
+                  {"name":"Treasurer","openingCount":1}
+                ]}
+                """);
+        ElectionResponse election = electionService.get(UUID.fromString(electionId), USERNAME);
+        UUID chairId = election.positions().get(0).id();
+        UUID membersId = election.positions().get(1).id();
+        UUID treasurerId = election.positions().get(2).id();
+
+        mockMvc.perform(get("/api/elections/{id}", electionId).with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.positions[0].progressStatus").value("NOT_STARTED"))
+                .andExpect(jsonPath("$.positions[0].nextAction").value("SET_UP_NOMINATIONS"))
+                .andExpect(jsonPath("$.positions[0].roundNumber").doesNotExist());
+
+        insertIntake(chairId);
+        mockMvc.perform(get("/api/elections/{id}", electionId).with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.positions[0].progressStatus").value("NOMINATIONS_OPEN"))
+                .andExpect(jsonPath("$.positions[0].nextAction").value("CLOSE_NOMINATIONS"));
+
+        jdbc.update("update nomination_intakes set status = 'CLOSED' where position_id = ?", chairId);
+        mockMvc.perform(get("/api/elections/{id}", electionId).with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.positions[0].progressStatus").value("NOMINATIONS_CLOSED"))
+                .andExpect(jsonPath("$.positions[0].nextAction").value("CONSOLIDATE_NOMINATIONS"));
+
+        jdbc.update("insert into nomination_consolidated_names (id, intake_id, sequence, candidate_name) "
+                + "select ?, id, 1, 'Private candidate' from nomination_intakes where position_id = ?",
+                UUID.randomUUID(), chairId);
+        mockMvc.perform(get("/api/elections/{id}", electionId).with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.positions[0].progressStatus").value("CONSOLIDATED"))
+                .andExpect(jsonPath("$.positions[0].nextAction").value("CONFIGURE_FIRST_ROUND"))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Private candidate"))));
+
+        insertActiveRound(chairId);
+        insertDraftRound(chairId, 2);
+        mockMvc.perform(get("/api/elections").with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].positions[0].progressStatus").value("ROUND_DRAFT"))
+                .andExpect(jsonPath("$[0].positions[0].nextAction").value("START_VOTING"))
+                .andExpect(jsonPath("$[0].positions[0].roundNumber").value(2));
+
+        jdbc.update("delete from voting_rounds where position_id = ?", chairId);
+        insertActiveRound(chairId, 2);
+        mockMvc.perform(get("/api/elections/{id}", electionId).with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.positions[0].progressStatus").value("ROUND_ACTIVE"))
+                .andExpect(jsonPath("$.positions[0].nextAction").value("MONITOR_VOTING"));
+        jdbc.update("delete from voting_rounds where position_id = ?", chairId);
+        insertClosedRoundWithoutCandidates(chairId);
+        mockMvc.perform(get("/api/elections/{id}", electionId).with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.positions[0].progressStatus").value("ROUND_CLOSED_UNREVEALED"))
+                .andExpect(jsonPath("$.positions[0].nextAction").value("REVEAL_RESULTS"));
+
+        jdbc.update("update voting_rounds set revealed_at = current_timestamp, revealed_by = ? where position_id = ?",
+                USERNAME, chairId);
+        mockMvc.perform(get("/api/elections/{id}", electionId).with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.positions[0].progressStatus").value("RESULTS_REVEALED"))
+                .andExpect(jsonPath("$.positions[0].nextAction").value("RECORD_CANDIDATE_DECISIONS"));
+        jdbc.update("insert into voting_round_candidates (id, round_id, candidate_name, sequence) "
+                + "select ?, id, 'Another private candidate', 1 from voting_rounds where position_id = ?",
+                UUID.randomUUID(), chairId);
+        UUID roundId = jdbc.queryForObject("select id from voting_rounds where position_id = ?", UUID.class, chairId);
+        UUID candidateId = jdbc.queryForObject(
+                "select id from voting_round_candidates where round_id = ?", UUID.class, roundId);
+        insertDecision(roundId, candidateId, "ADVANCED");
+        mockMvc.perform(get("/api/elections/{id}", electionId).with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.positions[0].progressStatus").value("CANDIDATES_ADVANCED"))
+                .andExpect(jsonPath("$.positions[0].nextAction").value("CONFIGURE_NEXT_ROUND"))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Another private candidate"))));
+
+        jdbc.update("delete from voting_rounds where position_id = ?", membersId);
+        insertClosedRoundWithDecisions(membersId, List.of("ELECTED", "ELECTED"));
+        mockMvc.perform(get("/api/elections/{id}", electionId).with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.positions[1].progressStatus").value("COMPLETE"))
+                .andExpect(jsonPath("$.positions[1].nextAction").value("COMPLETE"));
+    }
+
+    @Test
+    void electionProgressSummaryRemainsTenantScoped() throws Exception {
+        String otherAdmin = "progress-other-admin@example.org";
+        mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + otherAdmin + "\",\"password\":\"" + PASSWORD + "\"}"))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/churches").with(httpBasic(otherAdmin, PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Other Progress Church\"}"))
+                .andExpect(status().isCreated());
+        UUID otherChurchId = churches.findByAdminAccountEmail(otherAdmin).orElseThrow().getId();
+        Election foreignElection = new Election(otherChurchId, "Foreign Progress Election");
+        foreignElection.replaceSetup("Foreign Progress Election",
+                List.of(new ElectionPosition("Private Position", 1, 1)));
+        Election savedForeign = elections.saveAndFlush(foreignElection);
+        UUID foreignPositionId = savedForeign.getPositions().getFirst().getId();
+        insertActiveRound(foreignPositionId);
+
+        mockMvc.perform(get("/api/elections/{id}", savedForeign.getId()).with(admin()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/elections").with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
     void anyCurrentCandidateDecisionSignalsProgressOnDraftRound() throws Exception {
         String electionId = createElection("Decision Status Election", """
                 {"departmentName":"Decision Status Election","positions":[
@@ -371,6 +486,15 @@ class ElectionControllerTest {
                                 """, UUID.randomUUID(), positionId, positionId);
         }
 
+        private void insertDraftRound(UUID positionId, int roundNumber) {
+                jdbc.update("""
+                                insert into voting_rounds
+                                        (id, position_id, draft_position_id, round_number, status, selection_count, reset_count,
+                                         cutoff_overridden)
+                                values (?, ?, null, ?, 'DRAFT', 1, 0, false)
+                                """, UUID.randomUUID(), positionId, roundNumber);
+        }
+
         private void insertDraftRoundWithDecision(UUID positionId, String decision) {
                 UUID roundId = UUID.randomUUID();
                 UUID candidateId = UUID.randomUUID();
@@ -394,6 +518,15 @@ class ElectionControllerTest {
                                          selection_count, reset_count, expected_voter_count, access_token, cutoff_overridden)
                                 values (?, ?, null, ?, 1, 'ACTIVE', 1, 0, 1, ?, false)
                                 """, UUID.randomUUID(), positionId, positionId, UUID.randomUUID());
+        }
+
+        private void insertActiveRound(UUID positionId, int roundNumber) {
+                jdbc.update("""
+                                insert into voting_rounds
+                                        (id, position_id, draft_position_id, active_position_id, round_number, status,
+                                         selection_count, reset_count, expected_voter_count, access_token, cutoff_overridden)
+                                values (?, ?, null, ?, ?, 'ACTIVE', 1, 0, 1, ?, false)
+                                """, UUID.randomUUID(), positionId, positionId, roundNumber, UUID.randomUUID());
         }
 
         private void insertClosedRoundWithDecisions(UUID positionId, java.util.List<String> decisions) {
