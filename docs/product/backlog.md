@@ -8,7 +8,7 @@
 
 - **Completed: local application foundation.** React + TypeScript/Vite frontend, Java 25/Spring Boot API, Gradle 9.1 wrapper, API health endpoint, frontend API connection state, and local CORS configuration are implemented. Validation: API tests 2/2 passed; frontend tests 4/4 passed; frontend production build and API boot JAR succeeded; browser check confirmed the frontend reports `API connected` against the running API.
 - **Implemented local POC workflow:** Local account registration and church onboarding; annual boards and attendance; department election setup; anonymous nomination intake and consolidation; authenticated live intake updates; private ballot submission and replacement; draft/active/closed round lifecycle, expected-voter cutoff and reopen; per-round result reveal, ranked display, and candidate decisions. This is a development baseline, not production readiness. Verify specific stories and tests before relying on this summary.
-- **Remaining MVP/product work:** Cross-epic admin workflow clarity and recovery, explicit lifecycle/progress states, full election history, accessibility validation, report specification and implementation, production identity/security/operations, and any remaining ballot/privacy policy decisions. The complete end-to-end workflow and all acceptance criteria are not yet signed off.
+- **Remaining MVP/product work:** Cross-epic admin workflow clarity and recovery, E1.2 position progress, full election history, accessibility validation, report specification and implementation, production identity/security/operations, and any remaining ballot/privacy policy decisions. E1.1 election-level lifecycle status is implemented; the complete end-to-end workflow and all acceptance criteria are not yet signed off.
 - **Lint note:** frontend lint completes with one existing non-null assertion warning in `apps/web/src/main.tsx`.
 
 Status labels below reflect implementation evidence only. “Blocked” means implementation must wait for the approval prerequisite above; it does not mean the story is complete.
@@ -209,10 +209,12 @@ The following stories decompose the proposed epics into assignable slices. Statu
 
 **Outcome:** An administrator can identify the state of an election and each position, and see the next useful action.
 
-**Baseline:** Election list/detail currently labels elections `Setup`; the detail has sequential Previous/Next position controls but no per-position workflow state.
+**Baseline:** E1.1 election-level status is implemented. Election list/detail use the same derived lifecycle label. Per-position workflow state and next-action guidance remain for E1.2.
 
 **Story E1.1: Show meaningful election lifecycle status.** As a church administrator, I want each election to show its current lifecycle state so I can tell whether it needs setup, nominations, voting, or final review.
 **Suggested owners:** Product/tech lead, backend, frontend, QA.
+**Implementation status:** Complete for the approved three-state contract. The API derives tenant-scoped `SETUP`, `IN_PROGRESS`, or `COMPLETE`; the UI shows the same text in list/detail and refreshes after lifecycle changes. Phase-specific guidance is deferred by Product Owner decision.
+**Approved lifecycle contract (2026-10-21):** Election status is derived as `SETUP`, `IN_PROGRESS`, or `COMPLETE`. An empty election or one with no progressed position is `SETUP`; a nomination intake (open or closed), an active/closed round, or any current candidate decision counts as progress. A draft round alone does not count. The election is `COMPLETE` when every current position has at least its configured number of candidates marked `ELECTED`; otherwise, any progressed position makes it `IN_PROGRESS`. Status is based on current positions/openings and may regress if decisions or configuration change. Phase-specific progress detail is deferred.
 **Acceptance criteria:**
 - Define and document election-level statuses and transition rules before implementation.
 - Election list and detail show the same derived status using text, not color alone.

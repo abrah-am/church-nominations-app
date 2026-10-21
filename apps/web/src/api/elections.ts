@@ -8,7 +8,7 @@ export type ElectionPosition = {
 export type Election = {
   id: string;
   departmentName: string;
-  status: 'SETUP';
+  status: 'SETUP' | 'IN_PROGRESS' | 'COMPLETE';
   positions: ElectionPosition[];
 };
 

@@ -37,6 +37,7 @@ export type NominationAdminPanelProps = {
 	positionId: string;
 	positionName: string;
 	openingCount: number;
+	onLifecycleChange: (completionMayChange?: boolean) => void;
 };
 
 function normalizeNominationIntake(intake: NominationIntake): NominationIntake {
@@ -48,7 +49,7 @@ function normalizeNominationIntake(intake: NominationIntake): NominationIntake {
 	};
 }
 
-export default function NominationAdminPanel({ credentials, electionId, positionId, positionName, openingCount }: NominationAdminPanelProps) {
+export default function NominationAdminPanel({ credentials, electionId, positionId, positionName, openingCount, onLifecycleChange }: NominationAdminPanelProps) {
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [intakeDetailsOpen, setIntakeDetailsOpen] = useState(true);
 	const [consolidationDetailsOpen, setConsolidationDetailsOpen] = useState(false);
@@ -305,6 +306,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setIntake(created);
 			setIntakeDetailsOpen(true);
 			setConsolidationDetailsOpen(false);
+			onLifecycleChange();
 		} catch (requestError) {
 			setError(requestError instanceof Error ? requestError.message : 'Could not create nomination intake.');
 		} finally {
@@ -322,6 +324,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setConsolidationDetailsOpen(!closed.consolidatedNames);
 			setCandidateDraft((closed.consolidatedNames ?? alphabeticalNames(closed.submissions.map((submission) => submission.name))).join('\n'));
 			setConfirmed(false);
+			onLifecycleChange();
 		} catch (requestError) {
 			setError(requestError instanceof Error ? requestError.message : 'Could not close nomination intake.');
 		} finally {
@@ -427,6 +430,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setDraftRoundId(null);
 			setStartRoundId(null);
 			setRoundsSuccess('Voting is active. Share the private ballot link with voters.');
+			onLifecycleChange();
 		} catch (requestError) {
 			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not start voting.');
 		} finally {
@@ -449,6 +453,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			});
 			setUnrevealedRoundIds((current) => current.includes(closed.id) ? current : [...current, closed.id]);
 			setRoundsSuccess(`Round ${closed.roundNumber} is closed.`);
+			onLifecycleChange();
 		} catch (requestError) {
 			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not close voting.');
 		} finally {
@@ -486,6 +491,8 @@ export default function NominationAdminPanel({ credentials, electionId, position
 		}
 		const result = roundResults[roundId];
 		if (!result) return;
+		const completionMayChange = draft.decision === 'ELECTED'
+			|| result.candidates.find((candidate) => candidate.id === candidateId)?.decision === 'ELECTED';
 		setSavingDecisionCandidateId(candidateId);
 		setRoundsError('');
 		setRoundsSuccess('');
@@ -503,6 +510,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setRoundResults((current) => ({ ...current, [roundId]: updatedResult }));
 			setElectedCandidateId(null);
 			setRoundsSuccess('Candidate decision saved.');
+			onLifecycleChange(completionMayChange);
 		} catch (requestError) {
 			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not save the candidate decision.');
 		} finally {
@@ -549,6 +557,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setUnrevealedRoundIds((current) => current.filter((id) => id !== reopened.id));
 			setReopenRoundId(null);
 			setRoundsSuccess(`Round ${reopened.roundNumber} is active again.`);
+			onLifecycleChange();
 		} catch (requestError) {
 			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not reopen voting.');
 		} finally {
@@ -579,6 +588,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 				delete next[reset.id];
 				return next;
 			});
+			onLifecycleChange(true);
 			setUnrevealedRoundIds((current) => current.filter((id) => id !== reset.id));
 			setResetRoundId(null);
 			setRoundsSuccess(`Round ${reset.roundNumber} reset. Ballots and current decisions were permanently deleted; candidate roster preserved. Reset count: ${reset.resetCount ?? 0}.`);

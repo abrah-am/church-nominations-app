@@ -5,9 +5,11 @@ import org.churchnominations.api.church.Church;
 import org.churchnominations.api.church.ChurchRepository;
 import org.churchnominations.api.nominations.NominationIntakeRepository;
 import org.churchnominations.api.nominations.ElectionPositionRepository;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -22,27 +24,35 @@ public class ElectionService {
     private final ChurchRepository churches;
     private final NominationIntakeRepository nominationIntakes;
     private final ElectionPositionRepository positions;
+    private final JdbcTemplate jdbc;
 
     public ElectionService(
             ElectionRepository elections,
             ChurchRepository churches,
             NominationIntakeRepository nominationIntakes,
-            ElectionPositionRepository positions) {
+            ElectionPositionRepository positions,
+            JdbcTemplate jdbc) {
         this.elections = elections;
         this.churches = churches;
         this.nominationIntakes = nominationIntakes;
         this.positions = positions;
+        this.jdbc = jdbc;
     }
 
     public List<ElectionResponse> list(String accountEmail) {
         UUID churchId = getChurch(accountEmail).getId();
-        return elections.findAllByChurchIdOrderByDepartmentNameAscIdAsc(churchId).stream()
-                .map(ElectionResponse::from)
+        List<Election> churchElections = elections.findAllByChurchIdOrderByDepartmentNameAscIdAsc(churchId);
+        Map<UUID, ElectionStatus> statuses = deriveStatuses(churchId, churchElections);
+        return churchElections.stream()
+                .map(election -> ElectionResponse.from(election, statuses.get(election.getId())))
                 .toList();
     }
 
     public ElectionResponse get(UUID id, String accountEmail) {
-        return ElectionResponse.from(findForChurch(id, accountEmail));
+        UUID churchId = getChurch(accountEmail).getId();
+        Election election = elections.findByIdAndChurchId(id, churchId)
+                .orElseThrow(ElectionNotFoundException::new);
+        return ElectionResponse.from(election, deriveStatuses(churchId, List.of(election)).get(election.getId()));
     }
 
     public ElectionPositionDetails getPositionForChurch(UUID electionId, UUID positionId, String accountEmail) {
@@ -79,7 +89,8 @@ public class ElectionService {
         UUID churchId = getChurch(accountEmail).getId();
         Election election = new Election(churchId, request.departmentName());
         election.replaceSetup(request.departmentName(), mapPositions(request.positions()));
-        return ElectionResponse.from(elections.save(election));
+        election = elections.saveAndFlush(election);
+        return ElectionResponse.from(election, deriveStatuses(churchId, List.of(election)).get(election.getId()));
     }
 
     @Transactional
@@ -127,7 +138,8 @@ public class ElectionService {
                 })
                 .toList();
         election.updateSetup(request.departmentName(), replacementPositions);
-        return ElectionResponse.from(elections.save(election));
+        election = elections.saveAndFlush(election);
+        return ElectionResponse.from(election, deriveStatuses(churchId, List.of(election)).get(election.getId()));
     }
 
     @Transactional
@@ -158,5 +170,73 @@ public class ElectionService {
                 .mapToObj(index -> new ElectionPosition(positions.get(index).name(),
                         positions.get(index).openingCount(), index + 1))
                 .toList();
+    }
+
+    private Map<UUID, ElectionStatus> deriveStatuses(UUID churchId, List<Election> churchElections) {
+        if (churchElections.isEmpty()) {
+            return Map.of();
+        }
+        List<UUID> electionIds = churchElections.stream().map(Election::getId).toList();
+        String placeholders = String.join(", ", java.util.Collections.nCopies(electionIds.size(), "?"));
+        List<Object> parameters = new ArrayList<>();
+        parameters.add(churchId);
+        parameters.addAll(electionIds);
+        Map<UUID, List<PositionProgress>> progressByElection = new HashMap<>();
+        jdbc.query("""
+                select election.id as election_id, position.id as position_id, position.opening_count,
+                    exists (
+                        select 1 from nomination_intakes intake where intake.position_id = position.id
+                    ) as has_intake,
+                    exists (
+                        select 1 from voting_rounds round
+                        where round.position_id = position.id and round.status in ('ACTIVE', 'CLOSED')
+                    ) as has_progressed_round,
+                    exists (
+                        select 1 from voting_rounds round
+                        join voting_round_candidate_decisions decision on decision.round_id = round.id
+                        where round.position_id = position.id
+                    ) as has_decision,
+                    (
+                        select count(*) from voting_rounds round
+                        join voting_round_candidate_decisions decision on decision.round_id = round.id
+                        where round.position_id = position.id and decision.decision = 'ELECTED'
+                    ) as elected_count
+                from elections election
+                join election_positions position on position.election_id = election.id
+                where election.church_id = ? and election.id in (%s)
+                """.formatted(placeholders), result -> {
+            UUID electionId = result.getObject("election_id", UUID.class);
+            progressByElection.computeIfAbsent(electionId, ignored -> new ArrayList<>())
+                    .add(new PositionProgress(
+                            result.getInt("opening_count"),
+                            result.getBoolean("has_intake"),
+                            result.getBoolean("has_progressed_round"),
+                            result.getBoolean("has_decision"),
+                            result.getLong("elected_count")));
+        }, parameters.toArray());
+
+        Map<UUID, ElectionStatus> statuses = new HashMap<>();
+        for (Election election : churchElections) {
+            List<PositionProgress> positionProgress = progressByElection.getOrDefault(election.getId(), List.of());
+            ElectionStatus status;
+            if (positionProgress.isEmpty()) {
+                status = ElectionStatus.SETUP;
+            } else if (positionProgress.stream().allMatch(position -> position.electedCount() >= position.openingCount())) {
+                status = ElectionStatus.COMPLETE;
+            } else if (positionProgress.stream().anyMatch(PositionProgress::hasProgress)) {
+                status = ElectionStatus.IN_PROGRESS;
+            } else {
+                status = ElectionStatus.SETUP;
+            }
+            statuses.put(election.getId(), status);
+        }
+        return statuses;
+    }
+
+    private record PositionProgress(
+            int openingCount, boolean hasIntake, boolean hasProgressedRound, boolean hasDecision, long electedCount) {
+        private boolean hasProgress() {
+            return hasIntake || hasProgressedRound || hasDecision;
+        }
     }
 }

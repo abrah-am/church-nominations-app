@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useRef, useState } from 'react';
 import {
   AuthApiError,
   Church,
@@ -38,6 +38,12 @@ import PublicVotingPage from './features/voting/PublicVotingPage';
 type Screen = 'list' | 'detail' | 'form';
 type Workspace = 'elections' | 'boards';
 
+const electionStatusLabels: Record<Election['status'], string> = {
+  SETUP: 'Setup',
+  IN_PROGRESS: 'In progress',
+  COMPLETE: 'Complete',
+};
+
 export { getCandidateRecommendation } from './features/elections/candidateRecommendations';
 
 function App() {
@@ -49,6 +55,7 @@ function App() {
 }
 
 function AuthenticatedApp() {
+  const statusRefreshVersion = useRef(0);
   const [credentials, setCredentials] = useState<string | null>(null);
   const [account, setAccount] = useState<SafeAccount | null>(null);
   const [churches, setChurches] = useState<Church[]>([]);
@@ -75,6 +82,7 @@ function AuthenticatedApp() {
 
   function handleRequestError(error: unknown) {
     if ((error instanceof ElectionsApiError || error instanceof AuthApiError || error instanceof BoardsApiError) && error.status === 401) {
+      statusRefreshVersion.current += 1;
       setCredentials(null);
       setAccount(null);
       setChurches([]);
@@ -166,6 +174,7 @@ function AuthenticatedApp() {
   }
 
   function signOut() {
+    statusRefreshVersion.current += 1;
     setCredentials(null);
     setAccount(null);
     setChurches([]);
@@ -185,20 +194,50 @@ function AuthenticatedApp() {
 
   async function openElection(election: Election) {
     if (!credentials) return;
+    const requestVersion = ++statusRefreshVersion.current;
+    const requestCredentials = credentials;
     setScreen('detail');
     setSelectedElection(null);
     setSelectedPositionIndex(0);
     setPageError('');
     setIsLoading(true);
     try {
-      setSelectedElection(await getElection(credentials, election.id));
+      const openedElection = await getElection(requestCredentials, election.id);
+      if (requestVersion !== statusRefreshVersion.current || credentials !== requestCredentials) return;
+      setSelectedElection(openedElection);
       setSelectedPositionIndex(0);
     } catch (error) {
+      if (requestVersion !== statusRefreshVersion.current || credentials !== requestCredentials) return;
       handleRequestError(error);
       setScreen('list');
     } finally {
-      setIsLoading(false);
+      if (requestVersion === statusRefreshVersion.current) setIsLoading(false);
     }
+  }
+
+  async function refreshElectionStatus(electionId: string, force = false) {
+    if (!credentials) return;
+    if (!force && selectedElection?.id === electionId && selectedElection.status === 'IN_PROGRESS') return;
+    const requestVersion = ++statusRefreshVersion.current;
+    const requestCredentials = credentials;
+    try {
+      const [refreshedElections, refreshedElection] = await Promise.all([
+        listElections(requestCredentials),
+        getElection(requestCredentials, electionId),
+      ]);
+      if (requestVersion !== statusRefreshVersion.current || credentials !== requestCredentials) return;
+      setElections(refreshedElections);
+      setSelectedElection((current) => current?.id === electionId ? refreshedElection : current);
+    } catch (error) {
+      if (requestVersion !== statusRefreshVersion.current || credentials !== requestCredentials) return;
+      handleRequestError(error);
+    }
+  }
+
+  function returnToElectionList() {
+    setScreen('list');
+    setPageError('');
+    if (selectedElection) void refreshElectionStatus(selectedElection.id, true);
   }
 
   function openCreateForm() {
@@ -419,10 +458,7 @@ function AuthenticatedApp() {
             <button type="button" aria-pressed={workspace === 'boards'} onClick={openBoardsWorkspace}>Annual Boards</button>
           </nav>
 
-          {workspace === 'elections' ? <div className="setup-notice" role="note">
-            <span className="notice-mark" aria-hidden="true">i</span>
-            <span><strong>Setup and nominations</strong> · Voting is not available yet.</span>
-          </div> : <div className="setup-notice attendance-notice" role="note">
+          {workspace === 'boards' && <div className="setup-notice attendance-notice" role="note">
             <span className="notice-mark" aria-hidden="true">i</span>
             <span><strong>Attendance records only</strong> · This does not collect ballots or voting choices. Board members do not need passwords.</span>
           </div>}
@@ -472,7 +508,9 @@ function AuthenticatedApp() {
                           <strong>{election.departmentName}</strong>
                           <span>{election.positions.length} {election.positions.length === 1 ? 'position' : 'positions'} · {election.positions.reduce((total, position) => total + position.openingCount, 0)} openings</span>
                         </span>
-                        <span className="row-status">Setup</span>
+                        <span className="row-status" role="group" aria-live="polite" aria-label={`Election status: ${electionStatusLabels[election.status]}`}>
+                          {electionStatusLabels[election.status]}
+                        </span>
                         <span className="row-arrow" aria-hidden="true">→</span>
                       </button>
                     </li>
@@ -485,14 +523,16 @@ function AuthenticatedApp() {
           {screen === 'detail' && (
             <section className="detail-section">
               <div className="detail-actions">
-                <button className="back-button" type="button" onClick={() => { setScreen('list'); setPageError(''); }}>← <span>All elections</span></button>
+                <button className="back-button" type="button" onClick={returnToElectionList}>← <span>All elections</span></button>
                 {selectedElection && selectedElection.positions.length > 0 && <button className="secondary-button" type="button" onClick={() => { setPageError(''); setScreen('form'); }}>Edit setup</button>}
               </div>
               {isLoading || !selectedElection ? <p className="state-message" role="status">Loading election…</p> : (
                 <>
                   <div className="detail-summary">
                     <div><span className="summary-label">Department</span><strong>{selectedElection.departmentName}</strong></div>
-                    <div><span className="summary-label">Status</span><span className="row-status">Setup</span></div>
+                    <div><span className="summary-label">Status</span><span className="row-status" role="group" aria-live="polite" aria-label={`Election status: ${electionStatusLabels[selectedElection.status]}`}>
+                      {electionStatusLabels[selectedElection.status]}
+                    </span></div>
                     <div><span className="summary-label">Configured openings</span><strong>{selectedElection.positions.reduce((total, position) => total + position.openingCount, 0)}</strong></div>
                   </div>
                   <div className="section-heading position-heading">
@@ -531,6 +571,7 @@ function AuthenticatedApp() {
                           positionId={position.id}
                           positionName={position.name}
                           openingCount={position.openingCount}
+                          onLifecycleChange={(force) => { void refreshElectionStatus(selectedElection.id, force); }}
                         />
                         {deletePositionOpen && (
                           <div className="dialog-backdrop">
