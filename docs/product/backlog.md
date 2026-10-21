@@ -223,6 +223,7 @@ The following stories decompose the proposed epics into assignable slices. Statu
 
 **Story E1.2: Show position progress and next action.** As an administrator, I want position navigation to show each position's progress so I can move through the election without opening every position to discover its state.
 **Suggested owners:** UX, frontend, backend, QA.
+**Next story candidate:** Recommended next implementation story after E1.1. Begin with UX review and agree the position-state/next-action vocabulary before implementation; keep E1.3 contextual notice behavior separate unless the Product Owner explicitly combines the scope.
 **Acceptance criteria:**
 - Each position shows its name, opening count, current state, and a concise next action or completed label.
 - Previous/Next continues to respect configured sequence and disabled boundaries.
@@ -287,6 +288,15 @@ The following stories decompose the proposed epics into assignable slices. Statu
 - Validation errors state the valid range and preserve the entered value.
 - The roster and selection count are visible before saving or starting a draft.
 
+**Story E3.4: Make candidate rosters easy to review.** As an administrator, I want the round candidate roster displayed as a readable list so I can verify the names before voting.
+**Suggested owners:** UX, frontend, QA.
+**Acceptance criteria:**
+- Show each candidate as a distinct row/item rather than a cramped single-line sequence.
+- Preserve the configured roster order and associate any candidate-specific status/count with the correct name.
+- Long names wrap without clipping, overlap, or horizontal scrolling at supported narrow widths.
+- The roster remains readable with keyboard navigation and assistive technology; do not add ballot-selection behavior to the admin preview.
+- Tests cover empty, single-candidate, multi-candidate, and long-name displays.
+
 **Story E3.2: Preview the next-round roster from saved decisions.** As an administrator, I want to review which candidates will carry forward before I create the next draft.
 **Suggested owners:** UX, frontend, QA.
 **Acceptance criteria:**
@@ -314,6 +324,16 @@ The following stories decompose the proposed epics into assignable slices. Statu
 - For the applicable two-candidate, one-selection, even-count case, show the exact `N - 1` cutoff.
 - Changing the count updates the warning; invalid counts cannot start a round.
 - Cancel leaves the round as a draft and preserves the configured count.
+
+**Story E4.6: Make the draft round's next action visible.** As an administrator, I want the next action for a draft round to be apparent without expanding its details so I can start voting without searching through collapsed content.
+**Suggested owners:** UX, frontend, QA.
+**Acceptance criteria:**
+- A collapsed draft round clearly identifies its draft state and exposes or prominently signals the Start voting action without requiring expansion.
+- The action is associated with the correct election, position, and round; it cannot start a different round accidentally.
+- Existing start validation and expected-voter confirmation remain required.
+- Cancelling start leaves the round draft and preserves its configuration.
+- Expanded and collapsed views do not show contradictory or confusing duplicate primary actions.
+- Keyboard operation, focus, and status announcements are included in UX validation.
 
 **Story E4.2: Make ballot progress and lifecycle actions scannable.** As an administrator, I want active, closed, and reopened round states to be obvious so I can act without confusing progress with vote totals.
 **Suggested owners:** UX, frontend, QA.
@@ -355,7 +375,7 @@ The following stories decompose the proposed epics into assignable slices. Statu
 
 **Outcome:** Admins can assess ranked aggregate results and record decisions with a clear audit trail.
 
-**Baseline:** Revealed results are sorted by votes descending and name ascending. Admins can record Advanced, Eliminated, or Elected decisions with an optional reason; recommendations are guidance, not automatic single-opening decisions.
+**Baseline:** Revealed results are sorted by votes descending and name ascending. Admins can record Advanced, Eliminated, or Elected decisions; recommendations are guidance, not automatic single-opening decisions. Existing decision history may contain reasons, but the decision editor will not collect new free-text reasons under E5.4.
 
 **Story E5.1: Make result rankings and recommendations easy to scan.** As an administrator, I want vote totals, rankings, and recommendations presented consistently so I can review outcomes efficiently.
 **Suggested owners:** UX, frontend, QA.
@@ -369,9 +389,20 @@ The following stories decompose the proposed epics into assignable slices. Statu
 **Suggested owners:** Frontend, backend, QA.
 **Acceptance criteria:**
 - Draft decision changes are distinguishable from persisted decisions.
-- Save success/failure is associated with the candidate; failures preserve selected decision and reason.
+- Save success/failure is associated with the candidate; failures preserve the selected decision.
 - A decision is not treated as saved until the API confirms it.
-- Decision actor/time/reason follow the approved audit policy without linking a ballot to a voter.
+- Decision actor/time follow the approved audit policy without linking a ballot to a voter.
+
+**Story E5.4: Show saved candidate decisions with a single undo action.** As an administrator, I want saved candidate decisions to replace their edit controls with a clear saved record and undo action so I can see that an Advanced candidate is committed to the next-round roster.
+**Suggested owners:** UX, frontend, backend, QA.
+**Acceptance criteria:**
+- After the API confirms a decision, display its current decision, acting administrator, and saved timestamp for that candidate.
+- For a saved `ADVANCED` decision, hide the decision dropdown and reason input and show one `UNDO` action, consistent with the existing eliminated-decision interaction.
+- After undo succeeds, restore the undecided editing controls; on failure, retain the persisted decision display and explain that undo did not complete.
+- Apply the same persisted-state clarity to other saved decisions; keep only actions supported by the existing decision rules.
+- Define server-side undo eligibility for `ADVANCED`, including what happens if a later draft round already contains that candidate. Never silently desynchronize a later round from its source decisions; blocked undo must explain the required recovery path.
+- Do not collect or require a free-text reason in the decision editor. Preserve actor/time and decision-change audit history; this UI change must not erase prior events or existing historical reason data.
+- Tests cover save success/failure, persisted display, undo success/failure, and accessible focus/status feedback.
 
 **Story E5.3: Provide a reviewed-results handoff to the next round.** As an administrator, I want to see the number and names of candidates advancing before configuring the next round.
 **Suggested owners:** UX, frontend, QA.
@@ -411,6 +442,16 @@ The following stories decompose the proposed epics into assignable slices. Statu
 - Decide which of `admin` and `guest` may access revealed results and history.
 - Decide visible participation fields, exports, and retention period.
 - Record privacy constraints and acceptance criteria before implementing exports or public history.
+
+**Story E6.5: Decide and design a results-only view for poll participants.** **Discovery/blocker; depends on E6.4.** As an administrator sharing the election on screen, I want to show revealed aggregate results either in a separate results-only window or on participants' devices after voting ends, without exposing them during an active poll.
+**Suggested owners:** Product Owner, UX, tech lead, security.
+**Acceptance criteria for discovery:**
+- Decide whether results are administrator-only, available to anyone with the voting link after reveal, available only through another credential, or another explicitly defined audience. Do not assume possession of a shared bearer voting link authorizes results access.
+- Decide whether reveal alone makes results available to the approved audience, whether an admin must explicitly publish them, and whether access is temporary or retained.
+- Define the results-only view fields and verify they contain only approved aggregate data, never voter identities, participation-to-choice mappings, or ballot choices by voter.
+- Preserve the existing rule that no aggregate results are available while a poll is active; reopening behavior must make prior results unavailable as current results.
+- Specify separate-screen behavior for screen sharing and whether a participant link should automatically transition from ballot to results after closure/reveal.
+- Define server-side authorization, tenant/link scope, forwarding behavior, audit events, and tests before implementation. The existing voter-link behavior returns 404 when no poll is active; changing that contract requires explicit approval.
 
 ### Epic E7: Accessibility and Responsive Administration
 
