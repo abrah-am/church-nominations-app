@@ -2,6 +2,32 @@
 
 Local-development foundation for the React + TypeScript web app and Java/Spring Boot REST API. The API persists church-scoped election setup in PostgreSQL.
 
+## Code Map
+
+The repository separates the applications under `apps/`: `apps/web` contains the React client, and `apps/api` contains the Spring Boot API and database migrations. Within those applications, code is organized by feature/domain so contributors can work in a focused area.
+
+### Web (`apps/web/src`)
+
+- `App.tsx` composes routes, authenticated session state, and top-level navigation.
+- `features/auth` contains sign-in and registration UI.
+- `features/elections` contains election setup forms and candidate recommendation rules.
+- `features/nominations` contains admin intake/consolidation and the public nomination form.
+- `features/voting` contains the public ballot experience.
+- `features/boards` contains annual board and attendance screens.
+- `api` contains typed HTTP clients and their focused API tests, grouped by domain.
+- `styles.css` contains shared application styles; `App.test.tsx` covers cross-feature workflows.
+
+### API (`apps/api/src/main/java/org/churchnominations/api`)
+
+- `identity`, `church`, `board`, and `nominations` contain their respective domain workflows.
+- `election` contains election and position setup, plus shared election ownership/context.
+- `election/voting` contains voting-round lifecycle, private ballot submission, results, and candidate decisions.
+- `config` contains security, CORS, and application configuration; `health` contains the health endpoint.
+- `src/main/resources/db/migration` contains ordered Flyway migrations.
+- Tests live under `apps/api/src/test/java` and are grouped by domain and integration scenario.
+
+When changing a workflow, start in its feature/domain folder, then follow imports to shared API or persistence contracts. Run the focused test first, followed by the application-wide checks below.
+
 ## Prerequisites
 
 - Node.js 20 LTS and npm 10 or newer

@@ -1,11 +1,15 @@
 package org.churchnominations.api.nominations;
 
+import org.churchnominations.api.election.voting.VotingRoundService;
 import org.churchnominations.api.election.ElectionPosition;
 import org.churchnominations.api.election.ElectionPositionDetails;
 import org.churchnominations.api.election.ElectionService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.Locale;
@@ -19,18 +23,24 @@ public class NominationIntakeService {
     private final NominationConsolidatedNameRepository consolidatedNames;
     private final ElectionPositionRepository positions;
     private final ElectionService elections;
+    private final VotingRoundService votingRounds;
+    private final NominationIntakeEventRegistry events;
 
     public NominationIntakeService(
             NominationIntakeRepository intakes,
             NominationSubmissionRepository submissions,
             NominationConsolidatedNameRepository consolidatedNames,
             ElectionPositionRepository positions,
-            ElectionService elections) {
+            ElectionService elections,
+            VotingRoundService votingRounds,
+            NominationIntakeEventRegistry events) {
         this.intakes = intakes;
         this.submissions = submissions;
         this.consolidatedNames = consolidatedNames;
         this.positions = positions;
         this.elections = elections;
+        this.votingRounds = votingRounds;
+        this.events = events;
     }
 
     @Transactional
@@ -53,19 +63,28 @@ public class NominationIntakeService {
         return adminResponse(findByPosition(positionId));
     }
 
+    public SseEmitter stream(UUID electionId, UUID positionId, String accountEmail) {
+        elections.getPositionForChurch(electionId, positionId, accountEmail);
+        NominationIntake intake = findByPosition(positionId);
+        return events.subscribe(intake.getId(), () -> adminResponse(intake));
+    }
+
     @Transactional
     public NominationIntakeResponse close(UUID electionId, UUID positionId, String accountEmail) {
         elections.getPositionForChurch(electionId, positionId, accountEmail);
         NominationIntake intake = intakes.findByPositionIdForUpdate(positionId)
             .orElseThrow(NominationIntakeNotFoundException::new);
         intake.close();
-        return adminResponse(intakes.save(intake));
+        NominationIntakeResponse response = adminResponse(intakes.save(intake));
+        publishAfterCommit(intake.getId(), response, true);
+        return response;
     }
 
     @Transactional
     public ConsolidatedNamesResponse consolidate(
             UUID electionId, UUID positionId, ConsolidateNominationsRequest request, String accountEmail) {
-        elections.getPositionForChurch(electionId, positionId, accountEmail);
+        elections.lockPositionForChurch(electionId, positionId, accountEmail);
+        votingRounds.assertConsolidationEditable(positionId);
         NominationIntake intake = findByPosition(positionId);
         if (intake.getStatus() != NominationIntakeStatus.CLOSED) {
             throw new NominationConflictException();
@@ -113,7 +132,21 @@ public class NominationIntakeService {
                 })
                 .toList();
         submissions.saveAllAndFlush(replacement);
+        publishAfterCommit(intake.getId(), adminResponse(intake), false);
         return new SubmittedNamesResponse(cleanNames);
+    }
+
+    private void publishAfterCommit(UUID intakeId, NominationIntakeResponse snapshot, boolean complete) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            events.publish(intakeId, snapshot, complete);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                events.publish(intakeId, snapshot, complete);
+            }
+        });
     }
 
     private NominationIntakeResponse adminResponse(NominationIntake intake) {

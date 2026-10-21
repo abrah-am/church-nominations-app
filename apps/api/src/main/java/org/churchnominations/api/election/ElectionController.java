@@ -2,6 +2,7 @@ package org.churchnominations.api.election;
 
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -43,5 +44,12 @@ public class ElectionController {
     @PutMapping("/{id}")
     public ElectionResponse update(@PathVariable UUID id, @Valid @RequestBody ElectionSetupRequest request, Principal principal) {
         return elections.update(id, request, principal.getName());
+    }
+
+    @DeleteMapping("/{electionId}/positions/{positionId}")
+    public ResponseEntity<Void> deletePosition(
+            @PathVariable UUID electionId, @PathVariable UUID positionId, Principal principal) {
+        elections.deletePosition(electionId, positionId, principal.getName());
+        return ResponseEntity.noContent().build();
     }
 }

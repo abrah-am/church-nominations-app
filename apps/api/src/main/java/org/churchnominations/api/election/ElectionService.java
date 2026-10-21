@@ -1,8 +1,10 @@
 package org.churchnominations.api.election;
 
+import org.churchnominations.api.election.voting.VotingRoundNotFoundException;
 import org.churchnominations.api.church.Church;
 import org.churchnominations.api.church.ChurchRepository;
 import org.churchnominations.api.nominations.NominationIntakeRepository;
+import org.churchnominations.api.nominations.ElectionPositionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,14 +21,17 @@ public class ElectionService {
     private final ElectionRepository elections;
     private final ChurchRepository churches;
     private final NominationIntakeRepository nominationIntakes;
+    private final ElectionPositionRepository positions;
 
     public ElectionService(
             ElectionRepository elections,
             ChurchRepository churches,
-            NominationIntakeRepository nominationIntakes) {
+            NominationIntakeRepository nominationIntakes,
+            ElectionPositionRepository positions) {
         this.elections = elections;
         this.churches = churches;
         this.nominationIntakes = nominationIntakes;
+        this.positions = positions;
     }
 
     public List<ElectionResponse> list(String accountEmail) {
@@ -45,6 +50,13 @@ public class ElectionService {
         return positionDetails(election, positionId);
     }
 
+        public ElectionPositionDetails getPositionForPoll(UUID positionId) {
+        return positions.findWithElectionById(positionId)
+            .map(position -> new ElectionPositionDetails(
+                position.getElection().getDepartmentName(), position.getName(), position.getOpeningCount()))
+            .orElseThrow(VotingRoundNotFoundException::new);
+        }
+
     @Transactional
     public ElectionPositionDetails lockPositionForChurch(UUID electionId, UUID positionId, String accountEmail) {
         UUID churchId = getChurch(accountEmail).getId();
@@ -57,7 +69,8 @@ public class ElectionService {
         return election.getPositions().stream()
                 .filter(position -> position.getId().equals(positionId))
                 .findFirst()
-                .map(position -> new ElectionPositionDetails(election.getDepartmentName(), position.getName()))
+                .map(position -> new ElectionPositionDetails(
+                    election.getDepartmentName(), position.getName(), position.getOpeningCount()))
                 .orElseThrow(ElectionNotFoundException::new);
     }
 
@@ -115,6 +128,18 @@ public class ElectionService {
                 .toList();
         election.updateSetup(request.departmentName(), replacementPositions);
         return ElectionResponse.from(elections.save(election));
+    }
+
+    @Transactional
+    public void deletePosition(UUID electionId, UUID positionId, String accountEmail) {
+        UUID churchId = getChurch(accountEmail).getId();
+        Election election = elections.findByIdAndChurchIdForUpdate(electionId, churchId)
+                .orElseThrow(ElectionNotFoundException::new);
+        ElectionPosition position = election.getPositions().stream()
+                .filter(candidate -> candidate.getId().equals(positionId))
+                .findFirst()
+                .orElseThrow(ElectionNotFoundException::new);
+        election.removePosition(position);
     }
 
     private Election findForChurch(UUID id, String accountEmail) {

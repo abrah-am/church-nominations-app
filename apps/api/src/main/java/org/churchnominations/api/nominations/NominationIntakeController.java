@@ -1,6 +1,7 @@
 package org.churchnominations.api.nominations;
 
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.net.URI;
 import java.security.Principal;
@@ -38,6 +40,13 @@ public class NominationIntakeController {
     public NominationIntakeResponse get(
             @PathVariable UUID electionId, @PathVariable UUID positionId, Principal principal) {
         return intakes.get(electionId, positionId, principal.getName());
+    }
+
+    @GetMapping(value = "/api/elections/{electionId}/positions/{positionId}/nominations/stream",
+            produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter stream(
+            @PathVariable UUID electionId, @PathVariable UUID positionId, Principal principal) {
+        return intakes.stream(electionId, positionId, principal.getName());
     }
 
     @PostMapping("/api/elections/{electionId}/positions/{positionId}/nominations/close")

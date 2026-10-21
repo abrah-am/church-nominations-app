@@ -1,0 +1,17 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Validate voting rounds integration",
+			"type": "shell",
+			"command": "./gradlew",
+			"args": [
+				"test",
+				"--tests",
+				"org.churchnominations.api.election.PostgresElectionIntegrationTest"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}

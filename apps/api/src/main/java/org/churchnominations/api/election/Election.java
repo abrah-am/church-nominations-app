@@ -67,6 +67,10 @@ public class Election {
         positions.sort(Comparator.comparingInt(ElectionPosition::getSequence));
     }
 
+    void removePosition(ElectionPosition position) {
+        positions.remove(position);
+    }
+
     public UUID getId() {
         return id;
     }
