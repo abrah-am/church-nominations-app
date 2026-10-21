@@ -1,4 +1,4 @@
-import { FormEvent, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import {
   AuthApiError,
   Church,
@@ -44,6 +44,32 @@ const electionStatusLabels: Record<Election['status'], string> = {
   COMPLETE: 'Complete',
 };
 
+const positionProgressLabels: Record<string, string> = {
+  NOT_STARTED: 'Not started',
+  NOMINATIONS_OPEN: 'Nominations open',
+  NOMINATIONS_CLOSED: 'Nominations closed',
+  CONSOLIDATED: 'Consolidated',
+  ROUND_DRAFT: 'Round configured',
+  ROUND_ACTIVE: 'Voting active',
+  ROUND_CLOSED_UNREVEALED: 'Round closed',
+  RESULTS_REVEALED: 'Results revealed',
+  CANDIDATES_ADVANCED: 'Candidates advanced',
+  COMPLETE: 'Complete',
+};
+
+const positionActionLabels: Record<string, string> = {
+  SET_UP_NOMINATIONS: 'Set up nominations',
+  CLOSE_NOMINATIONS: 'Close nominations',
+  CONSOLIDATE_NOMINATIONS: 'Review and consolidate names',
+  CONFIGURE_FIRST_ROUND: 'Configure first round',
+  START_VOTING: 'Review and start voting',
+  MONITOR_VOTING: 'Monitor voting',
+  REVEAL_RESULTS: 'Reveal results',
+  RECORD_CANDIDATE_DECISIONS: 'Record candidate decisions',
+  CONFIGURE_NEXT_ROUND: 'Configure next round',
+  COMPLETE: 'Position complete',
+};
+
 export { getCandidateRecommendation } from './features/elections/candidateRecommendations';
 
 function App() {
@@ -65,6 +91,16 @@ function AuthenticatedApp() {
   const [elections, setElections] = useState<Election[]>([]);
   const [selectedElection, setSelectedElection] = useState<Election | null>(null);
   const [selectedPositionIndex, setSelectedPositionIndex] = useState(0);
+  const [positionDraftDirty, setPositionDraftDirty] = useState(false);
+  const positionDraftDirtyRef = useRef(false);
+  const [pendingPositionIndex, setPendingPositionIndex] = useState<number | null>(null);
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
+  const stayOnPositionButton = useRef<HTMLButtonElement>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
+  const mainRegion = useRef<HTMLElement>(null);
+  const positionSummary = useRef<HTMLDivElement>(null);
+  const focusPositionAfterSwitch = useRef(false);
+  const focusMainAfterNavigation = useRef(false);
   const [deletePositionOpen, setDeletePositionOpen] = useState(false);
   const [deletePositionConfirmation, setDeletePositionConfirmation] = useState('');
   const [screen, setScreen] = useState<Screen>('list');
@@ -79,6 +115,86 @@ function AuthenticatedApp() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [attendanceIds, setAttendanceIds] = useState<string[]>([]);
   const [attendanceDrafts, setAttendanceDrafts] = useState<Record<string, string[]>>({});
+
+  const reportPositionDraftState = useCallback((dirty: boolean) => {
+    positionDraftDirtyRef.current = dirty;
+    setPositionDraftDirty(dirty);
+  }, []);
+
+  function requestPositionChange(index: number) {
+    if (index === selectedPositionIndex) return;
+    if (positionDraftDirtyRef.current || positionDraftDirty) {
+      previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setPendingPositionIndex(index);
+      return;
+    }
+    setSelectedPositionIndex(index);
+  }
+
+  function requestNavigation(action: () => void) {
+    if (!positionDraftDirtyRef.current && !positionDraftDirty) {
+      action();
+      return;
+    }
+    previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setPendingNavigation(action);
+  }
+
+  function closeDraftDialog() {
+    setPendingPositionIndex(null);
+    setPendingNavigation(null);
+    previousFocus.current?.focus();
+  }
+
+  function discardPositionDraftAndSwitch() {
+    if (pendingPositionIndex === null && pendingNavigation === null) return;
+    positionDraftDirtyRef.current = false;
+    setPositionDraftDirty(false);
+    if (pendingPositionIndex !== null) {
+      focusPositionAfterSwitch.current = true;
+      setSelectedPositionIndex(pendingPositionIndex);
+    }
+    if (pendingNavigation !== null) focusMainAfterNavigation.current = true;
+    pendingNavigation?.();
+    setPendingPositionIndex(null);
+    setPendingNavigation(null);
+  }
+
+  useEffect(() => {
+    if (pendingPositionIndex !== null || pendingNavigation !== null) stayOnPositionButton.current?.focus();
+  }, [pendingPositionIndex, pendingNavigation]);
+  useEffect(() => {
+    if (focusPositionAfterSwitch.current) {
+      focusPositionAfterSwitch.current = false;
+      positionSummary.current?.focus();
+    }
+  }, [selectedPositionIndex]);
+
+  useEffect(() => {
+    if (focusMainAfterNavigation.current) {
+      focusMainAfterNavigation.current = false;
+      mainRegion.current?.focus();
+    }
+  }, [credentials, screen, workspace, boardScreen]);
+
+  function handleDraftDialogKeyDown(event: React.KeyboardEvent<HTMLElement>) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeDraftDialog();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const buttons = event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)');
+    const first = buttons[0];
+    const last = buttons[buttons.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
+    }
+  }
 
   function handleRequestError(error: unknown) {
     if ((error instanceof ElectionsApiError || error instanceof AuthApiError || error instanceof BoardsApiError) && error.status === 401) {
@@ -173,7 +289,7 @@ function AuthenticatedApp() {
     }
   }
 
-  function signOut() {
+  function performSignOut() {
     statusRefreshVersion.current += 1;
     setCredentials(null);
     setAccount(null);
@@ -190,6 +306,10 @@ function AuthenticatedApp() {
     setPageError('');
     setLoginError('');
     setScreen('list');
+  }
+
+  function signOut() {
+    requestNavigation(performSignOut);
   }
 
   async function openElection(election: Election) {
@@ -215,29 +335,29 @@ function AuthenticatedApp() {
     }
   }
 
-  async function refreshElectionStatus(electionId: string, force = false) {
+  const refreshElectionStatus = useCallback(async (electionId: string, refreshList = false) => {
     if (!credentials) return;
-    if (!force && selectedElection?.id === electionId && selectedElection.status === 'IN_PROGRESS') return;
     const requestVersion = ++statusRefreshVersion.current;
     const requestCredentials = credentials;
     try {
-      const [refreshedElections, refreshedElection] = await Promise.all([
-        listElections(requestCredentials),
-        getElection(requestCredentials, electionId),
-      ]);
+      const [refreshedElections, refreshedElection] = refreshList
+        ? await Promise.all([listElections(requestCredentials), getElection(requestCredentials, electionId)])
+        : [null, await getElection(requestCredentials, electionId)] as const;
       if (requestVersion !== statusRefreshVersion.current || credentials !== requestCredentials) return;
-      setElections(refreshedElections);
+      if (refreshedElections) setElections(refreshedElections);
       setSelectedElection((current) => current?.id === electionId ? refreshedElection : current);
     } catch (error) {
       if (requestVersion !== statusRefreshVersion.current || credentials !== requestCredentials) return;
       handleRequestError(error);
     }
-  }
+  }, [credentials]);
 
   function returnToElectionList() {
-    setScreen('list');
-    setPageError('');
-    if (selectedElection) void refreshElectionStatus(selectedElection.id, true);
+    requestNavigation(() => {
+      setScreen('list');
+      setPageError('');
+      if (selectedElection) void refreshElectionStatus(selectedElection.id, true);
+    });
   }
 
   function openCreateForm() {
@@ -413,7 +533,7 @@ function AuthenticatedApp() {
   const isEditing = screen === 'form' && selectedElection !== null;
 
   return (
-    <main className="app-shell">
+    <main ref={mainRegion} tabIndex={-1} className="app-shell">
       <header className="topbar">
         <a className="wordmark" href="/" aria-label="Church Nominations home" onClick={(event) => event.preventDefault()}>
           <span className="mark" aria-hidden="true">C</span>
@@ -454,8 +574,8 @@ function AuthenticatedApp() {
           </div>
 
           <nav className="workspace-tabs" aria-label="Church workspace">
-            <button type="button" aria-pressed={workspace === 'elections'} onClick={() => { setWorkspace('elections'); setScreen('list'); setPageError(''); }}>Department elections</button>
-            <button type="button" aria-pressed={workspace === 'boards'} onClick={openBoardsWorkspace}>Annual Boards</button>
+            <button type="button" aria-pressed={workspace === 'elections'} onClick={() => requestNavigation(() => { setWorkspace('elections'); setScreen('list'); setPageError(''); })}>Department elections</button>
+            <button type="button" aria-pressed={workspace === 'boards'} onClick={() => requestNavigation(() => { void openBoardsWorkspace(); })}>Annual Boards</button>
           </nav>
 
           {workspace === 'boards' && <div className="setup-notice attendance-notice" role="note">
@@ -524,7 +644,7 @@ function AuthenticatedApp() {
             <section className="detail-section">
               <div className="detail-actions">
                 <button className="back-button" type="button" onClick={returnToElectionList}>← <span>All elections</span></button>
-                {selectedElection && selectedElection.positions.length > 0 && <button className="secondary-button" type="button" onClick={() => { setPageError(''); setScreen('form'); }}>Edit setup</button>}
+                {selectedElection && selectedElection.positions.length > 0 && <button className="secondary-button" type="button" onClick={() => requestNavigation(() => { setPageError(''); setScreen('form'); })}>Edit setup</button>}
               </div>
               {isLoading || !selectedElection ? <p className="state-message" role="status">Loading election…</p> : (
                 <>
@@ -547,22 +667,54 @@ function AuthenticatedApp() {
                           <span className="empty-rule" aria-hidden="true" />
                           <h3>This election has no positions</h3>
                           <p>The election remains available. Add a position to continue.</p>
-                          <button className="secondary-button" type="button" onClick={() => { setPageError(''); setScreen('form'); }}>Edit setup</button>
+                          <button className="secondary-button" type="button" onClick={() => requestNavigation(() => { setPageError(''); setScreen('form'); })}>Edit setup</button>
                         </div>
                       );
                     }
+                    const statusLabel = position.progressStatus
+                      ? positionProgressLabels[position.progressStatus] ?? position.progressStatus.replace(/_/g, ' ').toLowerCase()
+                      : 'Progress unavailable';
+                    const actionLabel = position.nextAction
+                      ? positionActionLabels[position.nextAction] ?? position.nextAction.replace(/_/g, ' ').toLowerCase()
+                      : 'Action unavailable';
                     return (
                       <>
-                        <div className="position-detail" aria-live="polite">
+                        <nav className="position-stepper" aria-label="Election positions">
+                          <ol>
+                            {positions.map((item, index) => {
+                              const itemStatus = item.progressStatus
+                                ? positionProgressLabels[item.progressStatus] ?? item.progressStatus.replace(/_/g, ' ').toLowerCase()
+                                : 'Progress unavailable';
+                              const itemAction = item.nextAction
+                                ? positionActionLabels[item.nextAction] ?? item.nextAction.replace(/_/g, ' ').toLowerCase()
+                                : 'Action unavailable';
+                              const current = index === selectedPositionIndex;
+                              return (
+                                <li key={item.id}>
+                                  <button type="button" aria-current={current ? 'step' : undefined} aria-label={`Position ${index + 1} of ${positions.length}: ${item.name}, ${item.openingCount} ${item.openingCount === 1 ? 'opening' : 'openings'}, ${itemStatus}, next action: ${itemAction}${item.roundNumber == null ? '' : `, round ${item.roundNumber}`}${current ? ', current position' : ''}`} onClick={() => requestPositionChange(index)}>
+                                    <span className="step-number">{index + 1}</span>
+                                    <span className="step-copy">
+                                      <strong>{item.name} · {item.openingCount} {item.openingCount === 1 ? 'opening' : 'openings'}</strong>
+                                      <span>{itemStatus}{item.roundNumber == null ? '' : ` · Round ${item.roundNumber}`}</span>
+                                      <span>Next: {itemAction}</span>
+                                    </span>
+                                  </button>
+                                </li>
+                              );
+                            })}
+                          </ol>
+                        </nav>
+                        <div ref={positionSummary} tabIndex={-1} className="position-detail" aria-live="polite" aria-atomic="true" aria-label={`Current position: ${position.name}, ${position.openingCount} ${position.openingCount === 1 ? 'opening' : 'openings'}, ${statusLabel}, next action: ${actionLabel}${position.roundNumber == null ? '' : `, round ${position.roundNumber}`}`}>
                           <span className="sequence-number">{position.sequence}</span>
                           <div className="position-copy"><strong>{position.name}</strong><span>{position.openingCount} {position.openingCount === 1 ? 'opening' : 'openings'}</span></div>
+                          <div className="position-progress"><strong>{statusLabel}{position.roundNumber == null ? '' : ` · Round ${position.roundNumber}`}</strong><span>Next action: {actionLabel}</span></div>
                         </div>
                         <div className="position-admin-actions">
                           <button className="danger-button" type="button" onClick={() => { setDeletePositionConfirmation(''); setDeletePositionOpen(true); }}>Delete position</button>
                         </div>
                         <nav className="position-navigation" aria-label="Election position sequence">
-                          <button className="secondary-button" type="button" disabled={selectedPositionIndex === 0} onClick={() => setSelectedPositionIndex((index) => index - 1)}>← <span>Previous position</span></button>
-                          <button className="secondary-button" type="button" disabled={selectedPositionIndex === positions.length - 1} onClick={() => setSelectedPositionIndex((index) => index + 1)}><span>Next position</span> →</button>
+                          <button className="secondary-button" type="button" disabled={selectedPositionIndex === 0} onClick={() => requestPositionChange(selectedPositionIndex - 1)}>← <span>Previous position</span></button>
+                          <button className="secondary-button" type="button" disabled={selectedPositionIndex === positions.length - 1} onClick={() => requestPositionChange(selectedPositionIndex + 1)}><span>Next position</span> →</button>
                         </nav>
                         <NominationAdminPanel
                           key={`${selectedElection.id}-${position.id}`}
@@ -571,8 +723,21 @@ function AuthenticatedApp() {
                           positionId={position.id}
                           positionName={position.name}
                           openingCount={position.openingCount}
-                          onLifecycleChange={(force) => { void refreshElectionStatus(selectedElection.id, force); }}
+                          onLifecycleChange={() => { void refreshElectionStatus(selectedElection.id); }}
+                          onDraftStateChange={reportPositionDraftState}
                         />
+                        {(pendingPositionIndex !== null || pendingNavigation !== null) && (
+                          <div className="dialog-backdrop">
+                            <section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="position-draft-title" aria-describedby="position-draft-description" onKeyDown={handleDraftDialogKeyDown}>
+                              <h3 id="position-draft-title">Unsaved changes</h3>
+                              <p id="position-draft-description">This position has unsaved edits. Staying keeps them here; leaving requires discarding them.</p>
+                              <div className="form-actions dialog-actions">
+                                <button ref={stayOnPositionButton} className="secondary-button" type="button" onClick={closeDraftDialog}>Stay on this position</button>
+                                <button className="danger-button" type="button" onClick={discardPositionDraftAndSwitch}>{pendingPositionIndex === null ? 'Discard changes and continue' : 'Discard changes and switch'}</button>
+                              </div>
+                            </section>
+                          </div>
+                        )}
                         {deletePositionOpen && (
                           <div className="dialog-backdrop">
                             <section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-position-title" aria-describedby="delete-position-description">

@@ -3,6 +3,9 @@ export type ElectionPosition = {
   name: string;
   openingCount: number;
   sequence: number;
+  progressStatus: string;
+  nextAction: string;
+  roundNumber: number | null;
 };
 
 export type Election = {

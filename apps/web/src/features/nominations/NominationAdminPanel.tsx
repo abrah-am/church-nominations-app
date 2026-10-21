@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
 	NominationIntake,
 	NominationsApiError,
@@ -38,6 +38,7 @@ export type NominationAdminPanelProps = {
 	positionName: string;
 	openingCount: number;
 	onLifecycleChange: (completionMayChange?: boolean) => void;
+	onDraftStateChange: (dirty: boolean) => void;
 };
 
 function normalizeNominationIntake(intake: NominationIntake): NominationIntake {
@@ -49,13 +50,14 @@ function normalizeNominationIntake(intake: NominationIntake): NominationIntake {
 	};
 }
 
-export default function NominationAdminPanel({ credentials, electionId, positionId, positionName, openingCount, onLifecycleChange }: NominationAdminPanelProps) {
+export default function NominationAdminPanel({ credentials, electionId, positionId, positionName, openingCount, onLifecycleChange, onDraftStateChange }: NominationAdminPanelProps) {
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [intakeDetailsOpen, setIntakeDetailsOpen] = useState(true);
 	const [consolidationDetailsOpen, setConsolidationDetailsOpen] = useState(false);
 	const [intake, setIntake] = useState<NominationIntake | null>(null);
 	const [nameLimit, setNameLimit] = useState('5');
 	const [candidateDraft, setCandidateDraft] = useState('');
+	const [candidateDraftBaseline, setCandidateDraftBaseline] = useState('');
 	const [confirmed, setConfirmed] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState('');
@@ -65,6 +67,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	const [rounds, setRounds] = useState<VotingRound[]>([]);
 	const [draftRoundId, setDraftRoundId] = useState<string | null>(null);
 	const [selectionCount, setSelectionCount] = useState('');
+	const [selectionCountBaseline, setSelectionCountBaseline] = useState('');
 	const [roundsLoading, setRoundsLoading] = useState(false);
 	const [roundsReady, setRoundsReady] = useState(false);
 	const [roundsSaving, setRoundsSaving] = useState(false);
@@ -84,6 +87,8 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	const [electedCandidateId, setElectedCandidateId] = useState<string | null>(null);
 	const [roundLifecycleBusy, setRoundLifecycleBusy] = useState(false);
 	const [copiedRoundId, setCopiedRoundId] = useState<string | null>(null);
+	const lifecycleChangeRef = useRef(onLifecycleChange);
+	useEffect(() => { lifecycleChangeRef.current = onLifecycleChange; }, [onLifecycleChange]);
 	const confirmedNames = intake?.status === 'CLOSED' && Array.isArray(intake.consolidatedNames)
 		? intake.consolidatedNames
 		: [];
@@ -104,12 +109,28 @@ export default function NominationAdminPanel({ credentials, electionId, position
 		: draftRound
 			? draftRound.candidates.map((candidate) => candidate.name)
 			: confirmedNames;
+	const unsavedDrafts = (!intake && nameLimit !== '5')
+		|| candidateDraft !== candidateDraftBaseline
+		|| (hasSavedSnapshot && roundsReady && selectionCount !== selectionCountBaseline)
+		|| Object.entries(decisionDrafts).some(([candidateId, draft]) => {
+			const candidate = rounds.flatMap((round) => roundResults[round.id]?.candidates ?? []).find((item) => item.id === candidateId);
+			return candidate && (draft.decision !== (candidate.decision ?? 'ADVANCED') || draft.reason.trim() !== (candidate.decisionReason ?? '').trim());
+		});
+
+	useLayoutEffect(() => {
+		onDraftStateChange(unsavedDrafts);
+	}, [onDraftStateChange, unsavedDrafts]);
+
+	function updateDraftState(dirty: boolean) {
+		onDraftStateChange(dirty);
+	}
 
 	useEffect(() => {
 		if (!hasSavedSnapshot) {
 			setRounds([]);
 			setDraftRoundId(null);
 			setSelectionCount('');
+			setSelectionCountBaseline('');
 			setRoundResults({});
 			setUnrevealedRoundIds([]);
 			setRoundsError('');
@@ -133,6 +154,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 				.sort((first, second) => second.roundNumber - first.roundNumber)[0];
 			setDraftRoundId(draft?.id ?? null);
 			setSelectionCount(draft ? String(draft.selectionCount) : '');
+			setSelectionCountBaseline(draft ? String(draft.selectionCount) : '');
 			const closedRounds = loaded.filter((round) => round.status === 'CLOSED');
 			return Promise.all(closedRounds.map(async (round) => {
 				try {
@@ -175,6 +197,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					if (!isCurrent) return;
 					setRoundProgress((current) => ({ ...current, [roundId]: progress }));
 					if (progress.status === 'CLOSED') {
+						lifecycleChangeRef.current();
 						try {
 							const result = await getVotingRoundResults(credentials, electionId, positionId, roundId);
 							if (!isCurrent) return;
@@ -224,6 +247,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setIntakeDetailsOpen(normalized.status === 'OPEN');
 			setConsolidationDetailsOpen(normalized.status === 'CLOSED' && !normalized.consolidatedNames);
 			setCandidateDraft((normalized.consolidatedNames ?? alphabeticalNames(normalized.submissions.map((submission) => submission.name))).join('\n'));
+			setCandidateDraftBaseline((normalized.consolidatedNames ?? alphabeticalNames(normalized.submissions.map((submission) => submission.name))).join('\n'));
 		} catch (requestError) {
 			if (requestError instanceof NominationsApiError && requestError.status === 404) {
 				setIntake(null);
@@ -254,6 +278,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 				setIntakeDetailsOpen(false);
 				setConsolidationDetailsOpen(!normalized.consolidatedNames);
 				setCandidateDraft((normalized.consolidatedNames ?? alphabeticalNames(normalized.submissions.map((submission) => submission.name))).join('\n'));
+				setCandidateDraftBaseline((normalized.consolidatedNames ?? alphabeticalNames(normalized.submissions.map((submission) => submission.name))).join('\n'));
 			}
 			setStreamStatus('');
 		};
@@ -323,6 +348,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setIntakeDetailsOpen(false);
 			setConsolidationDetailsOpen(!closed.consolidatedNames);
 			setCandidateDraft((closed.consolidatedNames ?? alphabeticalNames(closed.submissions.map((submission) => submission.name))).join('\n'));
+			setCandidateDraftBaseline((closed.consolidatedNames ?? alphabeticalNames(closed.submissions.map((submission) => submission.name))).join('\n'));
 			setConfirmed(false);
 			onLifecycleChange();
 		} catch (requestError) {
@@ -347,9 +373,11 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			const saved = await saveNominationConsolidation(credentials, electionId, positionId, candidateNames);
 			setIntake((current) => current ? { ...current, consolidatedNames: saved.candidateNames } : current);
 			setCandidateDraft(saved.candidateNames.join('\n'));
+			setCandidateDraftBaseline(saved.candidateNames.join('\n'));
 			setConfirmed(false);
 			setIntakeDetailsOpen(false);
 			setConsolidationDetailsOpen(false);
+			onLifecycleChange();
 		} catch (requestError) {
 			const details = requestError instanceof Error ? requestError.message : 'Please try again.';
 			setConsolidationError(`Could not save the candidate list. Your edits are still here; review them and retry. ${details}`);
@@ -361,6 +389,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	function editConsolidatedCandidates() {
 		if (!intake?.consolidatedNames || rounds.length > 0 || draftRoundId) return;
 		setCandidateDraft(intake.consolidatedNames.join('\n'));
+		setCandidateDraftBaseline(intake.consolidatedNames.join('\n'));
 		setConfirmed(false);
 		setIntake((current) => current ? { ...current, consolidatedNames: null } : current);
 		setConsolidationDetailsOpen(true);
@@ -394,7 +423,9 @@ export default function NominationAdminPanel({ credentials, electionId, position
 				.sort((first, second) => first.roundNumber - second.roundNumber));
 			setDraftRoundId(saved.id);
 			setSelectionCount(String(saved.selectionCount));
+			setSelectionCountBaseline(String(saved.selectionCount));
 			setRoundsSuccess('Draft round configuration saved.');
+			onLifecycleChange();
 		} catch (requestError) {
 			setRoundsError(requestError instanceof RoundsApiError || requestError instanceof Error
 				? requestError.message
@@ -474,6 +505,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setUnrevealedRoundIds((current) => current.filter((id) => id !== round.id));
 			setRevealRoundId(null);
 			setRoundsSuccess(`Results for round ${round.roundNumber} are revealed to administrators.`);
+			onLifecycleChange();
 		} catch (requestError) {
 			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not reveal round results.');
 		} finally {
@@ -534,6 +566,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 				}));
 			}
 			setRoundsSuccess('Candidate decision undone. Mark the candidate Advanced to include them in the next round.');
+			onLifecycleChange();
 		} catch (requestError) {
 			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not undo the candidate decision.');
 		} finally {
@@ -577,6 +610,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setRounds((current) => current.map((item) => item.id === reset.id ? reset : item));
 			setDraftRoundId(reset.id);
 			setSelectionCount('');
+			setSelectionCountBaseline('');
 			setExpectedVoterCount('');
 			setRoundProgress((current) => {
 				const next = { ...current };
@@ -634,7 +668,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 				<form className="intake-create" onSubmit={createIntake}>
 					<label htmlFor="nomination-name-limit">Maximum names per visitor</label>
 					<div className="intake-controls">
-						<input id="nomination-name-limit" type="number" min="1" step="1" value={nameLimit} onChange={(event) => setNameLimit(event.target.value)} required />
+						<input id="nomination-name-limit" type="number" min="1" step="1" value={nameLimit} onChange={(event) => { setNameLimit(event.target.value); updateDraftState(event.target.value !== '5'); }} required />
 						<button className="primary-button" type="submit" disabled={isLoading}>Create intake</button>
 					</div>
 				</form>
@@ -701,7 +735,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 						<label htmlFor="consolidated-candidates">Unique candidate list</label>
 						<p className="form-note">Names are listed alphabetically. Edit the final list, one per line; duplicate entries are removed when saved.</p>
 						{consolidationError && <p className="error-message" role="alert">{consolidationError}</p>}
-						<textarea id="consolidated-candidates" rows={Math.max(4, Math.min(10, candidateDraft.split('\n').length))} value={candidateDraft} onChange={(event) => { setCandidateDraft(event.target.value); setConfirmed(false); setConsolidationError(''); }} />
+						<textarea id="consolidated-candidates" rows={Math.max(4, Math.min(10, candidateDraft.split('\n').length))} value={candidateDraft} onChange={(event) => { setCandidateDraft(event.target.value); setConfirmed(false); setConsolidationError(''); updateDraftState(event.target.value !== candidateDraftBaseline); }} />
 						<label className="confirmation-label"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} /> <span>I confirm this is the final candidate list to save as the consolidation snapshot.</span></label>
 						<div className="form-actions"><button className="primary-button" type="submit" disabled={isLoading || !confirmed}>{isLoading ? 'Saving…' : 'Save consolidation snapshot'}</button></div>
 					</form>
@@ -910,7 +944,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 										max={candidateOptions.length}
 										step="1"
 										value={selectionCount}
-										onChange={(event) => setSelectionCount(event.target.value)}
+										onChange={(event) => { setSelectionCount(event.target.value); updateDraftState(event.target.value !== selectionCountBaseline); }}
 										required
 										disabled={roundsSaving}
 									/>

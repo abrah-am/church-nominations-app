@@ -7,8 +7,8 @@ const election = {
   departmentName: 'Finance',
   status: 'SETUP' as const,
   positions: [
-    { id: 'position-2', name: 'Treasurer', openingCount: 2, sequence: 2 },
-    { id: 'position-1', name: 'Director', openingCount: 1, sequence: 1 },
+    { id: 'position-2', name: 'Treasurer', openingCount: 2, sequence: 2, progressStatus: 'NOMINATIONS_OPEN', nextAction: 'CLOSE_NOMINATIONS', roundNumber: null },
+    { id: 'position-1', name: 'Director', openingCount: 1, sequence: 1, progressStatus: 'NOT_STARTED', nextAction: 'SET_UP_NOMINATIONS', roundNumber: null },
   ],
 };
 const account = { id: 'account-1', email: 'admin@example.com' };
@@ -178,7 +178,6 @@ describe('voting round navigation', () => {
       .mockResolvedValueOnce(response([closedRound]))
       .mockResolvedValueOnce(response(results))
       .mockResolvedValueOnce(response(resetRound))
-      .mockResolvedValueOnce(response([{ ...election, status: 'IN_PROGRESS' }]))
       .mockResolvedValueOnce(response({ ...election, status: 'IN_PROGRESS' }))
       .mockResolvedValueOnce(response(reconfiguredRound));
     vi.stubGlobal('fetch', fetchMock);
@@ -356,16 +355,104 @@ describe('election administration', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
 
     expect(await screen.findByRole('heading', { name: 'Position 1 of 2' })).toBeInTheDocument();
-    expect(await screen.findByText('Director')).toBeInTheDocument();
-    expect(screen.queryByText('Treasurer')).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Position 1 of 2: Director, 1 opening, Not started, next action: Set up nominations, current position' })).toBeInTheDocument();
+    expect(within(screen.getByLabelText(/Current position: Director/)).getByText('Director')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Position 1 of 2: Director, 1 opening, Not started, next action: Set up nominations, current position' })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('button', { name: 'Position 2 of 2: Treasurer, 2 openings, Nominations open, next action: Close nominations' })).not.toHaveAttribute('aria-current');
+    expect(within(screen.getByRole('navigation', { name: 'Election positions' })).getByText('Next: Close nominations')).toBeInTheDocument();
+    expect(screen.getByText('Next action: Set up nominations')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Previous position/ })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: /Next position/ }));
     expect(await screen.findByRole('heading', { name: 'Position 2 of 2' })).toBeInTheDocument();
-    expect(await screen.findByText('Treasurer')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Position 2 of 2: Treasurer, 2 openings, Nominations open, next action: Close nominations, current position' })).toBeInTheDocument();
+    expect(screen.getByText('Next action: Close nominations')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Next position/ })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: /Previous position/ }));
     expect(await screen.findByRole('heading', { name: 'Position 1 of 2' })).toBeInTheDocument();
     expect(fetchMock.mock.calls[3][0]).toBe('http://localhost:8080/api/elections/election-1');
+  });
+
+  it('keeps election detail usable when the API omits position progress fields', async () => {
+    const legacyElection = {
+      ...election,
+      status: 'IN_PROGRESS' as const,
+      positions: election.positions.map((position) => Object.fromEntries(
+        Object.entries(position).filter(([key]) => !['progressStatus', 'nextAction', 'roundNumber'].includes(key)),
+      )),
+    };
+    const fetchMock = signedInFetch([church], [legacyElection]);
+    fetchMock.mockResolvedValueOnce(response(legacyElection));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
+
+    expect(await screen.findByRole('heading', { name: 'Position 1 of 2' })).toBeInTheDocument();
+    expect(screen.getAllByText('Progress unavailable')).toHaveLength(3);
+    expect(screen.getAllByText('Next: Action unavailable')).toHaveLength(2);
+    expect(screen.getByText('Next action: Action unavailable')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['NOT_STARTED', 'Not started', 'SET_UP_NOMINATIONS', 'Set up nominations'],
+    ['NOMINATIONS_OPEN', 'Nominations open', 'CLOSE_NOMINATIONS', 'Close nominations'],
+    ['NOMINATIONS_CLOSED', 'Nominations closed', 'CONSOLIDATE_NOMINATIONS', 'Review and consolidate names'],
+    ['CONSOLIDATED', 'Consolidated', 'CONFIGURE_FIRST_ROUND', 'Configure first round'],
+    ['ROUND_DRAFT', 'Round configured', 'START_VOTING', 'Review and start voting'],
+    ['ROUND_ACTIVE', 'Voting active', 'MONITOR_VOTING', 'Monitor voting'],
+    ['ROUND_CLOSED_UNREVEALED', 'Round closed', 'REVEAL_RESULTS', 'Reveal results'],
+    ['RESULTS_REVEALED', 'Results revealed', 'RECORD_CANDIDATE_DECISIONS', 'Record candidate decisions'],
+    ['CANDIDATES_ADVANCED', 'Candidates advanced', 'CONFIGURE_NEXT_ROUND', 'Configure next round'],
+    ['COMPLETE', 'Complete', 'COMPLETE', 'Position complete'],
+  ])('shows %s progress and its approved action', async (progressStatus, statusLabel, nextAction, actionLabel) => {
+    const progressElection = {
+      ...election,
+      positions: [{ ...election.positions[1], openingCount: 2, progressStatus, nextAction, roundNumber: progressStatus.startsWith('ROUND_') || progressStatus === 'RESULTS_REVEALED' || progressStatus === 'CANDIDATES_ADVANCED' ? 2 : null }],
+    };
+    const fetchMock = signedInFetch([church], [progressElection]);
+    fetchMock.mockResolvedValueOnce(response(progressElection));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
+    await screen.findByRole('heading', { name: 'Position 1 of 1' });
+
+    const stepper = screen.getByRole('navigation', { name: 'Election positions' });
+    const positionButtonName = `Position 1 of 1: Director, 2 openings, ${statusLabel}, next action: ${actionLabel}${progressElection.positions[0].roundNumber == null ? '' : `, round ${progressElection.positions[0].roundNumber}`}, current position`;
+    expect(within(stepper).getByRole('button', { name: positionButtonName })).toHaveAttribute('aria-current', 'step');
+    expect(within(stepper).getByText(`Next: ${actionLabel}`)).toBeInTheDocument();
+    expect(screen.getByLabelText(`Current position: Director, 2 openings, ${statusLabel}, next action: ${actionLabel}${progressElection.positions[0].roundNumber == null ? '' : `, round ${progressElection.positions[0].roundNumber}`}`)).toBeInTheDocument();
+    expect(screen.getByText(`Next action: ${actionLabel}`)).toBeInTheDocument();
+  });
+
+  it('requires an explicit discard before switching with an unsaved intake setup draft', async () => {
+    const fetchMock = signedInFetch([church], [election]);
+    fetchMock
+      .mockResolvedValueOnce(response(election))
+      .mockResolvedValueOnce(response({}, 404));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage nominations' }));
+    const nameLimit = await screen.findByLabelText('Maximum names per visitor');
+    fireEvent.change(nameLimit, { target: { value: '4' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /Next position/ }));
+
+    expect(screen.getByRole('dialog', { name: 'Unsaved changes' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Position 1 of 2' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Stay on this position' }));
+    expect(screen.queryByRole('dialog', { name: 'Unsaved changes' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Position 1 of 2' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Next position/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard changes and switch' }));
+    expect(await screen.findByRole('heading', { name: 'Position 2 of 2' })).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false);
   });
 
   it.each([
@@ -404,7 +491,6 @@ describe('election administration', () => {
       .mockResolvedValueOnce(response(election))
       .mockResolvedValueOnce(response({}, 404))
       .mockResolvedValueOnce(response(openIntake, 201))
-      .mockResolvedValueOnce(response([progressedElection]))
       .mockResolvedValueOnce(response(progressedElection))
       .mockResolvedValueOnce(eventStreamResponse([`event: intake\ndata: ${JSON.stringify(openIntake)}\n\n`]))
       .mockResolvedValueOnce(response([progressedElection]))
@@ -509,8 +595,8 @@ describe('election administration', () => {
       departmentName: 'Operations',
       status: 'SETUP' as const,
       positions: [
-        { id: 'p-1', name: 'Assistant', openingCount: 2, sequence: 1 },
-        { id: 'p-2', name: 'Director', openingCount: 1, sequence: 2 },
+        { id: 'p-1', name: 'Assistant', openingCount: 2, sequence: 1, progressStatus: 'NOT_STARTED', nextAction: 'SET_UP_NOMINATIONS', roundNumber: null },
+        { id: 'p-2', name: 'Director', openingCount: 1, sequence: 2, progressStatus: 'NOT_STARTED', nextAction: 'SET_UP_NOMINATIONS', roundNumber: null },
       ],
     };
     const fetchMock = signedInFetch([church], []);
@@ -540,7 +626,7 @@ describe('election administration', () => {
       ],
     });
     expect(createRequest[1].headers.Authorization).toBe(`Basic ${btoa('admin@example.com:secret')}`);
-    expect(await screen.findByText('Assistant')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Position 1 of 2: Assistant, 2 openings, Not started, next action: Set up nominations, current position' })).toBeInTheDocument();
   });
 
   it('creates an annual board with a named roster only after selecting that workspace', async () => {
@@ -779,36 +865,30 @@ describe('election administration', () => {
     };
     const fetchMock = signedInFetch([church], [election]);
     const intervalSpy = vi.spyOn(window, 'setInterval');
-    fetchMock
-      .mockResolvedValueOnce(response(election))
-      .mockResolvedValueOnce(response({}, 404))
-      .mockResolvedValueOnce(response(openIntake, 201))
-      .mockResolvedValueOnce(response([{ ...election, status: 'IN_PROGRESS' }]))
-      .mockResolvedValueOnce(response({ ...election, status: 'IN_PROGRESS' }))
-      .mockResolvedValueOnce(eventStreamResponse([`event: intake\ndata: ${JSON.stringify(openIntake)}\n\n`]))
-      .mockResolvedValueOnce(response(closedIntake))
-      .mockResolvedValueOnce(response(savedSnapshot))
-      .mockResolvedValueOnce(response([]))
-      .mockResolvedValueOnce(response({}, 500))
-      .mockResolvedValueOnce(response(createdDraft, 201))
-      .mockResolvedValueOnce(response(updatedDraft))
-      .mockResolvedValueOnce(response(activeRound))
-      .mockResolvedValueOnce(response({ roundId: 'round-1', status: 'ACTIVE', ballotsCast: 7, expectedVoterCount: 16 }))
-      .mockResolvedValueOnce(response({ roundId: 'round-1', status: 'CLOSED', ballotsCast: 9, expectedVoterCount: 16 }))
-      .mockResolvedValueOnce(response({}, 404))
-      .mockResolvedValueOnce(response(revealedResults))
-      .mockResolvedValueOnce(response(decidedResults))
-      .mockResolvedValueOnce(response(eliminatedResults))
-      .mockResolvedValueOnce(response(undoneResults))
-      .mockResolvedValueOnce(response(electedResults))
-      .mockResolvedValueOnce(response([{ ...election, status: 'IN_PROGRESS' }]))
-      .mockResolvedValueOnce(response({ ...election, status: 'IN_PROGRESS' }))
-      .mockResolvedValueOnce(response({
-        id: 'round-2', roundNumber: 2, status: 'DRAFT', selectionCount: 1,
-        candidates: [{ id: 'candidate-1-round-2', name: 'Riley Chen', sequence: 1 }],
-      }, 201))
-      .mockResolvedValueOnce(response(electedResults))
-      .mockResolvedValueOnce(response(activeRound));
+    const workflowResponses = [
+      response({}, 404), response(openIntake, 201),
+      eventStreamResponse([`event: intake\ndata: ${JSON.stringify(openIntake)}\n\n`]), response(closedIntake), response(savedSnapshot),
+      response([]), response({}, 500), response(createdDraft, 201), response(updatedDraft), response(activeRound),
+      response({}, 404), response(revealedResults), response(decidedResults), response(eliminatedResults),
+      response(undoneResults), response(electedResults),
+      response({ id: 'round-2', roundNumber: 2, status: 'DRAFT', selectionCount: 1, candidates: [{ id: 'candidate-1-round-2', name: 'Riley Chen', sequence: 1 }] }, 201),
+      response(electedResults), response(activeRound),
+    ];
+    let workflowResponseIndex = 0;
+    let progressPollCount = 0;
+    fetchMock.mockImplementation(async (url, options) => {
+      if (String(url) === 'http://localhost:8080/api/elections/election-1' && (!options || options.method === 'GET')) {
+        return response(workflowResponseIndex === 0 ? election : { ...election, status: 'IN_PROGRESS' });
+      }
+      if (String(url).endsWith('/round-1/progress')) {
+        progressPollCount += 1;
+        const progress = progressPollCount === 2
+          ? { roundId: 'round-1', status: 'CLOSED', ballotsCast: 9, expectedVoterCount: 16 }
+          : { roundId: 'round-1', status: 'ACTIVE', ballotsCast: 7, expectedVoterCount: 16 };
+        return response(progress);
+      }
+      return workflowResponses[workflowResponseIndex++] ?? response({}, 404);
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<App />);
@@ -862,17 +942,20 @@ describe('election administration', () => {
     expect(configurationDisclosure).not.toHaveAttribute('open');
     fireEvent.click(configurationSummary as HTMLElement);
     expect(configurationDisclosure).toHaveAttribute('open');
-    expect(fetchMock.mock.calls[9][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations/close');
-    expect(fetchMock.mock.calls[9][1].method).toBe('POST');
-    expect(fetchMock.mock.calls[10][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations/consolidation');
-    expect(fetchMock.mock.calls[10][1]).toMatchObject({
+    const closeRequest = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/nominations/close'));
+    const consolidationRequest = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/nominations/consolidation'));
+    expect(closeRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations/close');
+    expect(closeRequest?.[1].method).toBe('POST');
+    expect(consolidationRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations/consolidation');
+    expect(consolidationRequest?.[1]).toMatchObject({
       method: 'PUT',
       body: JSON.stringify({ candidateNames: ['Riley Chen', 'Morgan Diaz'] }),
     });
 
     expect(await screen.findByRole('heading', { name: 'Voting round configuration' })).toBeInTheDocument();
-    expect(fetchMock.mock.calls[11][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
-    expect(fetchMock.mock.calls[11][1].method).toBe('GET');
+    const roundListRequest = fetchMock.mock.calls.find(([url, options]) => String(url).endsWith('/positions/position-1/rounds') && options?.method === 'GET');
+    expect(roundListRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
+    expect(roundListRequest?.[1].method).toBe('GET');
     expect(screen.getByLabelText('Number of selections allowed')).toHaveValue(null);
             expect(screen.queryByText('Candidates for this round')).not.toBeInTheDocument();
             expect(screen.getByRole('list', { name: 'Candidates in this poll' })).toHaveTextContent('Riley ChenMorgan Diaz');
@@ -883,10 +966,11 @@ describe('election administration', () => {
     expect(screen.getByRole('button', { name: 'Create draft round' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Create draft round' }));
     expect(await screen.findByText('Draft round configuration saved.')).toBeInTheDocument();
-    expect(fetchMock.mock.calls[12][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
-    expect(fetchMock.mock.calls[12][1]).toMatchObject({ method: 'POST', body: JSON.stringify({ candidateNames: ['Riley Chen', 'Morgan Diaz'], selectionCount: 2 }) });
-    expect(fetchMock.mock.calls[13][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
-    expect(fetchMock.mock.calls[13][1]).toMatchObject({
+    const createRoundRequests = fetchMock.mock.calls.filter(([url, options]) => String(url).endsWith('/positions/position-1/rounds') && options?.method === 'POST');
+    expect(createRoundRequests[0]?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
+    expect(createRoundRequests[0]?.[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ candidateNames: ['Riley Chen', 'Morgan Diaz'], selectionCount: 2 }) });
+    expect(createRoundRequests[1]?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
+    expect(createRoundRequests[1]?.[1]).toMatchObject({
       method: 'POST',
       body: JSON.stringify({ candidateNames: ['Riley Chen', 'Morgan Diaz'], selectionCount: 2 }),
     });
@@ -899,8 +983,9 @@ describe('election administration', () => {
     expect(initialRoundDisclosure).not.toHaveAttribute('open');
     fireEvent.click(initialRoundDisclosure?.querySelector('summary') as HTMLElement);
     expect(initialRoundDisclosure).toHaveAttribute('open');
-    expect(fetchMock.mock.calls[14][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds/round-1');
-    expect(fetchMock.mock.calls[14][1]).toMatchObject({
+    const updateRoundRequest = fetchMock.mock.calls.find(([url, options]) => String(url).endsWith('/rounds/round-1') && options?.method === 'PUT');
+    expect(updateRoundRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds/round-1');
+    expect(updateRoundRequest?.[1]).toMatchObject({
       method: 'PUT',
       body: JSON.stringify({ candidateNames: ['Riley Chen', 'Morgan Diaz'], selectionCount: 1 }),
     });
@@ -916,8 +1001,9 @@ describe('election administration', () => {
     fireEvent.change(expectedVoterInput, { target: { value: '16' } });
     expect(screen.getByText(/automatically close after 15 ballots/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Confirm and start' }));
-    expect(fetchMock.mock.calls[15][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds/round-1/start');
-    expect(fetchMock.mock.calls[15][1]).toMatchObject({ method: 'POST', body: JSON.stringify({ expectedVoterCount: 16 }) });
+    const startRoundRequest = fetchMock.mock.calls.find(([url, options]) => String(url).endsWith('/rounds/round-1/start') && options?.method === 'POST');
+    expect(startRoundRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds/round-1/start');
+    expect(startRoundRequest?.[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ expectedVoterCount: 16 }) });
     expect(await screen.findByText(/Voting is active\. Share the private ballot link/)).toBeInTheDocument();
     expect(await screen.findByText('Ballots submitted: 7 of 16 expected')).toBeInTheDocument();
     const progressMessage = screen.getByText('Ballots submitted: 7 of 16 expected').parentElement;
@@ -1060,6 +1146,7 @@ describe('election administration', () => {
       .mockResolvedValueOnce(response(closedIntake))
       .mockResolvedValueOnce(response({}, 500))
       .mockResolvedValueOnce(response({ candidateNames: ['Riley Chen', 'Morgan Diaz'] }))
+      .mockResolvedValueOnce(response({ ...election, status: 'IN_PROGRESS' }))
       .mockResolvedValueOnce(response([]));
     vi.stubGlobal('fetch', fetchMock);
 
