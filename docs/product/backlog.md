@@ -222,8 +222,9 @@ The following stories decompose the proposed epics into assignable slices. Statu
 - API authorization and tenant scoping remain enforced; tests cover each status transition and cross-tenant reads.
 
 **Story E1.2: Show position progress and next action.** As an administrator, I want position navigation to show each position's progress so I can move through the election without opening every position to discover its state.
+**Implementation status:** Completed and merged on 2026-10-21 via [PR #5](https://github.com/abrah-am/church-nominations-app/pull/5), merge commit `a23033e`.
 **Suggested owners:** UX, frontend, backend, QA.
-**Next story candidate:** Recommended next implementation story after E1.1. Begin with UX review and agree the position-state/next-action vocabulary before implementation; keep E1.3 contextual notice behavior separate unless the Product Owner explicitly combines the scope.
+**Next story candidate:** E1.3, remove contradictory election setup notice; keep its state-specific contextual guidance separate from E1.2.
 **Acceptance criteria:**
 - Each position shows its name, opening count, current state, and a concise next action or completed label.
 - Previous/Next continues to respect configured sequence and disabled boundaries.
