@@ -1,7 +1,7 @@
 # Handoff: Story E1.1 Election Lifecycle Status
 
 **Story:** E1.1, Show meaningful election lifecycle status
-**Status:** Implemented; validation complete with one unrelated API-suite failure documented below. Do not merge or deploy without Product Owner approval.
+**Status:** Accepted by Product Owner 2026-10-22; implemented and merged to `main` in commit `70e41be`. One unrelated API-suite failure and live accessibility validation limitations remain documented below. No deployment was performed.
 
 ## Approved behavior
 
@@ -56,4 +56,4 @@
 - Authenticated browser end-to-end, mobile viewport, and screen-reader checks were not performed; UX source review and frontend tests are not substitutes for those checks.
 - Phase-specific labels (nominations, voting, review) remain deferred; In progress intentionally does not say which phase needs action.
 - Overlapping refresh and election-detail requests use a shared request-generation guard; the out-of-order regression test covers an older refresh resolving after detail reopens.
-- No commit, merge, or deployment was performed.
+- Implementation commit `70e41be` is merged to `main`; Product Owner acceptance was recorded on 2026-10-22. No deployment was performed.

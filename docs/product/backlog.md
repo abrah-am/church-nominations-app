@@ -8,7 +8,7 @@
 
 | ID | Epic | Story | Priority | Workflow status | Dependencies | Requirements |
 | --- | --- | --- | --- | --- | --- | --- |
-| E1.1 | E1 Election and Position Progress | Show meaningful election lifecycle status | P1 | Implemented and merged (`70e41be`); Product Owner acceptance not recorded | Election/position lifecycle data | [requirements](../stories/STORY-E1.1/requirements.md) |
+| E1.1 | E1 Election and Position Progress | Show meaningful election lifecycle status | P1 | Accepted by Product Owner 2026-10-22; implemented and merged (`70e41be`) | Election/position lifecycle data | [requirements](../stories/STORY-E1.1/requirements.md) |
 | E1.2 | E1 Election and Position Progress | Show position progress and next action | P1 | Acceptance recorded; merge claim in handoff, target-branch provenance to verify | E1.1 concepts; position workflow data | [requirements](../stories/STORY-E1.2/requirements.md) |
 | E2.1 | E2 Nomination Workflow Clarity and Recovery | Make intake states and closure consequences clear | P1 | Backlog | US-008 | [requirements](../stories/E2.1/requirements.md) |
 | E2.2 | E2 Nomination Workflow Clarity and Recovery | Preserve consolidation drafts on failure and navigation | P1 | Backlog | US-009 | [requirements](../stories/E2.2/requirements.md) |
