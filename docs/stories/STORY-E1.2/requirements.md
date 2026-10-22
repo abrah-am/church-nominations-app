@@ -2,7 +2,7 @@
 
 - **Epic:** E1 Election and Position Progress
 - **Priority:** P1 (follow-up; proposed priority)
-- **Workflow status:** Accepted and merged per handoff; merge provenance requires branch/PR reconciliation
+- **Workflow status:** Accepted by Product Owner 2026-10-21; PR #5 merged to `main` in `a23033e`
 - **User story:** As an administrator, I want position navigation to show each position's progress so I can move through the election without opening every position to discover its state.
 
 ## Acceptance Criteria
