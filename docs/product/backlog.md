@@ -8,9 +8,8 @@
 
 | ID | Epic | Story | Priority | Workflow status | Dependencies | Requirements |
 | --- | --- | --- | --- | --- | --- | --- |
-| E1.1 | E1 Election and Position Progress | Show meaningful election lifecycle status | P1 | Implemented; acceptance/merge not recorded | Election/position lifecycle data | [requirements](../stories/STORY-E1.1/requirements.md) |
+| E1.1 | E1 Election and Position Progress | Show meaningful election lifecycle status | P1 | Accepted by Product Owner 2026-10-22; implemented and merged (`70e41be`) | Election/position lifecycle data | [requirements](../stories/STORY-E1.1/requirements.md) |
 | E1.2 | E1 Election and Position Progress | Show position progress and next action | P1 | Acceptance recorded; merge claim in handoff, target-branch provenance to verify | E1.1 concepts; position workflow data | [requirements](../stories/STORY-E1.2/requirements.md) |
-| E1.3 | E1 Election and Position Progress | Remove contradictory election setup notice | P1 | Scope reconciliation needed; possible partial duplicate of E1.1 | E1.1, E1.2 | [requirements](../stories/E1.3/requirements.md) |
 | E2.1 | E2 Nomination Workflow Clarity and Recovery | Make intake states and closure consequences clear | P1 | Backlog | US-008 | [requirements](../stories/E2.1/requirements.md) |
 | E2.2 | E2 Nomination Workflow Clarity and Recovery | Preserve consolidation drafts on failure and navigation | P1 | Backlog | US-009 | [requirements](../stories/E2.2/requirements.md) |
 | E2.3 | E2 Nomination Workflow Clarity and Recovery | Explain roster lock and provide pre-draft edit path | P1 | Backlog | US-009, E2.2 | [requirements](../stories/E2.3/requirements.md) |
@@ -29,6 +28,12 @@
 | US-014 | P1 Future Integration Discovery | Discover member directory integration | P1 | Discovery not started; integration is future scope | System of record and access decision | [requirements](../stories/US-014/requirements.md) |
 | US-015 | P0 Ballot Operations (legacy umbrella) | Private voting rounds POC | P0 | Local POC work reported; handoff remains WIP; no acceptance/merge recorded | US-007–US-012; overlaps granular E4/E5 stories | [requirements](../stories/US-015/requirements.md) |
 
+## Defects / Follow-up
+
+| ID | Area | Defect | Priority | Workflow status | Related story |
+| --- | --- | --- | --- | --- | --- |
+| DEFECT-001 | E1 Election and Position Progress | Position stepper shows “Progress unavailable” and “Action unavailable” when progress metadata is missing; verify the running API includes `progressStatus` and `nextAction` before treating this as an E1.2 regression. | P1 | Reproduction needed; check API version/response | [E1.2](../stories/STORY-E1.2/requirements.md) |
+
 ## Blocked / Decision Needed
 
 | ID | Epic | Story | Priority | Workflow status | Dependencies | Requirements |
@@ -43,6 +48,8 @@
 | E6.3 | E6 Election Completion and History | Build navigable position history | P1 | Blocked by history access/privacy policy | E6.1, E6.4, E8.2 | [requirements](../stories/E6.3/requirements.md) |
 | E6.4 | E6 Election Completion and History | Define historical result and report access | P1 | Product/security decision needed | E8.2 | [requirements](../stories/E6.4/requirements.md) |
 | E6.5 | E6 Election Completion and History | Decide and design a results-only view for poll participants | P1 | Blocked by E6.4 | E6.4, E8.2 | [requirements](../stories/E6.5/requirements.md) |
+| E6.6 | E6 Election Completion and History | Confirm elected people and mark position openings filled | P1 | Product clarification needed | E6.1; candidate elected outcomes | [requirements](../stories/E6.6/requirements.md) |
+| E6.7 | E6 Election Completion and History | Handle declined offers and select a replacement path | P1 | Product clarification needed | E6.6; last-round results and candidate roster | [requirements](../stories/E6.7/requirements.md) |
 | E7.1 | E7 Accessibility and Responsive Administration | Approve accessibility target and test approach | P1 | Product decision needed | Jurisdiction/device requirements | [requirements](../stories/E7.1/requirements.md) |
 | E8.1 | E8 Privacy, Audit, and Production Readiness | Resolve production identity and account lifecycle | P0 production | Production blocker | Identity, account and transport policy | [requirements](../stories/E8.1/requirements.md) |
 | E8.2 | E8 Privacy, Audit, and Production Readiness | Define privacy, participation, and retention policy | P0 production | Product/privacy decision needed | Privacy and retention inputs | [requirements](../stories/E8.2/requirements.md) |
@@ -52,12 +59,13 @@
 | US-003 | P0 Security Foundation | Maintain church users and permissions | P0 | Partial local POC; production identity unresolved | US-002, US-004, US-005 | [requirements](../stories/US-003/requirements.md) |
 | US-013 | P1 History and Reporting | Historical reports and audit review | P1 | Not started; report details unresolved | E6.1, E6.4, E8.2 | [requirements](../stories/US-013/requirements.md) |
 
-## Completed / POC Implemented
+## Completed / Reconciled / POC Implemented
 
-“POC implemented” records local behavior only. It does not mean formally accepted, merged, production-ready, or Done. No unnumbered story below has recorded Product Owner acceptance and merge evidence.
+“POC implemented” records local behavior only. It does not mean formally accepted, merged, production-ready, or Done. Reconciled entries are closed as duplicate/covered scope and link to their closure evidence. No unnumbered story below has recorded Product Owner acceptance and merge evidence.
 
 | ID | Epic | Story | Priority | Workflow status | Dependencies | Requirements |
 | --- | --- | --- | --- | --- | --- | --- |
+| E1.3 | E1 Election and Position Progress | Remove contradictory election setup notice | P1 | Closed; scope delivered by merged E1.1/E1.2; no separate implementation | E1.1, E1.2 | [requirements](../stories/E1.3/requirements.md) |
 | US-001 | P0 Developer Foundation | Reproducible local database environment | P0 | Implemented locally; acceptance not recorded | Docker Compose, PostgreSQL, integration tests | [requirements](../stories/US-001/requirements.md) |
 | US-004 | POC Identity and Onboarding | Register an administrator account | P0 | Implemented for local demonstration; acceptance not recorded | Identity persistence; US-002 | [requirements](../stories/US-004/requirements.md) |
 | US-005 | POC Identity and Onboarding | Register a church | P0 | Implemented for local demonstration; acceptance not recorded | US-004, US-002 | [requirements](../stories/US-005/requirements.md) |
