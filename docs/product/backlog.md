@@ -29,6 +29,12 @@
 | US-014 | P1 Future Integration Discovery | Discover member directory integration | P1 | Discovery not started; integration is future scope | System of record and access decision | [requirements](../stories/US-014/requirements.md) |
 | US-015 | P0 Ballot Operations (legacy umbrella) | Private voting rounds POC | P0 | Local POC work reported; handoff remains WIP; no acceptance/merge recorded | US-007–US-012; overlaps granular E4/E5 stories | [requirements](../stories/US-015/requirements.md) |
 
+## Defects / Follow-up
+
+| ID | Area | Defect | Priority | Workflow status | Related story |
+| --- | --- | --- | --- | --- | --- |
+| DEFECT-001 | E1 Election and Position Progress | Position stepper shows “Progress unavailable” and “Action unavailable” when progress metadata is missing; verify the running API includes `progressStatus` and `nextAction` before treating this as an E1.2 regression. | P1 | Reproduction needed; check API version/response | [E1.2](../stories/STORY-E1.2/requirements.md) |
+
 ## Blocked / Decision Needed
 
 | ID | Epic | Story | Priority | Workflow status | Dependencies | Requirements |
@@ -43,6 +49,8 @@
 | E6.3 | E6 Election Completion and History | Build navigable position history | P1 | Blocked by history access/privacy policy | E6.1, E6.4, E8.2 | [requirements](../stories/E6.3/requirements.md) |
 | E6.4 | E6 Election Completion and History | Define historical result and report access | P1 | Product/security decision needed | E8.2 | [requirements](../stories/E6.4/requirements.md) |
 | E6.5 | E6 Election Completion and History | Decide and design a results-only view for poll participants | P1 | Blocked by E6.4 | E6.4, E8.2 | [requirements](../stories/E6.5/requirements.md) |
+| E6.6 | E6 Election Completion and History | Confirm elected people and mark position openings filled | P1 | Product clarification needed | E6.1; candidate elected outcomes | [requirements](../stories/E6.6/requirements.md) |
+| E6.7 | E6 Election Completion and History | Handle declined offers and select a replacement path | P1 | Product clarification needed | E6.6; last-round results and candidate roster | [requirements](../stories/E6.7/requirements.md) |
 | E7.1 | E7 Accessibility and Responsive Administration | Approve accessibility target and test approach | P1 | Product decision needed | Jurisdiction/device requirements | [requirements](../stories/E7.1/requirements.md) |
 | E8.1 | E8 Privacy, Audit, and Production Readiness | Resolve production identity and account lifecycle | P0 production | Production blocker | Identity, account and transport policy | [requirements](../stories/E8.1/requirements.md) |
 | E8.2 | E8 Privacy, Audit, and Production Readiness | Define privacy, participation, and retention policy | P0 production | Product/privacy decision needed | Privacy and retention inputs | [requirements](../stories/E8.2/requirements.md) |
