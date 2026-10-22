@@ -2,7 +2,7 @@
 
 - **Epic:** E2 Nomination Workflow Clarity and Recovery
 - **Priority:** P1 (proposed)
-- **Workflow status:** Backlog; not formally accepted
+- **Workflow status:** Ready to start
 - **User story:** As an administrator, I want to see whether intake is open or closed and what closing it does so I can operate the nomination window confidently.
 
 ## Acceptance Criteria
@@ -13,6 +13,9 @@
 
 ## Scope and Dependencies
 Admin-facing intake state and closure UX, including empty and accessibility states. Depends on US-008 nomination intake. Product policy already permits admin closure; UX confirmation policy remains to be defined.
+
+## Readiness
+US-008 intake creation, sharing, live updates, and closure are implemented locally. E2.1 can start with UX review and implementation; decide whether closure needs confirmation as part of the story's UX work. No upstream story or product decision currently blocks kickoff.
 
 ## Implementation Notes and Limitations
 Backlog says intake create/share/live updates/close are implemented locally. E2.1 is clarity/recovery work, not the underlying intake implementation.
