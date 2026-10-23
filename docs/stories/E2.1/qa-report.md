@@ -1,0 +1,55 @@
+# E2.1 QA Report: Intake States and Closure Consequences
+
+**Date:** 2026-10-22
+**Branch:** `feature/story-e2.1-intake-states`
+**QA phase:** Phase 5
+**Recommendation:** Functional QA passes for the tested E2.1 flows; ready for Product Owner acceptance, with rendered browser, screen-reader, and measured contrast checks still outstanding. Closure and withdrawal confirmation policies were approved by the Product Owner on 2026-10-22. Do not treat accessibility conformance as visually or assistively verified, and do not merge or deploy based on this report alone.
+
+## Test Execution
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Focused API integration | **Pass** | Ran from the repository root: `env JAVA_HOME=/Users/abraham/.jdk/jdk-25.0.2/jdk-25.0.2+10/Contents/Home PATH=/Users/abraham/.jdk/jdk-25.0.2/jdk-25.0.2+10/Contents/Home/bin:$PATH /Users/abraham/Projects/ChurchNominationProject/church-nominations-app/apps/api/gradlew -p /Users/abraham/Projects/ChurchNominationProject/church-nominations-app/apps/api -Dorg.gradle.java.installations.paths=/Users/abraham/.jdk/jdk-25.0.2/jdk-25.0.2+10/Contents/Home test --tests org.churchnominations.api.election.PostgresElectionIntegrationTest.nominationIntakeSupportsAnonymousDeviceEditsClosureAndConsolidation --rerun-tasks --console=plain`. Gradle reported `BUILD SUCCESSFUL`; all 5 actionable tasks executed. This test uses PostgreSQL through Testcontainers. |
+| Full web test suite | **Pass** | Ran with Node 20.9.0: `PATH="$HOME/.nvm/versions/node/v20.9.0/bin:$PATH" npm --prefix /Users/abraham/Projects/ChurchNominationProject/church-nominations-app/apps/web test -- --run`. Vitest reported `Test Files 5 passed (5)` and `Tests 67 passed (67)`. |
+| Web typecheck and production build | **Pass** | Ran with Node 20.9.0: `PATH="$HOME/.nvm/versions/node/v20.9.0/bin:$PATH" npm --prefix /Users/abraham/Projects/ChurchNominationProject/church-nominations-app/apps/web run build`. `tsc --noEmit` and Vite production build completed successfully; 44 modules transformed. |
+| Visual/responsive/accessibility verification | **Not Run** | No rendered browser review, responsive viewport check, keyboard-only run, screen-reader check, or measured contrast verification was performed. Automated DOM tests do assert status/live-region content and dialog focus behavior; these do not replace assistive-technology or WCAG contrast verification. |
+
+## Acceptance Checklist
+
+| Criterion | Status | Expected behavior | Actual behavior and evidence |
+| --- | --- | --- | --- |
+| Intake state, name limit, and public-link usability | **Pass** | Admin sees whether intake is open or closed, the configured name limit, and whether the public link is usable. | Executed API integration verifies created intake status `OPEN`, name limit, and subsequent `CLOSED` state. Executed web workflow verifies the open intake summary and public link, then the closed summary, disabled-link/read-only announcement, and retained names. |
+| Profile count is separate from proposed-name entries | **Pass** | Admin sees distinct current profile submissions and proposed-name entry totals, with the profile total explicitly not presented as a people count. | API integration asserts `currentContributorCount` independently from `submissions` size for one and two profiles and verifies count 2 for four entries. The executed UI workflow test asserts separate labels for “Current profile submissions” and “Proposed-name entries” and the explanatory text that the profile count is not verified people. |
+| Count current contributing profiles | **Pass** | First successful non-empty submission changes a profile's contribution 0→1; edits/replacements stay at 1; withdrawal changes it to 0; later resubmission changes it to 1 again. | The executed API test verifies two current profiles, one profile replacement without count growth, withdrawal decrement to 1, and resubmission increment back to 2. The count is derived from distinct device tokens among current name rows. |
+| Replacing a profile list does not grow the count | **Pass** | Replacement is a full current-list replacement; a profile remains one contributor. | The executed API integration replaces the first profile's names (`Alice`, `Bob` to `Alice`, `Carol`), then asserts contributor count is 1 and current entries are 2. |
+| Withdrawal removes profile count and all its current names | **Pass** | Explicit empty replacement withdraws the profile's entire current list; admin snapshot excludes those names and decrements the count. | The API integration sends `{"names":[]}` for one device, expects an empty public list, then expects admin count 1 and only the other profile's two names. The executed web suite includes confirmed withdrawal success, canceled withdrawal, and failed-withdrawal field preservation assertions. |
+| Public submission action is clearly labeled | **Pass** | The primary action communicates that the user submits names. | Public form button reads `Submit names`, shows `Submitting…` while saving, and confirms `Your names were submitted.` Focused frontend tests pass with the renamed action. |
+| Closure confirmation and closed read-only state | **Pass** | Admin must confirm closure; successful close disables the link and makes names read-only while retaining them for consolidation. Public writes after closure must be rejected. | The executed UI workflow test asserts the confirmation dialog, initial focus, closed status announcement, retained names, and consolidation next step. The API integration verifies status `CLOSED`, retained submissions, and public GET/PUT return 410. |
+| Numbered case-insensitive full-name ordered list retaining duplicates | **Pass** | Render an ordered list sorted by full name without case sensitivity; retain equal names and stable order. | The executed UI workflow asserts an `OL` and order `Jordan Lee`, `Sam Lee`, `sam lee`. The API integration verifies `Carol`/`carol` remain distinct entries and checks deterministic order. |
+| Live updates announce counts and changed names without attribution | **Pass** | On changed snapshots, announce current profile and name-entry counts and changed names, never profile identity. | The executed web test streams a chunked update and asserts the status text `Submissions updated: 2 current profile submissions and 2 proposed-name entries. Added: Morgan Diaz.` The API test receives four SSE events, including the initial snapshot, and confirms snapshots include current count/names but no `deviceToken` or device UUID. |
+| Invalid/unavailable link differs from valid closed link | **Pass** | Missing or invalid links show unavailable; valid closed intakes show a separate closed state. | The executed web test covers the 404 unavailable and 410 closed headings; the API integration confirms a valid closed token returns 410. |
+| Empty, loading, and error states | **Pass with coverage limits** | Show explicit empty and loading states; failures must be communicated and not represented as successful saves or closure. | Executed web tests cover closed-empty admin state, pending admin loading, public unavailable/closed links, failed withdrawal with input preservation, and a failed round-create alert in the intake-to-consolidation workflow. Not every network failure path for loading, creating, closing, or saving consolidation has a dedicated assertion. |
+| Tenant isolation and privacy | **Pass** | No submitter/device identity or attribution in admin responses/events; unauthorized tenants cannot access or mutate another tenant's intake. | API integration verifies another church administrator receives 404 for intake GET/create/close/consolidation, unauthenticated access is rejected, and event snapshots omit `deviceToken`, `sourceId`, `actorId`, and the tested device UUID. Public read response also omits the device token. |
+
+## Latest Snapshot Fix Review
+
+- **SSE initial snapshot ordering:** `NominationIntakeEventRegistry.subscribe` adds the emitter to the subscriber set before obtaining and sending its initial snapshot. The executed PostgreSQL integration scenario asserts four `event:intake` events across initial subscription, subsequent edits/withdrawal, and closure, and verifies the final closed snapshot. This ordering prevents a change published during initial snapshot acquisition from falling into a subscribe-before-register gap.
+- **Consistent profile-count/name snapshot:** `NominationIntakeService.adminResponse` loads current submission rows once into `currentSubmissions`; both distinct-device count and sorted submitted-name response are derived from that same list. The integration test checks count and entries through replacement, a second profile, withdrawal, closure, and SSE payloads.
+
+## Review Follow-up
+
+- The prior Major SSE missed-close finding is resolved by registering subscribers before taking the current initial snapshot under the registry's shared synchronization. A closed initial snapshot completes the emitter.
+- The prior count/list consistency finding is resolved by deriving both values from the same fetched submission rows.
+- A regression assertion subscribes after closure and verifies one `CLOSED` initial snapshot followed by stream completion. The focused API integration test passed after this test was added.
+- Closure confirmation, full-list withdrawal confirmation, clearing saved and unsaved fields after successful withdrawal, and live announcements of counts plus changed names were approved by the Product Owner on 2026-10-22.
+- A live authenticated reproduction found withdrawal appeared successful but Add another name did not create a field. Root cause: the public PUT returns only `{ submittedNames }`, while the frontend replaced the full intake object with this partial response, losing `nameLimit`; the add handler then declined to append a field. The frontend now merges submitted names into existing intake metadata, and the withdrawal/resubmission regression uses the actual partial API response and asserts the new field is focused and submitted successfully.
+
+## Findings and Residual Risks
+
+- **Coverage gap:** No rendered browser/responsive review, keyboard-only run, screen-reader check, or measured WCAG contrast check was performed. Automated DOM assertions verify accessible names/status content and selected initial-focus behavior, but cannot establish actual assistive-technology behavior or AA contrast.
+- **Coverage gap:** Error assertions cover representative intake-related failures, not every load/create/close/consolidation failure path.
+- **No confirmed functional defect** was observed in the focused PostgreSQL integration scenario, full web tests, production build, or targeted source review.
+
+## Recommendation
+
+Functional QA is passed for the implemented E2.1 scenarios and the story is ready for Product Owner acceptance. Keep visual, responsive, keyboard, screen-reader, and measured contrast verification explicitly open; complete those checks before claiming full accessibility conformance. No merge or deployment was performed or approved as part of this QA update.

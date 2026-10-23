@@ -11,6 +11,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -66,7 +67,7 @@ public class NominationIntakeService {
     public SseEmitter stream(UUID electionId, UUID positionId, String accountEmail) {
         elections.getPositionForChurch(electionId, positionId, accountEmail);
         NominationIntake intake = findByPosition(positionId);
-        return events.subscribe(intake.getId(), () -> adminResponse(intake));
+        return events.subscribe(intake.getId(), () -> adminResponse(findByPosition(positionId)));
     }
 
     @Transactional
@@ -150,15 +151,23 @@ public class NominationIntakeService {
     }
 
     private NominationIntakeResponse adminResponse(NominationIntake intake) {
-        List<NominationSubmissionResponse> submitted = submissions
-                .findAllByIntakeIdOrderByNameAscIdAsc(intake.getId()).stream()
+        List<NominationSubmission> currentSubmissions = submissions.findAllByIntakeId(intake.getId());
+        long currentContributorCount = currentSubmissions.stream()
+            .map(NominationSubmission::getDeviceToken)
+            .distinct()
+            .count();
+        List<NominationSubmissionResponse> submitted = currentSubmissions.stream()
+                .sorted(Comparator.comparing(NominationSubmission::getName, String.CASE_INSENSITIVE_ORDER)
+                        .thenComparing(NominationSubmission::getName)
+                        .thenComparing(NominationSubmission::getId))
                 .map(NominationSubmissionResponse::from)
                 .toList();
         List<String> consolidated = consolidatedNames.findAllByIntakeIdOrderBySequenceAsc(intake.getId()).stream()
                 .map(NominationConsolidatedName::getCandidateName)
                 .toList();
         return new NominationIntakeResponse(intake.getId(), intake.getAccessToken(), intake.getNameLimit(),
-                intake.getStatus(), submitted, consolidated.isEmpty() ? null : consolidated);
+            currentContributorCount, intake.getStatus(), submitted,
+                consolidated.isEmpty() ? null : consolidated);
     }
 
     private NominationIntake findByPosition(UUID positionId) {

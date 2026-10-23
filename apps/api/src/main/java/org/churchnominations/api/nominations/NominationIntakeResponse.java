@@ -7,6 +7,7 @@ public record NominationIntakeResponse(
         UUID id,
         UUID accessToken,
         int nameLimit,
+        long currentContributorCount,
         NominationIntakeStatus status,
         List<NominationSubmissionResponse> submissions,
         List<String> consolidatedNames) {

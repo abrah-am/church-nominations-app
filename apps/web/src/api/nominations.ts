@@ -8,6 +8,7 @@ export type NominationIntake = {
   accessToken: string;
   nameLimit: number;
   status: 'OPEN' | 'CLOSED';
+  currentContributorCount?: number | null;
   submissions: NominationSubmission[];
   consolidatedNames: string[] | null;
 };

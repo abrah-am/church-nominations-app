@@ -48,4 +48,8 @@ public class NominationSubmission {
     public String getName() {
         return name;
     }
+
+    public UUID getDeviceToken() {
+        return deviceToken;
+    }
 }
