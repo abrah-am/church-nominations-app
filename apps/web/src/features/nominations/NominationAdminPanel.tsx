@@ -42,17 +42,25 @@ export type NominationAdminPanelProps = {
 };
 
 function normalizeNominationIntake(intake: NominationIntake): NominationIntake {
+	const submissions = Array.isArray(intake.submissions)
+		? intake.submissions.filter((submission) => submission && typeof submission.id === 'string' && typeof submission.name === 'string')
+		: [];
 	return {
 		...intake,
-		submissions: Array.isArray(intake.submissions)
-			? intake.submissions.filter((submission) => submission && typeof submission.id === 'string' && typeof submission.name === 'string')
-			: [],
+		currentContributorCount: Number.isFinite(intake.currentContributorCount)
+			? intake.currentContributorCount
+			: submissions.length === 0 ? 0 : null,
+		submissions: submissions
+			.map((submission, index) => ({ submission, index }))
+			.sort((first, second) => first.submission.name.localeCompare(second.submission.name, undefined, { sensitivity: 'base' }) || first.index - second.index)
+			.map(({ submission }) => submission),
 	};
 }
 
 export default function NominationAdminPanel({ credentials, electionId, positionId, positionName, openingCount, onLifecycleChange, onDraftStateChange }: NominationAdminPanelProps) {
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [intakeDetailsOpen, setIntakeDetailsOpen] = useState(true);
+	const [closedSubmissionsOpen, setClosedSubmissionsOpen] = useState(false);
 	const [consolidationDetailsOpen, setConsolidationDetailsOpen] = useState(false);
 	const [intake, setIntake] = useState<NominationIntake | null>(null);
 	const [nameLimit, setNameLimit] = useState('5');
@@ -64,6 +72,9 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	const [consolidationError, setConsolidationError] = useState('');
 	const [streamStatus, setStreamStatus] = useState('');
 	const [copied, setCopied] = useState(false);
+	const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+	const [liveAnnouncement, setLiveAnnouncement] = useState('');
+	const [focusClosedStatus, setFocusClosedStatus] = useState(false);
 	const [rounds, setRounds] = useState<VotingRound[]>([]);
 	const [draftRoundId, setDraftRoundId] = useState<string | null>(null);
 	const [selectionCount, setSelectionCount] = useState('');
@@ -88,7 +99,46 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	const [roundLifecycleBusy, setRoundLifecycleBusy] = useState(false);
 	const [copiedRoundId, setCopiedRoundId] = useState<string | null>(null);
 	const lifecycleChangeRef = useRef(onLifecycleChange);
+	const closeTriggerRef = useRef<HTMLButtonElement>(null);
+	const closeButtonRef = useRef<HTMLButtonElement>(null);
+	const keepIntakeOpenRef = useRef<HTMLButtonElement>(null);
+	const closedStatusRef = useRef<HTMLParagraphElement>(null);
+	const previousIntakeRef = useRef<NominationIntake | null>(null);
 	useEffect(() => { lifecycleChangeRef.current = onLifecycleChange; }, [onLifecycleChange]);
+	useEffect(() => {
+		if (!closeDialogOpen) return;
+		const trigger = closeTriggerRef.current;
+		keepIntakeOpenRef.current?.focus();
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') {
+				event.preventDefault();
+				setCloseDialogOpen(false);
+				return;
+			}
+			if (event.key !== 'Tab') return;
+			const controls = [keepIntakeOpenRef.current, closeButtonRef.current].filter((control): control is HTMLButtonElement => Boolean(control));
+			const first = controls[0];
+			const last = controls[controls.length - 1];
+			if (event.shiftKey && document.activeElement === first) {
+				event.preventDefault();
+				last?.focus();
+			} else if (!event.shiftKey && document.activeElement === last) {
+				event.preventDefault();
+				first?.focus();
+			}
+		};
+		window.addEventListener('keydown', handleKeyDown);
+		return () => {
+			window.removeEventListener('keydown', handleKeyDown);
+			trigger?.focus();
+		};
+	}, [closeDialogOpen]);
+	useEffect(() => {
+		if (focusClosedStatus) {
+			closedStatusRef.current?.focus();
+			setFocusClosedStatus(false);
+		}
+	}, [focusClosedStatus]);
 	const confirmedNames = intake?.status === 'CLOSED' && Array.isArray(intake.consolidatedNames)
 		? intake.consolidatedNames
 		: [];
@@ -244,7 +294,8 @@ export default function NominationAdminPanel({ credentials, electionId, position
 		try {
 			const normalized = normalizeNominationIntake(await getNominationIntake(credentials, electionId, positionId));
 			setIntake(normalized);
-			setIntakeDetailsOpen(normalized.status === 'OPEN');
+			previousIntakeRef.current = normalized;
+			setIntakeDetailsOpen(true);
 			setConsolidationDetailsOpen(normalized.status === 'CLOSED' && !normalized.consolidatedNames);
 			setCandidateDraft((normalized.consolidatedNames ?? alphabeticalNames(normalized.submissions.map((submission) => submission.name))).join('\n'));
 			setCandidateDraftBaseline((normalized.consolidatedNames ?? alphabeticalNames(normalized.submissions.map((submission) => submission.name))).join('\n'));
@@ -272,10 +323,29 @@ export default function NominationAdminPanel({ credentials, electionId, position
 
 		const applySnapshot = (snapshot: NominationIntake) => {
 			const normalized = normalizeNominationIntake(snapshot);
+			const previous = previousIntakeRef.current;
+			if (previous && normalized.status === 'OPEN') {
+				const previousNames = previous.submissions.map((submission) => submission.name);
+				const nextNames = normalized.submissions.map((submission) => submission.name);
+				const changes = nameChanges(previousNames, nextNames);
+					const contributorCount = normalized.currentContributorCount == null
+						? 'profile submission count unavailable'
+						: `${normalized.currentContributorCount} current profile submissions`;
+				if (changes.added.length > 0 || changes.removed.length > 0) {
+					const changedNames = [
+						...(changes.added.length > 0 ? [`Added: ${changes.added.join(', ')}.`] : []),
+						...(changes.removed.length > 0 ? [`Removed: ${changes.removed.join(', ')}.`] : []),
+					].join(' ');
+						setLiveAnnouncement(`Submissions updated: ${contributorCount} and ${normalized.submissions.length} proposed-name entries. ${changedNames}`);
+				} else if (previous.currentContributorCount !== normalized.currentContributorCount || previous.submissions.length !== normalized.submissions.length) {
+						setLiveAnnouncement(`Submissions updated: ${contributorCount} and ${normalized.submissions.length} proposed-name entries.`);
+				}
+			}
+			previousIntakeRef.current = normalized;
 			intakeClosed = normalized.status === 'CLOSED';
 			setIntake(normalized);
+			previousIntakeRef.current = normalized;
 			if (normalized.status === 'CLOSED') {
-				setIntakeDetailsOpen(false);
 				setConsolidationDetailsOpen(!normalized.consolidatedNames);
 				setCandidateDraft((normalized.consolidatedNames ?? alphabeticalNames(normalized.submissions.map((submission) => submission.name))).join('\n'));
 				setCandidateDraftBaseline((normalized.consolidatedNames ?? alphabeticalNames(normalized.submissions.map((submission) => submission.name))).join('\n'));
@@ -329,6 +399,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 		try {
 			const created = normalizeNominationIntake(await createNominationIntake(credentials, electionId, positionId, Number(nameLimit)));
 			setIntake(created);
+			previousIntakeRef.current = created;
 			setIntakeDetailsOpen(true);
 			setConsolidationDetailsOpen(false);
 			onLifecycleChange();
@@ -345,11 +416,15 @@ export default function NominationAdminPanel({ credentials, electionId, position
 		try {
 			const closed = normalizeNominationIntake(await closeNominationIntake(credentials, electionId, positionId));
 			setIntake(closed);
-			setIntakeDetailsOpen(false);
+			previousIntakeRef.current = closed;
+			setIntakeDetailsOpen(true);
+			setClosedSubmissionsOpen(false);
 			setConsolidationDetailsOpen(!closed.consolidatedNames);
 			setCandidateDraft((closed.consolidatedNames ?? alphabeticalNames(closed.submissions.map((submission) => submission.name))).join('\n'));
 			setCandidateDraftBaseline((closed.consolidatedNames ?? alphabeticalNames(closed.submissions.map((submission) => submission.name))).join('\n'));
 			setConfirmed(false);
+			setCloseDialogOpen(false);
+			setFocusClosedStatus(true);
 			onLifecycleChange();
 		} catch (requestError) {
 			setError(requestError instanceof Error ? requestError.message : 'Could not close nomination intake.');
@@ -664,7 +739,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			{isExpanded && isLoading && <p className="state-message" role="status">Loading nomination intake…</p>}
 			{error && <p className="error-message" role="alert">{error}</p>}
 			{streamStatus && <p className="state-message" role="status">{streamStatus}</p>}
-			{isExpanded && !isLoading && !intake && (
+			{isExpanded && !isLoading && !intake && !error && (
 				<form className="intake-create" onSubmit={createIntake}>
 					<label htmlFor="nomination-name-limit">Maximum names per visitor</label>
 					<div className="intake-controls">
@@ -676,53 +751,85 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			{isExpanded && !isLoading && intake && (
 					<section className="workflow-details intake-details">
 						<button className="workflow-disclosure-trigger" type="button" aria-expanded={intakeDetailsOpen} onClick={() => setIntakeDetailsOpen((open) => !open)}>
-							<span>Nomination submissions</span><span>{intake.status === 'OPEN' ? 'Open' : 'Closed'} · {intake.submissions.length} submissions{intake.consolidatedNames ? ` · ${intake.consolidatedNames.length} candidates` : ''}</span>
+							<span>Nomination intake</span><span>{intake.status === 'OPEN' ? 'Open' : 'Closed'} · {intake.currentContributorCount == null ? 'profile submission count unavailable' : `${intake.currentContributorCount} current profile submissions`}{intake.consolidatedNames ? ` · ${intake.consolidatedNames.length} candidates` : ''}</span>
 							<span className="workflow-disclosure-icon" aria-hidden="true">{intakeDetailsOpen ? '−' : '+'}</span>
 						</button>
 						{intakeDetailsOpen && <div className="intake-content">
 					<div className="detail-summary intake-summary">
 						<div><span className="summary-label">Intake status</span><span className={`row-status ${intake.status === 'CLOSED' ? 'closed-status' : ''}`}>{intake.status === 'OPEN' ? 'Open' : 'Closed'}</span></div>
-						<div><span className="summary-label">Name limit</span><strong>{intake.nameLimit}</strong></div>
-						<div aria-live="polite" aria-atomic="true"><span className="summary-label">Suggestions</span><strong>{intake.submissions.length}</strong></div>
+						<div className="intake-metric"><span className="summary-label">Current profile submissions</span><strong>{intake.currentContributorCount ?? 'Unavailable'}</strong><span>{intake.currentContributorCount == null ? 'The connected API did not provide this count. Restart or update the API, then reload nominations.' : 'Browser profiles with at least one name currently submitted. This is not a verified count of people.'}</span></div>
+						<div className="intake-metric"><span className="summary-label">Proposed-name entries</span><strong>{intake.submissions.length}</strong><span>Includes repeated names; each submitted entry is counted separately.</span></div>
+						<div><span className="summary-label">Names allowed per profile</span><strong>{intake.nameLimit}</strong></div>
 					</div>
+					{liveAnnouncement && <p className="live-intake-announcement" role="status" aria-live="polite" aria-atomic="true">{liveAnnouncement}</p>}
 					{intake.status === 'OPEN' ? (
 						<>
-							<label className="share-label" htmlFor="nomination-share-url">Share link</label>
+							<label className="share-label" htmlFor="nomination-share-url">Public nomination link</label>
 							<div className="intake-controls share-controls">
 								<input id="nomination-share-url" value={`${window.location.origin}/nominate/${encodeURIComponent(intake.accessToken)}`} readOnly onFocus={(event) => event.currentTarget.select()} />
 								<button className="secondary-button" type="button" onClick={copyShareUrl}>{copied ? 'Copied' : 'Copy link'}</button>
 							</div>
+							<p className="form-note">Usable while intake is open.</p>
 							<p className="form-note">Anyone with this link can submit or update names until you close nominations.</p>
-							<div className="section-heading nomination-submissions-heading"><div><h3>Submitted names</h3><p>Names only. No visitor or device identity is shown.</p></div></div>
-							{intake.submissions.length === 0 ? <p className="state-message">No names have been submitted yet.</p> : (
-								<ul className="member-list" aria-label="Anonymous submitted names">
+							<div className="section-heading nomination-submissions-heading"><div><h3>Submitted names</h3><p>Names are shown without submitter or device identity. Repeated names remain separate until you consolidate them.</p></div></div>
+							{intake.submissions.length === 0 ? <div className="intake-empty-state"><p>No names have been submitted yet.</p><p>Share the public link to invite suggestions.</p></div> : (
+								<ol className="member-list intake-submitted-list" aria-label="Submitted names">
 									{intake.submissions.map((submission) => <li key={submission.id}>{submission.name}</li>)}
-								</ul>
+								</ol>
 							)}
-							<div className="form-actions"><button className="secondary-button" type="button" disabled={isLoading} onClick={closeIntake}>Close nominations</button></div>
-							<p className="form-note">Closing disables the public link. Submitted names remain available for review.</p>
+							<div className="form-actions"><button ref={closeTriggerRef} className="secondary-button" type="button" disabled={isLoading} onClick={() => setCloseDialogOpen(true)}>Close nominations</button></div>
+							<p className="form-note">Closing disables the public link and makes all submissions read-only. You can review and consolidate the names afterward.</p>
 						</>
 					) : (
 						<>
-							<div className="section-heading nomination-submissions-heading"><div><h3>Submitted names</h3><p>Anonymous submissions remain available for review.</p></div></div>
-							{intake.submissions.length === 0 ? <p className="state-message">No submissions to review.</p> : (
-								<ul className="member-list" aria-label="Anonymous submitted names">
-									{intake.submissions.map((submission) => <li key={submission.id}>{submission.name}</li>)}
-								</ul>
-							)}
+							<p className="form-note">Public link disabled. Nominations are read-only.</p>
+							<section className="closed-submissions-disclosure" aria-label="Closed nomination submissions">
+								<button className="workflow-disclosure-trigger" type="button" aria-expanded={closedSubmissionsOpen} onClick={() => setClosedSubmissionsOpen((open) => !open)}>
+									<span>Submitted names</span>
+									<span>{intake.submissions.length} proposed-name entries</span>
+									<span className="workflow-disclosure-icon" aria-hidden="true">{closedSubmissionsOpen ? '−' : '+'}</span>
+								</button>
+								{closedSubmissionsOpen && (
+									<div className="closed-submissions-content">
+										<div className="section-heading nomination-submissions-heading"><div><h3>Submitted names</h3><p>Review the submitted names, then consolidate them into the candidate list.</p></div></div>
+										{intake.submissions.length === 0 ? <div className="intake-empty-state"><p>No names were submitted before intake closed.</p><p>You can enter candidates manually in the candidate list below.</p></div> : (
+											<ol className="member-list intake-submitted-list" aria-label="Submitted names">
+												{intake.submissions.map((submission) => <li key={submission.id}>{submission.name}</li>)}
+											</ol>
+										)}
+									</div>
+								)}
+							</section>
 						</>
 					)}
 					</div>}
 				</section>
 			)}
+			{isExpanded && !isLoading && !intake && error && (
+				<button className="secondary-button" type="button" onClick={() => { void loadIntake(); }}>Retry loading nominations</button>
+			)}
 			{isExpanded && !isLoading && intake?.status === 'CLOSED' && (
-				<p className="state-message intake-closure-status" role="status" aria-live="polite" aria-atomic="true">
-					{intake.submissions.length === 0
-						? 'Nominations are closed and no names were submitted. You can enter candidates manually in the list below to continue.'
+				<p ref={closedStatusRef} tabIndex={-1} className="state-message intake-closure-status" role="status" aria-live="polite" aria-atomic="true">
+							{intake.submissions.length === 0
+						? 'Nominations are closed. The public link is disabled and submissions are read-only. No names were submitted; you can enter candidates manually in the list below.'
 						: intake.consolidatedNames
 							? 'Nominations are closed. The public link is disabled, submissions are read-only, and the candidate list is saved.'
 							: 'Nominations are closed. The public link is disabled and submissions are read-only. Review them, then refine and save the candidate list below.'}
 				</p>
+			)}
+			{closeDialogOpen && (
+				<div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCloseDialogOpen(false); }}>
+					<section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="close-nominations-title" aria-describedby="close-nominations-description">
+						<h3 id="close-nominations-title">Close nominations?</h3>
+						<p id="close-nominations-description">The public link will stop accepting changes. Current submitted names will remain available for review and consolidation.</p>
+						{isLoading && <p role="status">Closing nominations…</p>}
+						{error && <p className="error-message" role="alert">{error}</p>}
+						<div className="dialog-actions">
+							<button ref={keepIntakeOpenRef} className="secondary-button" type="button" disabled={isLoading} onClick={() => setCloseDialogOpen(false)}>Keep intake open</button>
+							<button ref={closeButtonRef} className="danger-button" type="button" disabled={isLoading} onClick={() => { void closeIntake(); }}>Close nominations</button>
+						</div>
+					</section>
+				</div>
 			)}
 			{isExpanded && !isLoading && intake?.status === 'CLOSED' && !intake.consolidatedNames && (
 				<section className="workflow-details consolidation-details">
@@ -1065,4 +1172,15 @@ function uniqueNames(names: string[]): string[] {
 
 function alphabeticalNames(names: string[]): string[] {
 	return uniqueNames(names).sort((first, second) => first.localeCompare(second, undefined, { sensitivity: 'base' }));
+}
+
+function nameChanges(previousNames: string[], nextNames: string[]): { added: string[]; removed: string[] } {
+	const remaining = [...previousNames];
+	const added: string[] = [];
+	for (const name of nextNames) {
+		const matchIndex = remaining.findIndex((previousName) => previousName === name);
+		if (matchIndex === -1) added.push(name);
+		else remaining.splice(matchIndex, 1);
+	}
+	return { added, removed: remaining };
 }

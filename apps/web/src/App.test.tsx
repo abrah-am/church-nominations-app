@@ -146,6 +146,50 @@ describe('voting round navigation', () => {
   });
 
   it('resets a closed round separately from reopen and requires fresh configuration before start', async () => {
+
+    it('does not report zero profile submissions when an older API omits the profile count', async () => {
+      const legacyIntake = {
+        id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'OPEN',
+        submissions: [{ id: 'submission-1', name: 'Avery Chen' }, { id: 'submission-2', name: 'Jordan Lee' }],
+        consolidatedNames: null,
+      };
+      const fetchMock = signedInFetch([church], [election]);
+      fetchMock.mockResolvedValueOnce(response(election)).mockResolvedValueOnce(response(legacyIntake));
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(<App />);
+      await signIn();
+      fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Manage nominations' }));
+
+      expect(await screen.findByText('Unavailable')).toBeInTheDocument();
+      expect(screen.getByText('The connected API did not provide this count. Restart or update the API, then reload nominations.')).toBeInTheDocument();
+      expect(screen.getByText('2', { selector: '.intake-metric strong' })).toBeInTheDocument();
+      expect(screen.getByText('Avery Chen')).toBeInTheDocument();
+      expect(screen.getByText('Jordan Lee')).toBeInTheDocument();
+      expect(screen.queryByText(/^0$/)).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /profile submission count unavailable/i })).toBeInTheDocument();
+    });
+
+    it('starts the profile count at zero when no names have been submitted yet', async () => {
+      const emptyLegacyIntake = {
+        id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'OPEN',
+        submissions: [],
+        consolidatedNames: null,
+      };
+      const fetchMock = signedInFetch([church], [election]);
+      fetchMock.mockResolvedValueOnce(response(election)).mockResolvedValueOnce(response(emptyLegacyIntake));
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(<App />);
+      await signIn();
+      fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Manage nominations' }));
+
+      expect(await screen.findByText('0')).toBeInTheDocument();
+      expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
+      expect(screen.getByText('No names have been submitted yet.')).toBeInTheDocument();
+    });
     const savedIntake = {
       id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'CLOSED',
       submissions: [], consolidatedNames: ['Riley Chen', 'Morgan Diaz'],
@@ -808,6 +852,7 @@ describe('election administration', () => {
       accessToken: 'share-token',
       nameLimit: 3,
       status: 'OPEN' as const,
+      currentContributorCount: 2,
       submissions: [
         { id: 'submission-1', name: 'Sam Lee' },
         { id: 'submission-2', name: 'sam lee' },
@@ -898,14 +943,20 @@ describe('election administration', () => {
     fireEvent.change(await screen.findByLabelText('Maximum names per visitor'), { target: { value: '3' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create intake' }));
 
-    expect(await screen.findByLabelText('Share link')).toHaveValue(`${window.location.origin}/nominate/share-token`);
+    expect(await screen.findByLabelText('Public nomination link')).toHaveValue(`${window.location.origin}/nominate/share-token`);
     expect(screen.getByText('Sam Lee')).toBeInTheDocument();
     expect(screen.getByText('sam lee')).toBeInTheDocument();
     expect(screen.getByText('Jordan Lee')).toBeInTheDocument();
-    expect(screen.getByRole('list', { name: 'Anonymous submitted names' }).querySelectorAll('li')).toHaveLength(3);
-    expect(screen.getByText(/Names only\. No visitor or device identity is shown/)).toBeInTheDocument();
+    const submittedNames = screen.getByRole('list', { name: 'Submitted names' });
+    expect(submittedNames.tagName).toBe('OL');
+    expect(Array.from(submittedNames.querySelectorAll('li')).map((item) => item.textContent)).toEqual(['Jordan Lee', 'Sam Lee', 'sam lee']);
+    expect(screen.getByText('Current profile submissions')).toBeInTheDocument();
+    expect(screen.getByText('Browser profiles with at least one name currently submitted. This is not a verified count of people.')).toBeInTheDocument();
+    expect(screen.getByText('Proposed-name entries')).toBeInTheDocument();
+    expect(screen.getByText('Includes repeated names; each submitted entry is counted separately.')).toBeInTheDocument();
+    expect(screen.getByText('Names allowed per profile')).toBeInTheDocument();
     expect(screen.getByText('Anyone with this link can submit or update names until you close nominations.')).toBeInTheDocument();
-    const nominationDisclosure = screen.getByRole('button', { name: /Nomination submissions.*Open · 3 submissions/ });
+    const nominationDisclosure = screen.getByRole('button', { name: /Nomination intake.*Open · 2 current profile submissions/ });
     expect(nominationDisclosure).toHaveAttribute('aria-expanded', 'true');
     expect(fetchMock.mock.calls[4][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations');
     expect(fetchMock.mock.calls[4][1].headers.Authorization).toBe(`Basic ${btoa('admin@example.com:secret')}`);
@@ -915,12 +966,27 @@ describe('election administration', () => {
     expect(createRequest[1].headers.Authorization).toBe(`Basic ${btoa('admin@example.com:secret')}`);
 
     fireEvent.click(screen.getByRole('button', { name: 'Close nominations' }));
+    expect(screen.getByRole('dialog', { name: 'Close nominations?' })).toHaveTextContent('The public link will stop accepting changes. Current submitted names will remain available for review and consolidation.');
+    expect(screen.getByRole('button', { name: 'Keep intake open' })).toHaveFocus();
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Close nominations?' })).getByRole('button', { name: 'Close nominations' }));
     expect(await screen.findByRole('checkbox', { name: /I confirm this is the final candidate list/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Nomination submissions.*Closed · 3 submissions/ })).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.getByRole('status')).toHaveTextContent('Nominations are closed. The public link is disabled and submissions are read-only. Review them, then refine and save the candidate list below.');
-    expect(screen.queryByRole('list', { name: 'Anonymous submitted names' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Nomination intake.*Closed · 2 current profile submissions/ })).toHaveAttribute('aria-expanded', 'true');
+    const closedStatus = screen.getByRole('status');
+    expect(closedStatus).toHaveTextContent('Nominations are closed. The public link is disabled and submissions are read-only. Review them, then refine and save the candidate list below.');
+    expect(closedStatus).toHaveFocus();
+    expect(screen.getByText('Intake status')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Nomination intake.*2 current profile submissions/ })).toBeInTheDocument();
+    expect(screen.getByText('Proposed-name entries')).toBeInTheDocument();
+    const closedSubmissionsDisclosure = screen.getByRole('button', { name: /Submitted names.*3 proposed-name entries/ });
+    expect(closedSubmissionsDisclosure).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('list', { name: 'Submitted names' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Unique candidate list')).toHaveValue('Jordan Lee\nSam Lee');
     const consolidationDisclosure = screen.getByRole('button', { name: /Review and consolidate candidates/ });
+    expect(consolidationDisclosure).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(closedSubmissionsDisclosure);
+    expect(closedSubmissionsDisclosure).toHaveAttribute('aria-expanded', 'true');
+    const closedNames = screen.getByRole('list', { name: 'Submitted names' });
+    expect(Array.from(closedNames.querySelectorAll('li')).map((item) => item.textContent)).toEqual(['Jordan Lee', 'Sam Lee', 'sam lee']);
     expect(consolidationDisclosure).toHaveAttribute('aria-expanded', 'true');
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/rounds'))).toBe(false);
     fireEvent.change(screen.getByLabelText('Unique candidate list'), { target: { value: 'Riley Chen\nRiley Chen\nMorgan Diaz' } });
@@ -1243,10 +1309,10 @@ describe('election administration', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Manage nominations' }));
 
-    expect(await screen.findByText('Nominations are closed and no names were submitted. You can enter candidates manually in the list below to continue.')).toBeInTheDocument();
+    expect(await screen.findByText('Nominations are closed. The public link is disabled and submissions are read-only. No names were submitted; you can enter candidates manually in the list below.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Review and consolidate candidates/ })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByLabelText('Unique candidate list')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Anonymous submitted names')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Submitted names')).not.toBeInTheDocument();
   });
 
   it('shows a loading state while the admin intake response is pending', async () => {
@@ -1271,9 +1337,31 @@ describe('election administration', () => {
     expect(await screen.findByText('No names have been submitted yet.')).toBeInTheDocument();
   });
 
-  it('streams authenticated intake snapshots across chunks and aborts when collapsed', async () => {
+  it('shows an admin intake load error with retry instead of offering to create another intake', async () => {
     const openIntake = {
       id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'OPEN',
+      currentContributorCount: 0, submissions: [], consolidatedNames: null,
+    };
+    const fetchMock = signedInFetch([church], [election]);
+    fetchMock.mockResolvedValueOnce(response(election)).mockRejectedValueOnce(new Error('Network unavailable'))
+      .mockResolvedValueOnce(response(openIntake));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage nominations' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Network unavailable');
+    expect(screen.queryByRole('button', { name: 'Create intake' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry loading nominations' }));
+    expect(await screen.findByText('No names have been submitted yet.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create intake' })).not.toBeInTheDocument();
+  });
+
+  it('streams authenticated intake snapshots across chunks and aborts when collapsed', async () => {
+    const openIntake = {
+      id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'OPEN', currentContributorCount: 1,
       submissions: [{ id: 'submission-1', name: 'Riley Chen' }], consolidatedNames: null,
     };
     let streamController!: ReadableStreamDefaultController<Uint8Array>;
@@ -1304,7 +1392,7 @@ describe('election administration', () => {
     });
     expect(streamRequest[1].signal).toBeInstanceOf(AbortSignal);
 
-    const updatedSnapshot = { ...openIntake, submissions: [...openIntake.submissions, { id: 'submission-2', name: 'Morgan Diaz' }] };
+    const updatedSnapshot = { ...openIntake, currentContributorCount: 2, submissions: [...openIntake.submissions, { id: 'submission-2', name: 'Morgan Diaz' }] };
     const event = `event: intake\r\ndata: ${JSON.stringify(updatedSnapshot)}\r\n\r\n`;
     await act(async () => {
       streamController.enqueue(new TextEncoder().encode(event.slice(0, 17)));
@@ -1312,9 +1400,10 @@ describe('election administration', () => {
       streamController.enqueue(new TextEncoder().encode(event.slice(53)));
     });
     expect(await screen.findByText('Morgan Diaz')).toBeInTheDocument();
-    expect(screen.getByRole('list', { name: 'Anonymous submitted names' }).querySelectorAll('li')).toHaveLength(2);
+    expect(screen.getByRole('list', { name: 'Submitted names' }).querySelectorAll('li')).toHaveLength(2);
+    expect(screen.getByRole('status')).toHaveTextContent('Submissions updated: 2 current profile submissions and 2 proposed-name entries. Added: Morgan Diaz.');
 
-    const intakeDisclosure = screen.getByRole('button', { name: /Nomination submissions.*Open · 2 submissions/ });
+    const intakeDisclosure = screen.getByRole('button', { name: /Nomination intake.*Open · 2 current profile submissions/ });
     fireEvent.click(intakeDisclosure);
     await waitFor(() => expect(streamRequest[1].signal.aborted).toBe(true));
   });
@@ -1403,14 +1492,14 @@ describe('election administration', () => {
     expect(screen.getByLabelText('Name 1')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Name 1'), { target: { value: 'Avery Chen' } });
     fireEvent.click(screen.getByRole('button', { name: 'Submit names' }));
-    expect(await screen.findByText(/Your names have been submitted\./)).toBeInTheDocument();
+    expect(await screen.findByText('Your names were submitted. You can replace or withdraw them until nominations close.')).toBeInTheDocument();
     expect(fetchMock.mock.calls[1][0]).toBe('http://localhost:8080/api/nomination-intakes/public-token/submission');
     expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: 'PUT', body: JSON.stringify({ names: ['Avery Chen'] }) });
     expect(fetchMock.mock.calls[1][1].headers['X-Nomination-Device-Token']).toBe(deviceToken);
 
     fireEvent.change(screen.getByLabelText('Name 1'), { target: { value: 'Jordan Lee' } });
     fireEvent.click(screen.getByRole('button', { name: 'Submit names' }));
-    expect(await screen.findByText(/Your names have been submitted\./)).toBeInTheDocument();
+    expect(await screen.findByText('Your names were submitted. You can replace or withdraw them until nominations close.')).toBeInTheDocument();
     expect(fetchMock.mock.calls[2][1].body).toBe(JSON.stringify({ names: ['Jordan Lee'] }));
     expect(fetchMock.mock.calls[2][1].headers['X-Nomination-Device-Token']).toBe(deviceToken);
 
@@ -1444,10 +1533,68 @@ describe('election administration', () => {
     fireEvent.change(screen.getByLabelText('Name 2'), { target: { value: 'Jordan Lee' } });
     fireEvent.change(screen.getByLabelText('Name 3'), { target: { value: 'Sam Patel' } });
     fireEvent.click(screen.getByRole('button', { name: 'Submit names' }));
-    expect(await screen.findByText('Your names have been submitted. You can edit them until nominations close.')).toBeInTheDocument();
+    expect(await screen.findByText('Your names were submitted. You can replace or withdraw them until nominations close.')).toBeInTheDocument();
     expect(addNameButton).toBeDisabled();
     expect(screen.queryByLabelText('Name 4')).not.toBeInTheDocument();
     expect(fetchMock.mock.calls[1][1].body).toBe(JSON.stringify({ names: savedIntake.submittedNames }));
+  });
+
+  it('withdraws the saved public list only after confirmation and clears saved and unsaved fields on success', async () => {
+    const initialIntake = { departmentName: 'Finance', positionName: 'Director', nameLimit: 3, submittedNames: ['Avery Chen', 'Jordan Lee'] };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(response(initialIntake))
+      .mockResolvedValueOnce(response({ submittedNames: [] }))
+      .mockResolvedValueOnce(response({ submittedNames: ['New nominee'] }));
+    vi.stubGlobal('fetch', fetchMock);
+    window.history.pushState({}, '', '/nominate/public-token');
+
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Director' });
+    fireEvent.change(screen.getByLabelText('Name 1'), { target: { value: 'Edited locally' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Withdraw all names' }));
+    const dialog = screen.getByRole('dialog', { name: 'Withdraw your names?' });
+    expect(dialog).toHaveTextContent('This removes every name currently saved by this browser profile from the intake. You can submit a new list while nominations remain open.');
+    expect(screen.getByRole('button', { name: 'Keep my names' })).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: 'Withdraw names' }));
+
+    expect(await screen.findByText('Your names have been withdrawn. This profile has no names currently included. You may submit a new list while nominations are open.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Name 1')).toHaveValue('');
+    expect(screen.queryByLabelText('Name 2')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Withdraw all names' })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: 'PUT', body: JSON.stringify({ names: [] }) });
+
+    const addNameButton = screen.getByRole('button', { name: /Add another name/ });
+    expect(addNameButton).toBeEnabled();
+    fireEvent.click(addNameButton);
+    expect(screen.getByLabelText('Name 2')).toBeInTheDocument();
+    expect(screen.getByLabelText('Name 2')).toHaveFocus();
+    expect(screen.getByRole('status')).toHaveTextContent('Name 2 added.');
+    fireEvent.change(screen.getByLabelText('Name 1'), { target: { value: 'New nominee' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit names' }));
+    expect(await screen.findByText('Your names were submitted. You can replace or withdraw them until nominations close.')).toBeInTheDocument();
+    expect(fetchMock.mock.calls[2][1]).toMatchObject({ method: 'PUT', body: JSON.stringify({ names: ['New nominee'] }) });
+  });
+
+  it('preserves form fields when public withdrawal is cancelled or fails', async () => {
+    const initialIntake = { departmentName: 'Finance', positionName: 'Director', nameLimit: 3, submittedNames: ['Avery Chen'] };
+    const fetchMock = vi.fn().mockResolvedValueOnce(response(initialIntake)).mockResolvedValueOnce(response({}, 500));
+    vi.stubGlobal('fetch', fetchMock);
+    window.history.pushState({}, '', '/nominate/public-token');
+
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Director' });
+    fireEvent.change(screen.getByLabelText('Name 1'), { target: { value: 'Unsaved edit' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Withdraw all names' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Keep my names' }));
+    expect(screen.getByLabelText('Name 1')).toHaveValue('Unsaved edit');
+    expect(screen.getByRole('button', { name: 'Withdraw all names' })).toHaveFocus();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Withdraw all names' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Withdraw names' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The request failed (HTTP 500).');
+    expect(screen.getByLabelText('Name 1')).toHaveValue('Unsaved edit');
+    expect(screen.getByRole('button', { name: 'Withdraw all names' })).toBeInTheDocument();
+    expect(screen.queryByText(/Your names have been withdrawn/)).not.toBeInTheDocument();
   });
 
   it('shows unavailable and closed states for public intake links', async () => {
@@ -1461,5 +1608,18 @@ describe('election administration', () => {
     window.history.pushState({}, '', '/nominate/closed-token');
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'Nominations are closed' })).toBeInTheDocument();
+  });
+
+  it('shows public intake load failures and allows retry', async () => {
+    const intake = { departmentName: 'Finance', positionName: 'Director', nameLimit: 3, submittedNames: [] };
+    const fetchMock = vi.fn().mockRejectedValueOnce(new Error('Network unavailable')).mockResolvedValueOnce(response(intake));
+    vi.stubGlobal('fetch', fetchMock);
+    window.history.pushState({}, '', '/nominate/retry-token');
+
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Could not load this form' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Network unavailable');
+    fireEvent.click(screen.getByRole('button', { name: 'Retry loading form' }));
+    expect(await screen.findByRole('heading', { name: 'Director' })).toBeInTheDocument();
   });
 });

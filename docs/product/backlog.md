@@ -8,7 +8,6 @@
 
 | ID | Epic | Story | Priority | Workflow status | Dependencies | Requirements |
 | --- | --- | --- | --- | --- | --- | --- |
-| E2.1 | E2 Nomination Workflow Clarity and Recovery | Make intake states and closure consequences clear | P1 | Ready to start; US-008 intake flow is implemented | US-008 | [requirements](../stories/E2.1/requirements.md) |
 | E2.2 | E2 Nomination Workflow Clarity and Recovery | Preserve consolidation drafts on failure and navigation | P1 | Backlog | US-009 | [requirements](../stories/E2.2/requirements.md) |
 | E2.3 | E2 Nomination Workflow Clarity and Recovery | Explain roster lock and provide pre-draft edit path | P1 | Backlog | US-009, E2.2 | [requirements](../stories/E2.3/requirements.md) |
 | E3.1 | E3 Round Setup and Candidate Roster | Clarify roster source and valid selection count | P1 | Backlog | US-009, US-010; prior decisions | [requirements](../stories/E3.1/requirements.md) |
@@ -66,6 +65,7 @@
 | E1.1 | E1 Election and Position Progress | Show meaningful election lifecycle status | P1 | Accepted by Product Owner 2026-10-22; implemented and merged (`70e41be`) | Election/position lifecycle data | [requirements](../stories/STORY-E1.1/requirements.md) |
 | E1.2 | E1 Election and Position Progress | Show position progress and next action | P1 | Accepted by Product Owner 2026-10-21; PR #5 merged (`a23033e`) | E1.1 concepts; position workflow data | [requirements](../stories/STORY-E1.2/requirements.md) |
 | E1.3 | E1 Election and Position Progress | Remove contradictory election setup notice | P1 | Closed; scope delivered by merged E1.1/E1.2; no separate implementation | E1.1, E1.2 | [requirements](../stories/E1.3/requirements.md) |
+| E2.1 | E2 Nomination Workflow Clarity and Recovery | Make intake states and closure consequences clear | P1 | Accepted by Product Owner 2026-10-22; merge pending explicit authorization | US-008 | [requirements](../stories/E2.1/requirements.md) |
 | US-001 | P0 Developer Foundation | Reproducible local database environment | P0 | Implemented locally; acceptance not recorded | Docker Compose, PostgreSQL, integration tests | [requirements](../stories/US-001/requirements.md) |
 | US-004 | POC Identity and Onboarding | Register an administrator account | P0 | Implemented for local demonstration; acceptance not recorded | Identity persistence; US-002 | [requirements](../stories/US-004/requirements.md) |
 | US-005 | POC Identity and Onboarding | Register a church | P0 | Implemented for local demonstration; acceptance not recorded | US-004, US-002 | [requirements](../stories/US-005/requirements.md) |

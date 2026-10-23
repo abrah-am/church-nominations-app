@@ -450,10 +450,11 @@ class PostgresElectionIntegrationTest {
                                 electionId, positionId)
                         .with(httpBasic(admin, PASSWORD)).contentType(APPLICATION_JSON).content("{\"nameLimit\":2}"))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$", aMapWithSize(6)))
+                .andExpect(jsonPath("$", aMapWithSize(7)))
                 .andExpect(jsonPath("$.id").isNotEmpty())
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
                 .andExpect(jsonPath("$.nameLimit").value(2))
+                .andExpect(jsonPath("$.currentContributorCount").value(0))
                 .andExpect(jsonPath("$.status").value("OPEN"))
                 .andExpect(jsonPath("$.submissions", hasSize(0)))
                 .andExpect(jsonPath("$.consolidatedNames").value(org.hamcrest.Matchers.nullValue()))
@@ -517,30 +518,55 @@ class PostgresElectionIntegrationTest {
                 .andExpect(jsonPath("$.submittedNames[1]").value("Bob"));
         mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
                         .header("X-Nomination-Device-Token", deviceToken)
-                        .contentType(APPLICATION_JSON).content("{\"names\":[\"Carol\"]}"))
+                        .contentType(APPLICATION_JSON).content("{\"names\":[\"Alice\",\"Carol\"]}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.submittedNames", hasSize(1)))
-                .andExpect(jsonPath("$.submittedNames[0]").value("Carol"));
+                .andExpect(jsonPath("$.submittedNames", hasSize(2)))
+                .andExpect(jsonPath("$.submittedNames[0]").value("Alice"))
+                .andExpect(jsonPath("$.submittedNames[1]").value("Carol"));
+        mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/nominations",
+                        electionId, positionId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentContributorCount").value(1))
+                .andExpect(jsonPath("$.submissions", hasSize(2)));
         mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
                         .header("X-Nomination-Device-Token", secondDeviceToken)
-                        .contentType(APPLICATION_JSON).content("{\"names\":[\"Dana\"]}"))
+                        .contentType(APPLICATION_JSON).content("{\"names\":[\"carol\",\"Dana\"]}"))
                 .andExpect(status().isOk());
+        mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/nominations",
+                        electionId, positionId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentContributorCount").value(2))
+                .andExpect(jsonPath("$.submissions", hasSize(4)))
+                .andExpect(jsonPath("$.submissions[0].name").value("Alice"))
+                .andExpect(jsonPath("$.submissions[1].name").value("Carol"))
+                .andExpect(jsonPath("$.submissions[2].name").value("carol"))
+                .andExpect(jsonPath("$.submissions[3].name").value("Dana"));
         mockMvc.perform(get("/api/nomination-intakes/{accessToken}", accessToken)
                         .header("X-Nomination-Device-Token", deviceToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.submittedNames", hasSize(1)))
-                .andExpect(jsonPath("$.submittedNames[0]").value("Carol"))
+                .andExpect(jsonPath("$.submittedNames", hasSize(2)))
+                .andExpect(jsonPath("$.submittedNames[0]").value("Alice"))
+                .andExpect(jsonPath("$.submittedNames[1]").value("Carol"))
                 .andExpect(jsonPath("$.deviceToken").doesNotExist())
                 .andExpect(jsonPath("$.sourceId").doesNotExist())
                 .andExpect(jsonPath("$.actorId").doesNotExist());
         mockMvc.perform(get("/api/nomination-intakes/{accessToken}", accessToken)
                         .header("X-Nomination-Device-Token", secondDeviceToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.submittedNames", hasSize(1)))
-                .andExpect(jsonPath("$.submittedNames[0]").value("Dana"));
+                .andExpect(jsonPath("$.submittedNames", hasSize(2)))
+                .andExpect(jsonPath("$.submittedNames[0]").value("carol"))
+                .andExpect(jsonPath("$.submittedNames[1]").value("Dana"));
         mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
                         .header("X-Nomination-Device-Token", deviceToken)
                         .contentType(APPLICATION_JSON).content("{\"names\":[\"One\",\"Two\",\"Three\"]}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
+                        .header("X-Nomination-Device-Token", deviceToken)
+                        .contentType(APPLICATION_JSON).content("{\"names\":[\"   \"]}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
+                        .header("X-Nomination-Device-Token", deviceToken)
+                        .contentType(APPLICATION_JSON).content("{\"names\":null}"))
                 .andExpect(status().isBadRequest());
         mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
                         .header("X-Nomination-Device-Token", deviceToken)
@@ -563,26 +589,73 @@ class PostgresElectionIntegrationTest {
                         .header("X-Nomination-Device-Token", deviceToken)
                         .contentType(APPLICATION_JSON).content("{\"names\":[\"Carol\"]}"))
                 .andExpect(status().isOk());
+        mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/nominations",
+                        electionId, positionId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentContributorCount").value(2))
+                .andExpect(jsonPath("$.submissions", hasSize(3)));
+        mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
+                        .header("X-Nomination-Device-Token", deviceToken)
+                        .contentType(APPLICATION_JSON).content("{\"names\":[]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.submittedNames", hasSize(0)));
+        mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/nominations",
+                        electionId, positionId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentContributorCount").value(1))
+                .andExpect(jsonPath("$.submissions", hasSize(2)))
+                .andExpect(jsonPath("$.submissions[0].name").value("carol"))
+                .andExpect(jsonPath("$.submissions[1].name").value("Dana"));
+        mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
+                        .header("X-Nomination-Device-Token", deviceToken)
+                        .contentType(APPLICATION_JSON).content("{\"names\":[\"Resubmitted Name\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.submittedNames[0]").value("Resubmitted Name"));
+        mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/nominations",
+                        electionId, positionId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentContributorCount").value(2))
+                .andExpect(jsonPath("$.submissions", hasSize(3)));
         mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations/close",
                         electionId, positionId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CLOSED"))
-                .andExpect(jsonPath("$.submissions[*].name").value(containsInAnyOrder("Carol", "Dana")))
+                .andExpect(jsonPath("$.currentContributorCount").value(2))
+                .andExpect(jsonPath("$.submissions[*].name").value(containsInAnyOrder("carol", "Dana", "Resubmitted Name")))
                 .andExpect(jsonPath("$.submissions[0].deviceToken").doesNotExist())
                 .andExpect(jsonPath("$.submissions[0].sourceId").doesNotExist());
         String streamBody = mockMvc.perform(asyncDispatch(stream))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        assertEquals(3, streamBody.split("event:intake", -1).length - 1);
+        assertEquals(5, streamBody.split("event:intake", -1).length - 1);
         org.junit.jupiter.api.Assertions.assertTrue(streamBody.contains("\"status\":\"CLOSED\""));
-        org.junit.jupiter.api.Assertions.assertTrue(streamBody.contains("\"name\":\"Carol\""));
+        org.junit.jupiter.api.Assertions.assertTrue(streamBody.contains("\"currentContributorCount\":2"));
+        org.junit.jupiter.api.Assertions.assertTrue(streamBody.contains("\"name\":\"carol\""));
+        org.junit.jupiter.api.Assertions.assertTrue(streamBody.contains("\"name\":\"Resubmitted Name\""));
         org.junit.jupiter.api.Assertions.assertFalse(streamBody.contains("deviceToken"));
+        org.junit.jupiter.api.Assertions.assertFalse(streamBody.contains(deviceToken.toString()));
+        MvcResult closedStream = mockMvc.perform(get(
+                        "/api/elections/{electionId}/positions/{positionId}/nominations/stream",
+                        electionId, positionId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("text/event-stream"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        String closedStreamBody = mockMvc.perform(asyncDispatch(closedStream))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        org.junit.jupiter.api.Assertions.assertTrue(closedStreamBody.contains("\"status\":\"CLOSED\""));
+        assertEquals(1, closedStreamBody.split("event:intake", -1).length - 1);
         mockMvc.perform(get("/api/nomination-intakes/{accessToken}", accessToken)
                         .header("X-Nomination-Device-Token", deviceToken))
                 .andExpect(status().isGone());
         mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
                         .header("X-Nomination-Device-Token", deviceToken)
                         .contentType(APPLICATION_JSON).content("{\"names\":[\"Late\"]}"))
+                .andExpect(status().isGone());
+        mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
+                        .header("X-Nomination-Device-Token", secondDeviceToken)
+                        .contentType(APPLICATION_JSON).content("{\"names\":[]}"))
                 .andExpect(status().isGone());
         mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations", electionId, positionId)
                         .with(httpBasic(admin, PASSWORD)).contentType(APPLICATION_JSON).content("{\"nameLimit\":2}"))
@@ -605,6 +678,11 @@ class PostgresElectionIntegrationTest {
         mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/nominations", electionId, positionId)
                         .with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentContributorCount").value(2))
+                .andExpect(jsonPath("$.submissions", hasSize(3)))
+                .andExpect(jsonPath("$.submissions[0].name").value("carol"))
+                .andExpect(jsonPath("$.submissions[1].name").value("Dana"))
+                .andExpect(jsonPath("$.submissions[2].name").value("Resubmitted Name"))
                 .andExpect(jsonPath("$.consolidatedNames[0]").value("Final Name"))
                 .andExpect(jsonPath("$.submissions[0]", aMapWithSize(2)))
                 .andExpect(jsonPath("$.submissions[0].actorId").doesNotExist());

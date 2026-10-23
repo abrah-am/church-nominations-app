@@ -152,6 +152,18 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .intake-controls { display: grid; grid-template-columns: minmax(100px, 150px) auto; gap: 10px; }
 .intake-controls .primary-button, .intake-controls .secondary-button { white-space: nowrap; }
 .intake-summary { margin: 21px 0; }
+.intake-summary > .intake-metric { align-content: start; gap: 6px; }
+.intake-metric > span:last-child { max-width: 300px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.intake-metric strong { font-size: 18px; }
+.live-intake-announcement { margin: 0 0 14px; padding: 10px 12px; border-left: 3px solid var(--green); background: rgba(233, 239, 229, 0.82); color: #304f3c; font-size: 12px; line-height: 1.5; }
+.intake-empty-state { padding: 13px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.intake-empty-state p { margin: 3px 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.intake-empty-state p:first-child { color: var(--ink); font-weight: 700; }
+.intake-submitted-list { padding-left: 30px; list-style: decimal; }
+.intake-submitted-list li { padding-left: 7px; overflow-wrap: anywhere; }
+.intake-submitted-list li::marker { color: var(--green); font-family: 'Manrope', sans-serif; font-weight: 700; }
+.withdraw-actions { margin-top: 18px; padding-top: 17px; border-top: 1px solid var(--line); }
+.intake-closure-status:focus { outline: 2px solid var(--green); outline-offset: 3px; }
 .closed-status { border-color: #d8c9b5; background: #f5f0e8; color: #69543b; }
 .share-controls { grid-template-columns: minmax(0, 1fr) auto; }
 .nomination-submissions-heading { margin: 28px 0 12px; }
@@ -251,6 +263,7 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .public-nomination-form { padding-top: 18px; border-top: 1px solid var(--line); }
 .public-nomination-form .positions-form-heading { margin-top: 0; }
 .public-nomination-form .form-actions { justify-content: flex-start; }
+.public-nomination-form .state-message { padding: 14px 0 0; }
 .limit-feedback { margin-top: 14px; }
 .page-footer { display: flex; min-height: 65px; align-items: center; gap: 13px; margin-top: auto; color: var(--muted); font-size: 11px; }
 .footer-divider { width: 3px; height: 3px; border-radius: 50%; background: #9ca59b; }
@@ -298,6 +311,8 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
   .member-editor { padding: 12px; }
   .session-date-controls { grid-template-columns: 1fr; }
   .intake-controls, .share-controls { grid-template-columns: 1fr; }
+  .intake-summary { grid-template-columns: 1fr; }
+  .intake-summary > div:first-child { grid-column: auto; }
   .intake-controls button, .share-controls button { justify-self: start; }
 }
 @media (max-width: 360px) {
