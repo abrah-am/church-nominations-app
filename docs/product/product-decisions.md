@@ -19,6 +19,7 @@ This is the register for product-wide questions that block final acceptance or p
 | PD-013 | Confirm authorized undo behavior for an `ADVANCED` candidate when a later draft already includes that candidate. | E5.4, E3.2, E3.3, E2.4 | Open |
 | PD-014 | Confirm the POC migration handling for elections attached to legacy unclaimed church records and how account ownership is established. | US-005, US-002 | Open operational/data migration detail |
 | PD-015 | Define the administrator's options when no candidate reaches a strict majority outside the specified multi-opening runoff rules; confirm whether any recommendation beyond the majority indicator is desired. | US-011, US-012, E5.1, E6.1 | Open; current rule leaves regular single-opening outcomes to administrator/committee |
+| PD-016 | Approve one stable session-level participant link that resolves the authorized current intake/poll/results phase, including no-active-phase behavior, link audience/forwarding/expiry/revocation, tenant enforcement, and browser-profile ballot uniqueness across rounds. | E6.10, E6.11, US-008, US-011, E6.8 | Open; current requirements remain position-scoped for nominations and poll-scoped for voting |
 
 ## Approved Decisions to Preserve
 
