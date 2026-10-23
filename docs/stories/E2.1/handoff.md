@@ -1,8 +1,10 @@
 # Handoff: E2.1 Intake States and Closure Consequences
 
 **Current phase:** Phase 7 — Product Owner acceptance
-**Status:** Accepted by Product Owner 2026-10-22; implementation, QA, independent review, and source-level UX validation complete; merge authorization pending.
+**Status:** Accepted by Product Owner 2026-10-22; implementation committed and pushed; merge authorization pending.
 **Branch:** `feature/story-e2.1-intake-states`
+**Commit:** `e2bedda` (`feat: clarify nomination intake submissions`)
+**Remote:** `origin/feature/story-e2.1-intake-states`
 
 ## Product Owner Request
 
@@ -65,4 +67,4 @@ Clarify nomination intake submission count and make proposed names numbered and 
 
 ## Next Action
 
-Product Owner accepted E2.1 on 2026-10-22. Next action: obtain explicit merge authorization before Phase 8 merge/closure. Rendered responsive/accessibility verification remains unperformed. Do not merge or deploy without explicit authorization.
+Product Owner accepted E2.1 on 2026-10-22. Implementation is pushed on the feature branch. Next action: review the branch/PR and obtain explicit merge authorization before Phase 8 merge/closure. Rendered responsive/accessibility verification remains unperformed. Do not merge or deploy without explicit authorization.
