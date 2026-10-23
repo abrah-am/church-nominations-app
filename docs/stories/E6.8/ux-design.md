@@ -2,11 +2,15 @@
 
 **Phase:** UX discovery and design proposal  
 **Date:** 2026-10-22  
-**Status:** UX design approved by Product Owner 2026-10-22 for backlog breakdown. Session-link implementation remains blocked on the product, API, and security decisions tracked in E6.10; current nomination and voting links remain position- and poll-scoped until that contract is approved.
+**Status:** UX design approved by Product Owner 2026-10-22 for backlog breakdown; policy clarified by E6.10 on 2026-10-23. The participant session link and authenticated admin-controlled committee presentation are separate surfaces. Implementation remains subject to API/security contract review.
+
+## E6.10 Decision Addendum (2026-10-23)
+
+This addendum supersedes conflicting proposal/open-question text below. The participant link is one unexpired, revocable bearer link for an election session; it resolves only that session's current nomination/voting phase or explicitly revealed current-round results. Closed-unrevealed, reopened, no-active-phase, ended, revoked, and unauthorized states use a generic unavailable/inactive response. Explicit reveal publishes only candidate names and aggregate vote totals; reopening clears current results until a new reveal. Ballot-profile uniqueness is once per poll, and the opaque per-poll association remains valid while that poll may be reopened/current, then is invalidated when superseded or the session ends. The committee presentation is separate, read-only, opened and controlled by an authenticated admin, with independent show/hide/end; it uses the same approved results snapshot and clears on hide/context change/reopen. Historical reports and operational credential/audit retention remain subject to E6.4/E8.2 and PD-004/PD-005/PD-006/PD-012.
 
 ## Purpose and Scope
 
-Give an administrator one stable link for an active election session that can be shared once and opened on participant devices. The link is proposed to route to the authorized current session phase as it changes from nomination intake to polls and results across rounds. Do not create or repeat link/share controls inside each voting round. A future presentation view may provide a QR code for this same session link; QR generation/display is a future enhancement, not current functionality. Keep ballot-level data private and administrative decision controls out of the audience view.
+Provide two distinct capabilities. The stable participant link is shared with participants and routes to its election session's authorized current phase. The committee presentation view is opened separately by an authenticated admin action, optionally in a new tab, and has independent show/hide/end controls. Do not create or repeat participant-link controls inside each voting round. A future presentation view may provide a QR code for the participant link; QR generation/display is a future enhancement, not current functionality. Keep ballot-level data private and administrative decision controls out of both audience views.
 
 This is a proposed UX contract, not an authorization design. Current requirements define position-scoped nomination links and poll-scoped voting links; changing to one stable session link requires product, API, and security decisions. The proposal is that the link resolves only the authorized current phase of its own election session, never another session or historical poll. In the voting phase, a closed-unrevealed poll shows the existing `poll is not active` message; after reveal, the same link shows the identical read-only shared results snapshot; reopening returns it to that inactive message. The presentation view remains read-only. Its future QR code would represent the same session link and is not current functionality.
 
@@ -27,22 +31,22 @@ This is a proposed UX contract, not an authorization design. Current requirement
 - Once an administrator reveals the current poll's results, the same session link renders the identical read-only shared results view and approved aggregate snapshot used by the presentation results view. This is one shared results view, not a separate guest-specific results UI. The separately managed projector/presentation surface retains its own show/hide/session controls.
 - If the current poll is reopened, the same session link returns to the existing `poll is not active` message and shows no current results. A later close alone does not restore the results; an administrator must reveal them again.
 
-**Proposed session-link behavior, pending review:**
+**Approved participant-link behavior (2026-10-23):**
 
-- One stable link is issued for an active election session, shared once, and reused on participant devices as the authorized current phase changes across nomination intake and multiple voting rounds. Individual round UI contains no create-link, copy-link, or share-link controls.
-- The session link resolves only that session's authorized current phase. It must never resolve another election session or a historical poll. The contract for no active intake, no active poll, or an ended session is undecided.
+- One stable, unexpired, revocable bearer link is issued for an election session, shared with participants, and reused as the authorized current phase changes across nomination intake and multiple voting rounds. Individual round UI contains no create-link, copy-link, or share-link controls.
+- The session link resolves only that session's authorized current phase. It must never resolve another session, historical poll/report, admin data, or presentation controls. No-active-phase, ended, revoked, or unauthorized states use a generic unavailable response.
 - The same session link follows the directed voting display lifecycle: active poll shows the ballot; closed-unrevealed shows the existing `poll is not active` message; revealed shows the identical read-only shared results snapshot; reopening returns to the inactive message; a later close needs a new reveal; the next authorized round is reached through the same session link.
-- Browser ballot uniqueness across polls/rounds is undecided. A per-poll uniqueness rule from current requirements cannot be assumed to mean one ballot across a session or one ballot in every round.
+- Browser ballot uniqueness remains once per poll. Each subsequent round is a new poll. The opaque per-poll credential remains usable while that poll may be reopened/current, then is invalidated when superseded or when the session ends. Credential storage/recovery and operational retention remain unresolved under PD-004.
 - A future presentation view may show a QR code for the same link. Mark this as a placeholder only; do not imply QR generation or presentation-link controls exist today.
 
 **Still unresolved:**
 
-- The presentation surface is separate from the authenticated admin workspace, but who can load it and what credentials protect it remain undecided.
+- The presentation view is separate from participant access: an authenticated admin opens it, optionally in a new tab, and independently controls show/hide/end. The presentation itself is read-only.
 - The direction to broadcast the revealed nomination list establishes the intended room-display behavior, not public or remote access rights. Projected viewers, authenticated users, guests, and voting-link holders are not interchangeable audiences.
 - Aggregate fields beyond those already approved for the shared results snapshot remain to be confirmed. The directed guest-link behavior does not decide whether the separately managed projector is shown, nor does it establish access to other audiences, reports, or polls.
 - The shared surface never shows voter names, participation-to-choice mappings, individual ballots, or ballot-level selections.
 - The presentation view is for the current position and current intake/round, not a full historical report. E6.3 and E6.4 govern broader history/report scope.
-- Forwarding, expiry, revocation, and tenant-boundary enforcement for a stable session capability are unresolved. Do not imply that possession proves voter identity or that link secrecy alone authorizes access.
+- The participant link is a forwardable bearer capability and does not identify a person. An authorized admin may revoke it; it is unexpired and becomes unavailable when the session ends. Enforce tenant boundaries server-side.
 
 ## Proposed User Flow
 
@@ -55,9 +59,9 @@ This is a proposed UX contract, not an authorization design. Current requirement
 7. Hiding the separately managed projector or changing its context clears old content before loading another position. Projector controls do not change the session link's phase resolution. The proposed contract must define the response when there is no current intake, poll, or session.
 8. If a change cannot be confirmed because of a save error or connection loss, do not claim it was broadcast or saved. Show the admin the last confirmed state, visibly mark the presentation stale/unavailable, and provide a retry/reconnect path.
 
-### Proposed Wireframe: One Session Link Across Phases and Rounds
+### Approved Participant Link Across Phases and Rounds
 
-**Status:** Proposed and unapproved pending user review, product/API/security decisions. This depicts one link per active election session, not current behavior. The QR area is a future presentation enhancement placeholder; do not build or promise QR functionality from this draft. The admin shares the session link once. Round-specific screens have no link creation or sharing controls.
+**Status:** Participant-link behavior approved by E6.10 (2026-10-23). This depicts one participant link per election session. The QR area is a future enhancement placeholder; do not build or promise QR functionality from this draft. Round-specific screens have no link creation or sharing controls. The committee presentation is separate and opened by an authenticated admin action.
 
 ```text
 ADMIN · ELECTION SESSION                         PARTICIPANT · SAME LINK ON MOBILE
@@ -201,9 +205,9 @@ The `Nomination intake` title is an example, not a required fixed title. For an 
 
 The revealed shared-list wireframe above replaces a separate closed nomination display. The names remain hidden in the closed-but-not-revealed state. After reveal, label the content `Nomination list` or equivalent, never `Candidates`, `Approved`, or `Elected` unless a later authorized workflow establishes that status.
 
-### Shared Results View: Guest Voting Link and Presentation
+### Shared Results View: Participant Link and Presentation
 
-The proposed session link renders this view when its authorized current session phase is a poll that is closed and revealed. It never resolves another session or a historical poll. The separately managed projector can render the same view and snapshot under its separate show/hide and audience controls. There is no second, guest-specific results layout or independently calculated tally. Sort by vote total descending, then candidate name A–Z for ties, consistent with E5.1. Show only approved aggregate fields, clearly label totals as the current round's aggregate votes/selections, and do not infer election or advancement from ranking alone.
+The participant link renders this view when its authorized current session phase is a poll that is closed and explicitly revealed. It never resolves another session or historical poll. The separately managed presentation may render the same view and snapshot under its authenticated admin-controlled show/hide lifecycle. There is no independently calculated tally. Sort by vote total descending, then candidate name A–Z for ties, consistent with E5.1. Show only candidate names and aggregate vote totals; do not infer election or advancement from ranking alone.
 
 ```text
 ┌──────────────────────────────────────────────────────────┐
@@ -227,7 +231,7 @@ No recommendations, participation counts, voter identifiers, personal choices, a
 
 ## State and Transition Model
 
-| Source state | Admin/projector behavior | Stable session link (proposed) | Projector/presentation surface |
+| Source state | Admin behavior | Participant session link | Committee presentation |
 | --- | --- | --- | --- |
 | Nomination intake active | Admin sees intake controls/count under the existing workflow. | Resolve to the current position's authorized nomination intake. | Neutral unless separately authorized and revealed under the nomination workflow. |
 | Round active | No reveal or show-results action. Do not preview live totals. | Resolve to the current round's ballot; conceal totals and participation status. | Neutral holding state; no ballots, totals, or participation status. |
@@ -235,7 +239,7 @@ No recommendations, participation counts, voter identifiers, personal choices, a
 | Round closed, revealed | Results exist in the admin result workflow. Projector remains separately managed. | Render the identical shared results view and approved snapshot as presentation results. | Render only when separately shown/authorized; use the same shared view and snapshot. |
 | Revealed round reopened | Immediately invalidate results as current results. Admin may retain historical/audit data according to E6.4/E8.2 policy. | Return to existing `poll is not active` message; show no current results. Closing again does not restore results without a new reveal. | Clear prior results immediately and return to neutral active-round holding state. |
 | Next round becomes current | Admin configures/starts the next round through existing controls; no new link/share action is shown in round UI. | Same session URL resolves to the newly authorized current round. | Clear old content before separately authorized presentation of new context. |
-| No active intake/poll or session ended | Exact behavior and wording require product decision. | Do not show another session or historical poll; use approved neutral state once defined. | Neutral holding/unavailable state. |
+| No active intake/poll or session ended | Admin sees the relevant workflow status. | Generic unavailable state; do not show another session or historical poll. | Neutral holding/unavailable state. |
 | Projector hidden | Link state is not changed by projector controls. | Continues to resolve the authorized current session phase. | Neutral holding state; hiding does not unreveal results or change link resolution. |
 | Context switch or connection lost / stale data | Mark admin/projector state stale and block presentation of unconfirmed content. | Clear old content while resolving. On reconnect, fetch server-authoritative current phase and do not present cached results as current if it cannot be confirmed. | Replace stale content with unavailable state; do not silently preserve totals as current. |
 
@@ -263,13 +267,13 @@ Reopening behavior follows E6.5's requirement that prior results become unavaila
 
 ## Privacy, Audience, and Access Boundaries
 
-- Current requirements define nomination links as position-scoped and voting links as poll-scoped. A stable session capability that resolves the authorized current phase is a proposed contract change, not an existing authorization rule.
+- E6.10 approves one session-scoped participant bearer link that resolves only its own authorized current phase. It is distinct from the presentation view, which is opened through an authenticated admin action.
 - Enforce session scope server-side: the proposed link resolves only its own authorized current phase, never another session, a historical poll, admin data, or projector controls. E6.5 and PD-012 continue to govern broader history/report access.
-- Decide what authorization model applies to the session link and presenter; this draft assumes no specific authentication or authorization details. A link can be photographed, forwarded, or opened on another device. Decide forwarding policy, expiry and revocation behavior, and enforce the church tenant boundary server-side.
+- Treat the participant link as forwardable bearer access: anyone possessing it may use the allowed current phase. It does not identify a person. The link does not expire, may be revoked by an authorized admin, and becomes unavailable when the session ends. Enforce the church tenant boundary server-side. Presentation access requires admin authentication; do not embed participant credentials in presentation URLs.
 - Decide how browser ballot uniqueness applies across polls and rounds. Current requirements prevent a browser/device profile from submitting twice to the same poll; they do not establish uniqueness across a session or whether the same profile may vote in each round.
 - Apply church tenant isolation server-side to both presentation creation and data retrieval. Hiding controls in the UI is not authorization.
 - Keep ballot choices detached from voter identity. Do not expose participation status, voter names, device/profile identifiers, ballot records, or any voter-to-choice mapping on either surface.
-- Define whether results are temporary or retained, how long a published presentation remains accessible, and whether access/reveal/show/hide/reopen actions are audited. Follow E6.4, PD-006, and E8.2.
+- Audit presentation start/hide/end and admin-confirmed nomination changes without logging individual viewers or link credentials. Historical result/report retention and nomination audit retention periods remain governed by E6.4, PD-005/PD-006, and E8.2.
 - Avoid displaying private admin-only recommendations, election notes, or decision rationale on the shared screen unless separately approved.
 
 ## Responsive and Target Display Behavior
@@ -318,7 +322,9 @@ Reopening behavior follows E6.5's requirement that prior results become unavaila
 - **Decision controls on broadcast:** Showing elect/eliminate/advance controls could expose deliberation or invite accidental operation. Keep them in admin-only workspace by default.
 - **Unclear ballot denominator:** Multi-selection ballots count once per ballot but can add a selection to several candidates. Confirm whether to show ballots cast, vote totals, or both, and label accurately.
 
-## Product Owner Questions for Approval
+## Superseded Discovery Questions
+
+The questions below were written before E6.10 decisions on 2026-10-23. They are retained as discovery history only; see the E6.10 Decision Addendum above for current approved policy. Historical-report/retention questions remain open under E6.4/E8.2 and PD-004/PD-005/PD-006/PD-012.
 
 1. Should the proposed stable session link replace current position-scoped nomination and poll-scoped voting links? What does it show when there is no active intake/poll, and what should it show when the session ends?
 2. Who may use/open the session link, and what authorization model applies? What are the link-forwarding policy, expiry and revocation behavior, and tenant-boundary requirements? Which projector audiences remain separately controlled?
@@ -335,4 +341,4 @@ Reopening behavior follows E6.5's requirement that prior results become unavaila
 
 ## Approval Gate
 
-The UX design is approved for backlog breakdown, and stories E6.8–E6.12 have been created. This approval does not approve implementation of the proposed stable-link contract. Active polls conceal totals; a closed-unrevealed poll shows the existing `poll is not active` message; after reveal, the same session link shows the identical read-only shared results snapshot; reopening returns the inactive message with no current results, and closing again requires a new reveal. The stable session link replaces current position-scoped nomination and poll-scoped voting links only after product/API/security decisions are approved, including authorization, browser ballot uniqueness across rounds, no-active-phase behavior, forwarding, expiry/revocation, and tenant isolation. The link must never resolve another session or historical poll. The future presentation QR code is a later enhancement, not current functionality. Resolve questions 1–4 and 8–9, plus applicable audience/history decisions in 5–7 and retention in 12; record approved decisions in relevant product artifacts before unblocking E6.11. Keep this document marked approved for story breakdown while those implementation policies remain open.
+The UX design is approved for backlog breakdown. E6.10's participant-link, presentation-access, current-results, and per-poll uniqueness policies are recorded in the addendum and cross-referenced product/API documents. E6.8 and E6.11 remain subject to implementation contract and security review; historical-report audience and retention, ballot credential storage/recovery, and audit retention remain open under their owning decisions. The future presentation QR code is a later enhancement and is not part of initial delivery.

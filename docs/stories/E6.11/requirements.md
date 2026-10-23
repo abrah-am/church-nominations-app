@@ -2,20 +2,20 @@
 
 - **Epic:** E6 Election Completion and History
 - **Priority:** P1 (high)
-- **Workflow status:** Blocked by E6.10 policy approval
+- **Workflow status:** E6.10 policy approved 2026-10-23; implementation contract review pending
 - **User story:** As a participant, I want one session link to take me to the current nomination intake or voting round on my device so I do not need a new link for each phase or round.
 
 ## Acceptance Criteria
 - Provide one stable participant link at the active election-session level and an admin share/copy action there. Round-specific screens do not create, copy, or share a new link.
-- The link resolves only the server-authorized current phase of its own active session: current nomination intake, current active poll, or the approved closed/revealed results state.
-- During an active poll, the link shows the ballot and no totals. When closed but unrevealed, it shows the existing `poll is not active` message. After reveal, it shows the same responsive, read-only results view and approved snapshot as the presentation. Reopening returns it to the inactive message; a later close requires a new reveal.
-- As the session moves to a subsequent authorized round, the same URL resolves to that round without requiring redistribution. Ballot edit/uniqueness behavior across polls follows the approved E6.10 policy.
-- No-active-phase, ended, expired, revoked, or unauthorized states follow E6.10's approved generic behavior. The link never resolves another session or historical poll/report.
+- The participant link resolves only the server-authorized current phase of its own election session: current nomination intake, current active poll, or the explicitly revealed current-round aggregate results state. It does not grant access to the separate admin-controlled presentation view.
+- During an active poll, the link shows the ballot and no totals. When closed but unrevealed, it shows a generic unavailable/inactive response. After explicit reveal, it shows only candidate names and aggregate vote totals. Reopening returns it to the generic unavailable/inactive response; a later close requires a new reveal.
+- As the session moves to a subsequent authorized round, the same URL resolves to that round without requiring redistribution. A browser profile may submit once per poll and edit/replace while active. The opaque per-poll credential remains usable while that poll may be reopened/current, then is invalidated when a later round supersedes it or the session ends.
+- No-active-phase, ended, revoked, or unauthorized states use the same non-disclosing generic response. The unexpired link never resolves another session, historical poll/report, admin data, or presentation controls.
 - Resolve lifecycle state and authorization server-side. Prevent cached stale results from being shown as current after reopen or phase change.
 - Participant flow is mobile responsive at 320 CSS px without horizontal scrolling, preserves accessible headings/status announcements, and does not associate ballot choices with named attendees.
 
 ## Scope and Dependencies
-Implementation of the approved stable session link and current-phase resolver. Blocked by E6.10. Depends on US-008, US-011, US-012, E6.9, and the approved session lifecycle/API contract. Does not include presentation controls or QR generation.
+Implementation of the approved stable participant session link and current-phase resolver. Depends on US-008, US-011, US-012, E6.9, E6.10, and the approved session lifecycle/API contract. The separate presentation view is opened by an authenticated admin action, has independent show/hide/end behavior, and is not part of this story. QR generation is excluded.
 
 ## Security and Privacy Constraints
-Enforce tenant scope and session lifecycle on every request. Follow approved forwarding, expiry, revocation, and browser-profile uniqueness policies. Never use the session link to access admin data, other sessions, historical reports, or projector controls.
+The participant link is a forwardable, unexpired bearer capability that an authorized admin may revoke and that becomes unavailable when its session ends. Enforce tenant scope and session lifecycle on every request. It must never resolve admin data, other sessions, historical reports, or presentation controls. Profile uniqueness is per poll, not proof of one vote per person.
