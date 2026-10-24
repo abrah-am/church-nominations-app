@@ -55,6 +55,12 @@ public class NominationIntakeController {
         return intakes.close(electionId, positionId, principal.getName());
     }
 
+    @PostMapping("/api/elections/{electionId}/positions/{positionId}/nominations/reveal")
+    public NominationIntakeResponse reveal(
+            @PathVariable UUID electionId, @PathVariable UUID positionId, Principal principal) {
+        return intakes.reveal(electionId, positionId, principal.getName());
+    }
+
     @PutMapping("/api/elections/{electionId}/positions/{positionId}/nominations/consolidation")
     public ConsolidatedNamesResponse consolidate(
             @PathVariable UUID electionId,
@@ -62,6 +68,24 @@ public class NominationIntakeController {
             @Valid @RequestBody ConsolidateNominationsRequest request,
             Principal principal) {
         return intakes.consolidate(electionId, positionId, request, principal.getName());
+    }
+
+    @PutMapping("/api/elections/{electionId}/positions/{positionId}/nominations/shared-list")
+    public NominationIntakeResponse updateSharedList(
+            @PathVariable UUID electionId,
+            @PathVariable UUID positionId,
+            @Valid @RequestBody UpdateSharedNominationListRequest request,
+            Principal principal) {
+        return intakes.updateSharedList(electionId, positionId, request, principal.getName());
+    }
+
+    @PostMapping("/api/elections/{electionId}/positions/{positionId}/nominations/shared-list/restore")
+    public NominationIntakeResponse restoreSharedListEntry(
+            @PathVariable UUID electionId,
+            @PathVariable UUID positionId,
+            @Valid @RequestBody RestoreNominationEntryRequest request,
+            Principal principal) {
+        return intakes.restoreSharedListEntry(electionId, positionId, request, principal.getName());
     }
 
     @GetMapping("/api/nomination-intakes/{accessToken}")

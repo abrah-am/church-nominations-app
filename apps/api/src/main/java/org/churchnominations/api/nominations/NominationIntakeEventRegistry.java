@@ -26,7 +26,7 @@ public class NominationIntakeEventRegistry {
         try {
             NominationIntakeResponse snapshot = snapshotSupplier.get();
             send(emitter, snapshot);
-            if (snapshot.status() == NominationIntakeStatus.CLOSED) {
+            if (snapshot.status() == NominationIntakeStatus.CLOSED && !snapshot.revealed()) {
                 remove(intakeId, emitter);
                 emitter.complete();
             }

@@ -284,6 +284,9 @@ class PostgresElectionIntegrationTest {
         mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations/close",
                         electionId, elderId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk());
+        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations/reveal",
+                        electionId, elderId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk());
         mockMvc.perform(put("/api/elections/{electionId}/positions/{positionId}/nominations/consolidation",
                         electionId, elderId).with(httpBasic(admin, PASSWORD)).contentType(APPLICATION_JSON)
                         .content("{\"candidateNames\":[\"Alice\",\"Bob\"]}"))
@@ -387,6 +390,159 @@ class PostgresElectionIntegrationTest {
     }
 
     @Test
+    void adminCannotReadNominationNamesBeforeExplicitReveal() throws Exception {
+        String admin = "nomination-reveal-admin@example.org";
+        mockMvc.perform(post("/api/auth/register").contentType(APPLICATION_JSON)
+                        .content("{\"email\":\"" + admin + "\",\"password\":\"" + PASSWORD + "\"}"))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/churches").with(httpBasic(admin, PASSWORD)).contentType(APPLICATION_JSON)
+                        .content("{\"name\":\"Nomination Reveal Test Church\"}"))
+                .andExpect(status().isCreated());
+        String electionLocation = mockMvc.perform(post("/api/elections").with(httpBasic(admin, PASSWORD))
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"departmentName\":\"Reveal Test\",\"positions\":[{\"name\":\"Elder\",\"openingCount\":1}]}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getHeader("Location");
+        UUID electionId = UUID.fromString(electionLocation.substring(electionLocation.lastIndexOf('/') + 1));
+        UUID positionId = jdbcTemplate.queryForObject(
+                "select id from election_positions where election_id = ?", UUID.class, electionId);
+        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations",
+                        electionId, positionId)
+                        .with(httpBasic(admin, PASSWORD)).contentType(APPLICATION_JSON).content("{\"nameLimit\":2}"))
+                .andExpect(status().isCreated());
+        UUID accessToken = jdbcTemplate.queryForObject(
+                "select access_token from nomination_intakes where position_id = ?", UUID.class, positionId);
+        mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
+                        .header("X-Nomination-Device-Token", UUID.randomUUID())
+                        .contentType(APPLICATION_JSON).content("{\"names\":[\"Private Name\"]}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/nominations", electionId, positionId)
+                        .with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentContributorCount").value(1))
+                .andExpect(jsonPath("$.submissions", hasSize(0)))
+                .andExpect(jsonPath("$.consolidatedNames").value(org.hamcrest.Matchers.nullValue()));
+        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations/close",
+                        electionId, positionId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CLOSED"))
+                .andExpect(jsonPath("$.listCreated").value(true))
+                .andExpect(jsonPath("$.revealed").value(false))
+                .andExpect(jsonPath("$.submissions[*].name").value(org.hamcrest.Matchers.hasItem("Private Name")))
+                .andExpect(jsonPath("$.consolidatedNames[0]").value("Private Name"));
+        MvcResult presentationStream = mockMvc.perform(get(
+                        "/api/elections/{electionId}/positions/{positionId}/nominations/stream",
+                        electionId, positionId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        String adminStream = presentationStream.getResponse().getContentAsString();
+        org.junit.jupiter.api.Assertions.assertTrue(adminStream.contains("Private Name"));
+        org.junit.jupiter.api.Assertions.assertEquals(1, jdbcTemplate.queryForObject(
+                "select count(*) from nomination_submissions where intake_id = "
+                        + "(select id from nomination_intakes where position_id = ?)", Integer.class, positionId));
+        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations/reveal",
+                        electionId, positionId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revealed").value(true))
+                .andExpect(jsonPath("$.listCreated").value(true))
+                .andExpect(jsonPath("$.currentContributorCount").value(1))
+                .andExpect(jsonPath("$.submissions[*].name").value(org.hamcrest.Matchers.hasItem("Private Name")))
+                .andExpect(jsonPath("$.consolidatedNames[0]").value("Private Name"));
+        String sharedListResponse = mockMvc.perform(get(
+                        "/api/elections/{electionId}/positions/{positionId}/nominations", electionId, positionId)
+                        .with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        UUID sharedRowId = UUID.fromString(com.jayway.jsonpath.JsonPath.read(sharedListResponse,
+                "$.sharedList[0].id"));
+        mockMvc.perform(put("/api/elections/{electionId}/positions/{positionId}/nominations/shared-list",
+                        electionId, positionId).with(httpBasic(admin, PASSWORD)).contentType(APPLICATION_JSON)
+                        .content("{\"expectedRevision\":0,\"entries\":[]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sharedListRevision").value(1))
+                .andExpect(jsonPath("$.sharedList", hasSize(0)))
+                .andExpect(jsonPath("$.removedEntries[0].originalEntryId").value(sharedRowId.toString()))
+                .andExpect(jsonPath("$.removedEntries[0].name").value("Private Name"))
+                .andExpect(jsonPath("$.removedEntries[0].removedBy").value(admin))
+                .andExpect(jsonPath("$.removedEntries[0].sequence").value(1))
+                .andExpect(jsonPath("$.consolidatedNames", hasSize(0)));
+        mockMvc.perform(put("/api/elections/{electionId}/positions/{positionId}/nominations/shared-list",
+                        electionId, positionId).with(httpBasic(admin, PASSWORD)).contentType(APPLICATION_JSON)
+                        .content("{\"expectedRevision\":0,\"entries\":[{\"id\":\"" + sharedRowId
+                                + "\",\"name\":\"Private Name\",\"sequence\":1,\"active\":true}]}"))
+                .andExpect(status().isConflict());
+        UUID removalEventId = UUID.fromString(com.jayway.jsonpath.JsonPath.read(
+                mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/nominations", electionId, positionId)
+                                .with(httpBasic(admin, PASSWORD)))
+                        .andReturn().getResponse().getContentAsString(), "$.removedEntries[0].auditEventId"));
+        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations/shared-list/restore",
+                        electionId, positionId).with(httpBasic(admin, PASSWORD)).contentType(APPLICATION_JSON)
+                        .content("{\"auditEventId\":\"" + removalEventId + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sharedListRevision").value(2))
+                .andExpect(jsonPath("$.sharedList[0].name").value("Private Name"))
+                .andExpect(jsonPath("$.removedEntries", hasSize(0)))
+                .andExpect(jsonPath("$.consolidatedNames[0]").value("Private Name"));
+        org.junit.jupiter.api.Assertions.assertEquals(2, jdbcTemplate.queryForObject(
+                "select count(*) from nomination_shared_list_audit_events where intake_id = "
+                        + "(select id from nomination_intakes where position_id = ?)", Integer.class, positionId));
+        org.junit.jupiter.api.Assertions.assertEquals(1, jdbcTemplate.queryForObject(
+                "select count(*) from nomination_submissions where intake_id = "
+                        + "(select id from nomination_intakes where position_id = ?) and device_token is null",
+                Integer.class, positionId));
+        org.junit.jupiter.api.Assertions.assertEquals(0, jdbcTemplate.queryForObject(
+                "select count(*) from nomination_submissions where intake_id = "
+                        + "(select id from nomination_intakes where position_id = ?) and device_token is not null",
+                Integer.class, positionId));
+    }
+
+    @Test
+    void revealingNominationsAlphabetizesNamesAndPreservesDuplicates() throws Exception {
+        String admin = "nomination-order-admin@example.org";
+        mockMvc.perform(post("/api/auth/register").contentType(APPLICATION_JSON)
+                        .content("{\"email\":\"" + admin + "\",\"password\":\"" + PASSWORD + "\"}"))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/churches").with(httpBasic(admin, PASSWORD)).contentType(APPLICATION_JSON)
+                        .content("{\"name\":\"Nomination Order Church\"}"))
+                .andExpect(status().isCreated());
+        String electionLocation = mockMvc.perform(post("/api/elections").with(httpBasic(admin, PASSWORD))
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"departmentName\":\"Order Test\",\"positions\":[{\"name\":\"Elder\",\"openingCount\":1}]}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getHeader("Location");
+        UUID electionId = UUID.fromString(electionLocation.substring(electionLocation.lastIndexOf('/') + 1));
+        UUID positionId = jdbcTemplate.queryForObject(
+                "select id from election_positions where election_id = ?", UUID.class, electionId);
+        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations",
+                        electionId, positionId)
+                        .with(httpBasic(admin, PASSWORD)).contentType(APPLICATION_JSON).content("{\"nameLimit\":2}"))
+                .andExpect(status().isCreated());
+        UUID accessToken = jdbcTemplate.queryForObject(
+                "select access_token from nomination_intakes where position_id = ?", UUID.class, positionId);
+        mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
+                        .header("X-Nomination-Device-Token", UUID.randomUUID())
+                        .contentType(APPLICATION_JSON).content("{\"names\":[\"Zoe\",\"Alex\"]}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
+                        .header("X-Nomination-Device-Token", UUID.randomUUID())
+                        .contentType(APPLICATION_JSON).content("{\"names\":[\"Alex\",\"Mina\"]}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations/close",
+                        electionId, positionId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.listCreated").value(true))
+                .andExpect(jsonPath("$.revealed").value(false))
+                .andExpect(jsonPath("$.submissions[*].name").value(containsInAnyOrder("Alex", "Alex", "Mina", "Zoe")));
+        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations/reveal",
+                        electionId, positionId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.consolidatedNames", org.hamcrest.Matchers.contains("Alex", "Alex", "Mina", "Zoe")))
+                .andExpect(jsonPath("$.submissions", hasSize(4)));
+    }
+
+    @Test
     void nominationIntakeSupportsAnonymousDeviceEditsClosureAndConsolidation() throws Exception {
         String admin = "nominations-postgres-admin@example.org";
         String otherAdmin = "nominations-other-admin@example.org";
@@ -450,13 +606,16 @@ class PostgresElectionIntegrationTest {
                                 electionId, positionId)
                         .with(httpBasic(admin, PASSWORD)).contentType(APPLICATION_JSON).content("{\"nameLimit\":2}"))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$", aMapWithSize(7)))
+                .andExpect(jsonPath("$", aMapWithSize(10)))
                 .andExpect(jsonPath("$.id").isNotEmpty())
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
                 .andExpect(jsonPath("$.nameLimit").value(2))
                 .andExpect(jsonPath("$.currentContributorCount").value(0))
                 .andExpect(jsonPath("$.status").value("OPEN"))
+                .andExpect(jsonPath("$.revealed").value(false))
+                .andExpect(jsonPath("$.sharedListRevision").value(0))
                 .andExpect(jsonPath("$.submissions", hasSize(0)))
+                .andExpect(jsonPath("$.sharedList", hasSize(0)))
                 .andExpect(jsonPath("$.consolidatedNames").value(org.hamcrest.Matchers.nullValue()))
                 .andReturn();
         UUID accessToken = jdbcTemplate.queryForObject(
@@ -527,7 +686,7 @@ class PostgresElectionIntegrationTest {
                         electionId, positionId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentContributorCount").value(1))
-                .andExpect(jsonPath("$.submissions", hasSize(2)));
+                .andExpect(jsonPath("$.submissions", hasSize(0)));
         mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
                         .header("X-Nomination-Device-Token", secondDeviceToken)
                         .contentType(APPLICATION_JSON).content("{\"names\":[\"carol\",\"Dana\"]}"))
@@ -536,11 +695,7 @@ class PostgresElectionIntegrationTest {
                         electionId, positionId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentContributorCount").value(2))
-                .andExpect(jsonPath("$.submissions", hasSize(4)))
-                .andExpect(jsonPath("$.submissions[0].name").value("Alice"))
-                .andExpect(jsonPath("$.submissions[1].name").value("Carol"))
-                .andExpect(jsonPath("$.submissions[2].name").value("carol"))
-                .andExpect(jsonPath("$.submissions[3].name").value("Dana"));
+                .andExpect(jsonPath("$.submissions", hasSize(0)));
         mockMvc.perform(get("/api/nomination-intakes/{accessToken}", accessToken)
                         .header("X-Nomination-Device-Token", deviceToken))
                 .andExpect(status().isOk())
@@ -593,7 +748,7 @@ class PostgresElectionIntegrationTest {
                         electionId, positionId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentContributorCount").value(2))
-                .andExpect(jsonPath("$.submissions", hasSize(3)));
+                .andExpect(jsonPath("$.submissions", hasSize(0)));
         mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
                         .header("X-Nomination-Device-Token", deviceToken)
                         .contentType(APPLICATION_JSON).content("{\"names\":[]}"))
@@ -603,9 +758,7 @@ class PostgresElectionIntegrationTest {
                         electionId, positionId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentContributorCount").value(1))
-                .andExpect(jsonPath("$.submissions", hasSize(2)))
-                .andExpect(jsonPath("$.submissions[0].name").value("carol"))
-                .andExpect(jsonPath("$.submissions[1].name").value("Dana"));
+                .andExpect(jsonPath("$.submissions", hasSize(0)));
         mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
                         .header("X-Nomination-Device-Token", deviceToken)
                         .contentType(APPLICATION_JSON).content("{\"names\":[\"Resubmitted Name\"]}"))
@@ -615,23 +768,23 @@ class PostgresElectionIntegrationTest {
                         electionId, positionId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentContributorCount").value(2))
-                .andExpect(jsonPath("$.submissions", hasSize(3)));
+                .andExpect(jsonPath("$.submissions", hasSize(0)));
         mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations/close",
                         electionId, positionId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CLOSED"))
+                .andExpect(jsonPath("$.revealed").value(false))
                 .andExpect(jsonPath("$.currentContributorCount").value(2))
-                .andExpect(jsonPath("$.submissions[*].name").value(containsInAnyOrder("carol", "Dana", "Resubmitted Name")))
-                .andExpect(jsonPath("$.submissions[0].deviceToken").doesNotExist())
-                .andExpect(jsonPath("$.submissions[0].sourceId").doesNotExist());
+                .andExpect(jsonPath("$.submissions", hasSize(0)))
+                .andExpect(jsonPath("$.consolidatedNames").value(org.hamcrest.Matchers.nullValue()));
         String streamBody = mockMvc.perform(asyncDispatch(stream))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         assertEquals(5, streamBody.split("event:intake", -1).length - 1);
         org.junit.jupiter.api.Assertions.assertTrue(streamBody.contains("\"status\":\"CLOSED\""));
         org.junit.jupiter.api.Assertions.assertTrue(streamBody.contains("\"currentContributorCount\":2"));
-        org.junit.jupiter.api.Assertions.assertTrue(streamBody.contains("\"name\":\"carol\""));
-        org.junit.jupiter.api.Assertions.assertTrue(streamBody.contains("\"name\":\"Resubmitted Name\""));
+        org.junit.jupiter.api.Assertions.assertFalse(streamBody.contains("\"name\":\"carol\""));
+        org.junit.jupiter.api.Assertions.assertFalse(streamBody.contains("\"name\":\"Resubmitted Name\""));
         org.junit.jupiter.api.Assertions.assertFalse(streamBody.contains("deviceToken"));
         org.junit.jupiter.api.Assertions.assertFalse(streamBody.contains(deviceToken.toString()));
         MvcResult closedStream = mockMvc.perform(get(
@@ -641,11 +794,16 @@ class PostgresElectionIntegrationTest {
                 .andExpect(content().contentTypeCompatibleWith("text/event-stream"))
                 .andExpect(request().asyncStarted())
                 .andReturn();
-        String closedStreamBody = mockMvc.perform(asyncDispatch(closedStream))
+        org.junit.jupiter.api.Assertions.assertTrue(closedStream.getResponse().getContentAsString()
+                .contains("\"status\":\"CLOSED\""));
+        org.junit.jupiter.api.Assertions.assertFalse(closedStream.getResponse().getContentAsString()
+                .contains("\"name\":\"carol\""));
+        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations/reveal",
+                        electionId, positionId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        org.junit.jupiter.api.Assertions.assertTrue(closedStreamBody.contains("\"status\":\"CLOSED\""));
-        assertEquals(1, closedStreamBody.split("event:intake", -1).length - 1);
+                .andExpect(jsonPath("$.revealed").value(true));
+        org.junit.jupiter.api.Assertions.assertTrue(closedStream.getResponse().getContentAsString()
+                .contains("\"name\":\"carol\""));
         mockMvc.perform(get("/api/nomination-intakes/{accessToken}", accessToken)
                         .header("X-Nomination-Device-Token", deviceToken))
                 .andExpect(status().isGone());
@@ -661,6 +819,15 @@ class PostgresElectionIntegrationTest {
                         .with(httpBasic(admin, PASSWORD)).contentType(APPLICATION_JSON).content("{\"nameLimit\":2}"))
                 .andExpect(status().isConflict());
 
+        mockMvc.perform(put("/api/elections/{electionId}/positions/{positionId}/nominations/consolidation",
+                        electionId, positionId)
+                        .with(httpBasic(admin, PASSWORD)).contentType(APPLICATION_JSON)
+                        .content("{\"candidateNames\":[\"Alice\",\"carol\"]}"))
+                .andExpect(status().isConflict());
+        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations/reveal",
+                        electionId, positionId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revealed").value(true));
         mockMvc.perform(put("/api/elections/{electionId}/positions/{positionId}/nominations/consolidation",
                         electionId, positionId)
                         .with(httpBasic(admin, PASSWORD)).contentType(APPLICATION_JSON)
@@ -737,6 +904,9 @@ class PostgresElectionIntegrationTest {
                         .content("{\"candidateNames\":[\"Alice\"],\"selectionCount\":1}"))
                 .andExpect(status().isConflict());
         mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations/close",
+                        electionId, positionId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations/reveal",
                         electionId, positionId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/rounds", electionId, positionId)
@@ -1646,6 +1816,9 @@ class PostgresElectionIntegrationTest {
                                                 .content("{\"nameLimit\":" + names.size() + "}"))
                 .andExpect(status().isCreated());
         mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations/close",
+                        electionId, positionId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations/reveal",
                         electionId, positionId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk());
         mockMvc.perform(put("/api/elections/{electionId}/positions/{positionId}/nominations/consolidation",

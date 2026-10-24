@@ -8,5 +8,7 @@ import java.util.UUID;
 public interface NominationConsolidatedNameRepository extends JpaRepository<NominationConsolidatedName, UUID> {
     List<NominationConsolidatedName> findAllByIntakeIdOrderBySequenceAsc(UUID intakeId);
 
+    List<NominationConsolidatedName> findAllByIntakeIdAndActiveTrueOrderBySequenceAsc(UUID intakeId);
+
     void deleteAllByIntakeId(UUID intakeId);
 }

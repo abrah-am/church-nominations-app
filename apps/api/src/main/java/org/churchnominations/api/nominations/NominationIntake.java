@@ -9,6 +9,7 @@ import jakarta.persistence.Table;
 import org.hibernate.annotations.UuidGenerator;
 
 import java.util.UUID;
+import java.time.Instant;
 
 @Entity
 @Table(name = "nomination_intakes")
@@ -30,6 +31,27 @@ public class NominationIntake {
     @Column(nullable = false, length = 10)
     private NominationIntakeStatus status;
 
+    @Column(name = "revealed_at")
+    private Instant revealedAt;
+
+    @Column(name = "revealed_by")
+    private String revealedBy;
+
+    @Column(name = "revealed_contributor_count")
+    private Long revealedContributorCount;
+
+    @Column(name = "list_created_at")
+    private Instant listCreatedAt;
+
+    @Column(name = "list_created_by")
+    private String listCreatedBy;
+
+    @Column(name = "list_contributor_count")
+    private Long listContributorCount;
+
+    @Column(name = "shared_list_revision", nullable = false)
+    private long sharedListRevision;
+
     protected NominationIntake() {
     }
 
@@ -42,6 +64,45 @@ public class NominationIntake {
 
     public void close() {
         status = NominationIntakeStatus.CLOSED;
+    }
+
+    public void createSharedList(String accountEmail, long contributorCount) {
+        if (status != NominationIntakeStatus.CLOSED || isListCreated()) {
+            throw new NominationConflictException();
+        }
+        listCreatedAt = Instant.now();
+        listCreatedBy = accountEmail;
+        listContributorCount = contributorCount;
+    }
+
+    public void reveal(String accountEmail, long contributorCount) {
+        if (!isListCreated() || isRevealed()) {
+            throw new NominationConflictException();
+        }
+        revealedAt = Instant.now();
+        revealedBy = accountEmail;
+        revealedContributorCount = contributorCount;
+    }
+
+    public boolean isRevealed() {
+        return revealedAt != null;
+    }
+
+    public boolean isListCreated() {
+        return listCreatedAt != null;
+    }
+
+    public long getRevealedContributorCount() {
+        if (revealedContributorCount != null) return revealedContributorCount;
+        return listContributorCount == null ? 0 : listContributorCount;
+    }
+
+    public long getSharedListRevision() {
+        return sharedListRevision;
+    }
+
+    public void advanceSharedListRevision() {
+        sharedListRevision++;
     }
 
     public UUID getId() {
