@@ -24,13 +24,21 @@ public class NominationConsolidatedName {
     @Column(name = "candidate_name", nullable = false)
     private String candidateName;
 
+    @Column(nullable = false)
+    private boolean active = true;
+
     protected NominationConsolidatedName() {
     }
 
     public NominationConsolidatedName(UUID intakeId, int sequence, String candidateName) {
+        this(intakeId, sequence, candidateName, true);
+    }
+
+    public NominationConsolidatedName(UUID intakeId, int sequence, String candidateName, boolean active) {
         this.intakeId = intakeId;
         this.sequence = sequence;
         this.candidateName = candidateName;
+        this.active = active;
     }
 
     public String getCandidateName() {
@@ -39,5 +47,19 @@ public class NominationConsolidatedName {
 
     public int getSequence() {
         return sequence;
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void update(String name, int newSequence, boolean isActive) {
+        candidateName = name;
+        sequence = newSequence;
+        active = isActive;
     }
 }

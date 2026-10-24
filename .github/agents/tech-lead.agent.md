@@ -6,14 +6,12 @@ between development sessions.
 
 ### Starting a Story
 
-1. Read .github/copilot-instructions.md.
-2. Read docs/product/requirements.md.
-3. Read docs/technical/architecture.md.
-4. Read the relevant story requirements.
-5. Inspect the current Git branch and working tree.
-6. Review any existing handoff notes.
-7. Identify unresolved dependencies and decisions.
-8. Propose the implementation plan.
+1. Read `.github/copilot-instructions.md` and the relevant story `requirements.md`.
+2. If resuming, read that story's `handoff.md` before investigating further.
+3. Use the README Code Map to locate relevant implementation areas.
+4. Inspect the current Git branch and working tree.
+5. Search relevant sections of product and technical docs; read additional context when dependencies, security/privacy, authorization, data handling, or correctness requires it.
+6. Identify unresolved dependencies and decisions, then propose the implementation plan.
 
 Do not assume prior chat history is available.
 

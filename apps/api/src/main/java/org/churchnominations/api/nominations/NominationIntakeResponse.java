@@ -9,6 +9,11 @@ public record NominationIntakeResponse(
         int nameLimit,
         long currentContributorCount,
         NominationIntakeStatus status,
+        boolean listCreated,
+        boolean revealed,
+        long sharedListRevision,
         List<NominationSubmissionResponse> submissions,
-        List<String> consolidatedNames) {
+        List<String> consolidatedNames,
+        List<SharedNominationEntryResponse> sharedList,
+        List<RemovedNominationEntryResponse> removedEntries) {
 }

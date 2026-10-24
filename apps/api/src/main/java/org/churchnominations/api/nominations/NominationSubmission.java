@@ -18,7 +18,7 @@ public class NominationSubmission {
     @Column(name = "intake_id", nullable = false, updatable = false)
     private UUID intakeId;
 
-    @Column(name = "device_token", nullable = false, updatable = false)
+    @Column(name = "device_token")
     private UUID deviceToken;
 
     @Column(nullable = false)
@@ -51,5 +51,9 @@ public class NominationSubmission {
 
     public UUID getDeviceToken() {
         return deviceToken;
+    }
+
+    public void clearDeviceToken() {
+        deviceToken = null;
     }
 }

@@ -8,9 +8,30 @@ export type NominationIntake = {
   accessToken: string;
   nameLimit: number;
   status: 'OPEN' | 'CLOSED';
+  sharedListRevision: number;
   currentContributorCount?: number | null;
+  listCreated: boolean;
+  revealed: boolean;
   submissions: NominationSubmission[];
   consolidatedNames: string[] | null;
+  sharedList: SharedNominationEntry[];
+  removedEntries: RemovedNominationEntry[];
+};
+
+export type SharedNominationEntry = {
+  id: string;
+  name: string;
+  sequence: number;
+  active: boolean;
+};
+
+export type RemovedNominationEntry = {
+  auditEventId: string;
+  originalEntryId: string;
+  name: string;
+  sequence: number;
+  removedAt: string;
+  removedBy: string;
 };
 
 export type PublicNominationIntake = {
@@ -166,6 +187,43 @@ export function closeNominationIntake(credentials: string, electionId: string, p
     `/api/elections/${encodeURIComponent(electionId)}/positions/${encodeURIComponent(positionId)}/nominations/close`,
     { Authorization: authorizationHeader(credentials) },
     'POST',
+  );
+}
+
+export function revealNominationIntake(credentials: string, electionId: string, positionId: string): Promise<NominationIntake> {
+  return request<NominationIntake>(
+    `/api/elections/${encodeURIComponent(electionId)}/positions/${encodeURIComponent(positionId)}/nominations/reveal`,
+    { Authorization: authorizationHeader(credentials) },
+    'POST',
+  );
+}
+
+export function updateSharedNominationList(
+  credentials: string,
+  electionId: string,
+  positionId: string,
+  expectedRevision: number,
+  entries: Array<{ id: string; name: string; sequence: number; active: true }>,
+): Promise<NominationIntake> {
+  return request<NominationIntake>(
+    `/api/elections/${encodeURIComponent(electionId)}/positions/${encodeURIComponent(positionId)}/nominations/shared-list`,
+    { Authorization: authorizationHeader(credentials) },
+    'PUT',
+    { expectedRevision, entries },
+  );
+}
+
+export function restoreSharedNominationEntry(
+  credentials: string,
+  electionId: string,
+  positionId: string,
+  auditEventId: string,
+): Promise<NominationIntake> {
+  return request<NominationIntake>(
+    `/api/elections/${encodeURIComponent(electionId)}/positions/${encodeURIComponent(positionId)}/nominations/shared-list/restore`,
+    { Authorization: authorizationHeader(credentials) },
+    'POST',
+    { auditEventId },
   );
 }
 

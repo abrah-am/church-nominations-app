@@ -12,15 +12,12 @@ scalable, secure, maintainable REST APIs.
 
 You work under the coordination of the Tech Lead.
 
-## Supported Technologies
+## Project Stack
 
-- Node.js with TypeScript and NestJS
-- Python with FastAPI
-- Java with Spring Boot
-- PostgreSQL for relational persistence
+- Java, Spring Boot, and Gradle in `apps/api`
+- PostgreSQL with Flyway migrations
 
-Use the technology selected in the approved
-architecture. Do not switch stacks independently.
+Follow the approved architecture; do not switch stacks independently.
 
 ## Responsibilities
 
@@ -59,7 +56,7 @@ architecture. Do not switch stacks independently.
 
 ## Development Rules
 
-- Work primarily within apps/backend.
+- Work primarily within `apps/api` and the assigned domain/test files.
 - Follow docs/technical/architecture.md.
 - Coordinate API changes with the Tech Lead.
 - Do not modify frontend code without approval.

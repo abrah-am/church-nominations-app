@@ -36,7 +36,7 @@ dependencies without Tech Lead approval.
 
 ## Development Rules
 
-- Work primarily within apps/frontend.
+- Work primarily within `apps/web` and the assigned feature/API-client files.
 - Follow docs/technical/architecture.md.
 - Follow documented API contracts.
 - Do not modify backend code without authorization.

@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App, { getCandidateRecommendation } from './App';
+import type { NominationIntake } from './api/nominations';
 
 const election = {
   id: 'election-1',
@@ -846,22 +847,36 @@ describe('election administration', () => {
     expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument();
   });
 
-  it('creates and closes an intake, then explicitly saves a unique consolidation snapshot', async () => {
+  it('keeps nominations hidden until reveal, then saves one shared list', async () => {
     const openIntake = {
       id: 'intake-1',
       accessToken: 'share-token',
       nameLimit: 3,
       status: 'OPEN' as const,
       currentContributorCount: 2,
-      submissions: [
-        { id: 'submission-1', name: 'Sam Lee' },
-        { id: 'submission-2', name: 'sam lee' },
-        { id: 'submission-3', name: 'Jordan Lee' },
-      ],
+      listCreated: false,
+      revealed: false,
+      sharedListRevision: 0,
+      submissions: [],
       consolidatedNames: null,
+      sharedList: [],
+      removedEntries: [],
     };
-    const closedIntake = { ...openIntake, status: 'CLOSED' as const };
-    const savedSnapshot = { candidateNames: ['Riley Chen', 'Morgan Diaz'] };
+    const closedIntake = { ...openIntake, status: 'CLOSED' as const, listCreated: true,
+      sharedList: [
+        { id: 'shared-1', name: 'Morgan Diaz', sequence: 1, active: true },
+        { id: 'shared-2', name: 'Riley Chen', sequence: 2, active: true },
+      ], consolidatedNames: ['Morgan Diaz', 'Riley Chen'] };
+    const revealedIntake = {
+      ...closedIntake,
+      revealed: true,
+      consolidatedNames: ['Morgan Diaz', 'Riley Chen'],
+      sharedList: [
+        { id: 'shared-1', name: 'Morgan Diaz', sequence: 1, active: true },
+        { id: 'shared-2', name: 'Riley Chen', sequence: 2, active: true },
+      ],
+    };
+    const savedSharedList = { ...revealedIntake, sharedListRevision: 1 };
     const createdDraft = {
       id: 'round-1', roundNumber: 1, status: 'DRAFT', selectionCount: 2,
       candidates: [{ id: 'candidate-1', name: 'Riley Chen', sequence: 1 }, { id: 'candidate-2', name: 'Morgan Diaz', sequence: 2 }],
@@ -910,9 +925,9 @@ describe('election administration', () => {
     };
     const fetchMock = signedInFetch([church], [election]);
     const intervalSpy = vi.spyOn(window, 'setInterval');
+    let intakeState: NominationIntake = openIntake;
+    let intakeExists = false;
     const workflowResponses = [
-      response({}, 404), response(openIntake, 201),
-      eventStreamResponse([`event: intake\ndata: ${JSON.stringify(openIntake)}\n\n`]), response(closedIntake), response(savedSnapshot),
       response([]), response({}, 500), response(createdDraft, 201), response(updatedDraft), response(activeRound),
       response({}, 404), response(revealedResults), response(decidedResults), response(eliminatedResults),
       response(undoneResults), response(electedResults),
@@ -932,6 +947,33 @@ describe('election administration', () => {
           : { roundId: 'round-1', status: 'ACTIVE', ballotsCast: 7, expectedVoterCount: 16 };
         return response(progress);
       }
+      const requestUrl = String(url);
+      const requestPath = requestUrl.replace('http://localhost:8080', '');
+      const requestMethod = options?.method ?? 'GET';
+      if (requestPath.endsWith('/nominations/stream')) {
+        return eventStreamResponse([`event: intake\ndata: ${JSON.stringify(intakeState)}\n\n`]);
+      }
+      if (requestPath.endsWith('/nominations/close')) {
+        intakeState = { ...closedIntake, listCreated: true };
+        return response(intakeState);
+      }
+      if (requestPath.endsWith('/nominations/reveal')) {
+        intakeState = revealedIntake;
+        return response(intakeState);
+      }
+      if (requestPath.endsWith('/nominations/shared-list')) {
+        intakeState = savedSharedList;
+        return response(intakeState);
+      }
+      if (requestPath.endsWith('/nominations') && requestMethod === 'POST') {
+        intakeExists = true;
+        intakeState = openIntake;
+        return response(intakeState, 201);
+      }
+      if (requestPath.endsWith('/nominations') && requestMethod === 'GET') {
+        if (!intakeExists) return response({}, 404);
+        return response(intakeState.status === 'OPEN' ? intakeState : closedIntake);
+      }
       return workflowResponses[workflowResponseIndex++] ?? response({}, 404);
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -944,61 +986,59 @@ describe('election administration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create intake' }));
 
     expect(await screen.findByLabelText('Public nomination link')).toHaveValue(`${window.location.origin}/nominate/share-token`);
-    expect(screen.getByText('Sam Lee')).toBeInTheDocument();
-    expect(screen.getByText('sam lee')).toBeInTheDocument();
-    expect(screen.getByText('Jordan Lee')).toBeInTheDocument();
-    const submittedNames = screen.getByRole('list', { name: 'Submitted names' });
-    expect(submittedNames.tagName).toBe('OL');
-    expect(Array.from(submittedNames.querySelectorAll('li')).map((item) => item.textContent)).toEqual(['Jordan Lee', 'Sam Lee', 'sam lee']);
+    expect(screen.queryByText('Sam Lee')).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Submitted names' })).not.toBeInTheDocument();
     expect(screen.getByText('Current profile submissions')).toBeInTheDocument();
     expect(screen.getByText('Browser profiles with at least one name currently submitted. This is not a verified count of people.')).toBeInTheDocument();
-    expect(screen.getByText('Proposed-name entries')).toBeInTheDocument();
-    expect(screen.getByText('Includes repeated names; each submitted entry is counted separately.')).toBeInTheDocument();
     expect(screen.getByText('Names allowed per profile')).toBeInTheDocument();
     expect(screen.getByText('Anyone with this link can submit or update names until you close nominations.')).toBeInTheDocument();
     const nominationDisclosure = screen.getByRole('button', { name: /Nomination intake.*Open · 2 current profile submissions/ });
     expect(nominationDisclosure).toHaveAttribute('aria-expanded', 'true');
-    expect(fetchMock.mock.calls[4][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations');
-    expect(fetchMock.mock.calls[4][1].headers.Authorization).toBe(`Basic ${btoa('admin@example.com:secret')}`);
-    const createRequest = fetchMock.mock.calls[5];
-    expect(createRequest[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations');
-    expect(createRequest[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ nameLimit: 3 }) });
-    expect(createRequest[1].headers.Authorization).toBe(`Basic ${btoa('admin@example.com:secret')}`);
+    const loadIntakeRequest = fetchMock.mock.calls.find(([url, options]) => String(url).endsWith('/nominations') && options?.method === 'GET');
+    expect(loadIntakeRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations');
+    expect(loadIntakeRequest?.[1].headers.Authorization).toBe(`Basic ${btoa('admin@example.com:secret')}`);
+    const createRequest = fetchMock.mock.calls.find(([url, options]) => String(url).endsWith('/nominations') && options?.method === 'POST');
+    expect(createRequest).toBeDefined();
+    const createCall = createRequest as [string, RequestInit];
+    expect(createCall[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations');
+    expect(createCall[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ nameLimit: 3 }) });
+    expect(createCall[1].headers).toMatchObject({ Authorization: `Basic ${btoa('admin@example.com:secret')}` });
 
     fireEvent.click(screen.getByRole('button', { name: 'Close nominations' }));
-    expect(screen.getByRole('dialog', { name: 'Close nominations?' })).toHaveTextContent('The public link will stop accepting changes. Current submitted names will remain available for review and consolidation.');
+    expect(screen.getByRole('dialog', { name: 'Close nominations?' })).toHaveTextContent('Submitted names will be available to admins; the presentation stays hidden until you reveal the list.');
     expect(screen.getByRole('button', { name: 'Keep intake open' })).toHaveFocus();
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Close nominations?' })).getByRole('button', { name: 'Close nominations' }));
-    expect(await screen.findByRole('checkbox', { name: /I confirm this is the final candidate list/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Nomination intake.*Closed · 2 current profile submissions/ })).toHaveAttribute('aria-expanded', 'true');
-    const closedStatus = screen.getByRole('status');
-    expect(closedStatus).toHaveTextContent('Nominations are closed. The public link is disabled and submissions are read-only. Review them, then refine and save the candidate list below.');
+    expect(await screen.findByRole('button', { name: /Nomination intake.*Closed · 2 current profile submissions/ })).toHaveAttribute('aria-expanded', 'true');
+    const closedStatus = screen.getByText('Nominations are closed. Review the shared list; the presentation remains hidden until you reveal it.');
+    expect(closedStatus).toHaveTextContent('Nominations are closed. Review the shared list; the presentation remains hidden until you reveal it.');
     expect(closedStatus).toHaveFocus();
-    expect(screen.getByText('Intake status')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Nomination intake.*2 current profile submissions/ })).toBeInTheDocument();
-    expect(screen.getByText('Proposed-name entries')).toBeInTheDocument();
-    const closedSubmissionsDisclosure = screen.getByRole('button', { name: /Submitted names.*3 proposed-name entries/ });
-    expect(closedSubmissionsDisclosure).toHaveAttribute('aria-expanded', 'false');
+    const closedSharedList = screen.getByRole('list', { name: 'Shared nomination list' });
+    expect(within(closedSharedList).getByText('Morgan Diaz')).toBeInTheDocument();
+    expect(within(closedSharedList).getByText('Riley Chen')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Submitted names' })).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Unique candidate list')).toHaveValue('Jordan Lee\nSam Lee');
-    const consolidationDisclosure = screen.getByRole('button', { name: /Review and consolidate candidates/ });
-    expect(consolidationDisclosure).toHaveAttribute('aria-expanded', 'true');
-    fireEvent.click(closedSubmissionsDisclosure);
-    expect(closedSubmissionsDisclosure).toHaveAttribute('aria-expanded', 'true');
-    const closedNames = screen.getByRole('list', { name: 'Submitted names' });
-    expect(Array.from(closedNames.querySelectorAll('li')).map((item) => item.textContent)).toEqual(['Jordan Lee', 'Sam Lee', 'sam lee']);
-    expect(consolidationDisclosure).toHaveAttribute('aria-expanded', 'true');
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/rounds'))).toBe(false);
-    fireEvent.change(screen.getByLabelText('Unique candidate list'), { target: { value: 'Riley Chen\nRiley Chen\nMorgan Diaz' } });
-    fireEvent.click(screen.getByRole('checkbox', { name: /I confirm this is the final candidate list/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save consolidation snapshot' }));
-
-    const savedConsolidation = await screen.findByRole('button', { name: /Candidate consolidation.*2 candidates · Saved/ });
-    expect(savedConsolidation).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByRole('list', { name: 'Confirmed candidate list' })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Unique candidate list')).not.toBeInTheDocument();
-    expect(screen.queryByRole('checkbox', { name: /I confirm this is the final candidate list/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Save consolidation snapshot|Add candidate/i })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/rounds'))).toBe(true);
+    const sharedListDisclosure = screen.getByRole('button', { name: /Shared nomination list/ });
+    expect(sharedListDisclosure).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('list', { name: 'Shared nomination list' })).toBeInTheDocument();
+    fireEvent.click(sharedListDisclosure);
+    expect(sharedListDisclosure).toHaveAttribute('aria-expanded', 'false');
+    const scrollIntoView = vi.fn();
+    const sharedListSection = sharedListDisclosure.closest('section');
+    if (sharedListSection) sharedListSection.scrollIntoView = scrollIntoView;
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit candidate list' }));
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+    expect(sharedListDisclosure).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('list', { name: 'Shared nomination list' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Reveal results' }));
+    const sharedList = await screen.findByRole('list', { name: 'Shared nomination list' });
+    expect(within(sharedList).getByText('Morgan Diaz')).toBeInTheDocument();
+    expect(within(sharedList).getByText('Riley Chen')).toBeInTheDocument();
+    const morganRow = within(sharedList).getByText('Morgan Diaz').closest('li');
+    fireEvent.click(within(morganRow as HTMLElement).getByRole('button', { name: 'Edit' }));
+    fireEvent.change(within(morganRow as HTMLElement).getByLabelText('Correct Morgan Diaz'), { target: { value: 'Morgan Diaz Jr.' } });
+    fireEvent.click(within(morganRow as HTMLElement).getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Saved and visible on the presentation.')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Voting round configuration' })).toBeInTheDocument();
             expect(screen.getByRole('button', { name: 'Edit candidate list' })).toBeInTheDocument();
     const configurationDisclosure = screen.getAllByText(/Voting round configuration/)[0].closest('details');
@@ -1009,13 +1049,19 @@ describe('election administration', () => {
     fireEvent.click(configurationSummary as HTMLElement);
     expect(configurationDisclosure).toHaveAttribute('open');
     const closeRequest = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/nominations/close'));
-    const consolidationRequest = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/nominations/consolidation'));
+    const revealRequest = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/nominations/reveal'));
+    const sharedListRequest = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/nominations/shared-list'));
     expect(closeRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations/close');
     expect(closeRequest?.[1].method).toBe('POST');
-    expect(consolidationRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations/consolidation');
-    expect(consolidationRequest?.[1]).toMatchObject({
+    expect(revealRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations/reveal');
+    expect(revealRequest?.[1].method).toBe('POST');
+    expect(sharedListRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations/shared-list');
+    expect(sharedListRequest?.[1]).toMatchObject({
       method: 'PUT',
-      body: JSON.stringify({ candidateNames: ['Riley Chen', 'Morgan Diaz'] }),
+      body: JSON.stringify({ expectedRevision: 0, entries: [
+        { id: 'shared-1', name: 'Morgan Diaz Jr.', sequence: 1, active: true },
+        { id: 'shared-2', name: 'Riley Chen', sequence: 2, active: true },
+      ] }),
     });
 
     expect(await screen.findByRole('heading', { name: 'Voting round configuration' })).toBeInTheDocument();
@@ -1024,7 +1070,7 @@ describe('election administration', () => {
     expect(roundListRequest?.[1].method).toBe('GET');
     expect(screen.getByLabelText('Number of selections allowed')).toHaveValue(null);
             expect(screen.queryByText('Candidates for this round')).not.toBeInTheDocument();
-            expect(screen.getByRole('list', { name: 'Candidates in this poll' })).toHaveTextContent('Riley ChenMorgan Diaz');
+            expect(screen.getByRole('list', { name: 'Candidates in this poll' })).toHaveTextContent('Morgan DiazRiley Chen');
     fireEvent.change(screen.getByLabelText('Number of selections allowed'), { target: { value: '2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create draft round' }));
 
@@ -1034,11 +1080,11 @@ describe('election administration', () => {
     expect(await screen.findByText('Draft round configuration saved.')).toBeInTheDocument();
     const createRoundRequests = fetchMock.mock.calls.filter(([url, options]) => String(url).endsWith('/positions/position-1/rounds') && options?.method === 'POST');
     expect(createRoundRequests[0]?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
-    expect(createRoundRequests[0]?.[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ candidateNames: ['Riley Chen', 'Morgan Diaz'], selectionCount: 2 }) });
+    expect(createRoundRequests[0]?.[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ candidateNames: ['Morgan Diaz', 'Riley Chen'], selectionCount: 2 }) });
     expect(createRoundRequests[1]?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
     expect(createRoundRequests[1]?.[1]).toMatchObject({
       method: 'POST',
-      body: JSON.stringify({ candidateNames: ['Riley Chen', 'Morgan Diaz'], selectionCount: 2 }),
+      body: JSON.stringify({ candidateNames: ['Morgan Diaz', 'Riley Chen'], selectionCount: 2 }),
     });
             expect(screen.getByText('Draft round 1: allows 2 selections from 2 candidates.')).toBeInTheDocument();
 
@@ -1099,7 +1145,7 @@ describe('election administration', () => {
     expect(screen.queryByLabelText('Number of selections allowed')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create draft round' })).not.toBeInTheDocument();
     expect(screen.getByText('No candidates are ready for the next round. Reveal the preceding round and mark candidates Advanced to continue.')).toBeInTheDocument();
-    expect(screen.getAllByText('Closed')).toHaveLength(1);
+    expect(screen.getByRole('heading', { name: 'Round 1' }).parentElement).toHaveTextContent('Closed');
     expect(screen.getByRole('button', { name: 'Reveal results' })).toBeInTheDocument();
     expect(screen.queryByText('15 / 16')).not.toBeInTheDocument();
     expect(screen.queryByText('9 votes')).not.toBeInTheDocument();
@@ -1201,19 +1247,35 @@ describe('election administration', () => {
     expect(screen.queryByRole('button', { name: 'Reveal results' })).not.toBeInTheDocument();
   });
 
-  it('preserves consolidation edits and confirmation after a save failure so they can be retried', async () => {
-    const closedIntake = {
-      id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'CLOSED',
-      submissions: [{ id: 'submission-1', name: 'Riley Chen' }], consolidatedNames: null,
+  it('preserves shared-list edits after a save failure so they can be retried', async () => {
+    const revealedIntake = {
+      id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'CLOSED', listCreated: true, revealed: true,
+      currentContributorCount: 1, sharedListRevision: 2, submissions: [], consolidatedNames: ['Riley Chen'],
+      sharedList: [{ id: 'shared-1', name: 'Riley Chen', sequence: 1, active: true }], removedEntries: [],
     };
+    let updateAttempts = 0;
     const fetchMock = signedInFetch([church], [election]);
-    fetchMock
-      .mockResolvedValueOnce(response(election))
-      .mockResolvedValueOnce(response(closedIntake))
-      .mockResolvedValueOnce(response({}, 500))
-      .mockResolvedValueOnce(response({ candidateNames: ['Riley Chen', 'Morgan Diaz'] }))
-      .mockResolvedValueOnce(response({ ...election, status: 'IN_PROGRESS' }))
-      .mockResolvedValueOnce(response([]));
+    fetchMock.mockImplementation(async (url, options) => {
+      if (String(url) === 'http://localhost:8080/api/auth/me') return response(account);
+      if (String(url) === 'http://localhost:8080/api/churches/my') return response([church]);
+      if (String(url) === 'http://localhost:8080/api/elections') return response([election]);
+      if (String(url) === 'http://localhost:8080/api/elections/election-1') return response(election);
+      if (String(url).endsWith('/nominations') && options?.method === 'POST') return response(revealedIntake, 201);
+      if (String(url).endsWith('/nominations/stream')) return eventStreamResponse([`event: intake\ndata: ${JSON.stringify(revealedIntake)}\n\n`]);
+      if (String(url).endsWith('/nominations') && options?.method === 'GET') return response(revealedIntake);
+      if (String(url).endsWith('/nominations/shared-list')) {
+        updateAttempts += 1;
+        return updateAttempts === 1 ? response({}, 500) : response({
+          ...revealedIntake,
+          sharedListRevision: 3,
+          sharedList: [{ id: 'shared-1', name: 'Riley Chen Updated', sequence: 1, active: true }],
+          consolidatedNames: ['Riley Chen Updated'],
+        });
+      }
+      if (String(url).endsWith('/rounds') && options?.method === 'GET') return response([]);
+      if (String(url).endsWith('/rounds') && options?.method === 'POST') return response({}, 500);
+      return String(url).includes('/api/elections/election-1') ? response(election) : response({}, 404);
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<App />);
@@ -1221,28 +1283,28 @@ describe('election administration', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Manage nominations' }));
 
-    const candidateList = await screen.findByLabelText('Unique candidate list');
-    fireEvent.change(candidateList, { target: { value: 'Riley Chen\nMorgan Diaz' } });
-    const confirmation = screen.getByRole('checkbox', { name: /I confirm this is the final candidate list/ });
-    fireEvent.click(confirmation);
-    fireEvent.click(screen.getByRole('button', { name: 'Save consolidation snapshot' }));
+    const activeList = await screen.findByRole('list', { name: 'Shared nomination list' });
+    expect(within(activeList).getByText('Riley Chen')).toBeInTheDocument();
+    const rileyRow = within(activeList).getByText('Riley Chen').closest('li');
+    fireEvent.click(within(rileyRow as HTMLElement).getByRole('button', { name: 'Edit' }));
+    const candidateName = await screen.findByDisplayValue('Riley Chen');
+    fireEvent.change(candidateName, { target: { value: 'Riley Chen Updated' } });
+    fireEvent.click(within(rileyRow as HTMLElement).getByRole('button', { name: 'Save' }));
 
-    const saveError = await screen.findByRole('alert');
-    expect(saveError).toHaveTextContent('Your edits are still here; review them and retry.');
-    expect(saveError).toHaveTextContent('HTTP 500');
-    expect(candidateList).toHaveValue('Riley Chen\nMorgan Diaz');
-    expect(confirmation).toBeChecked();
+    const saveError = await screen.findByText('The request failed (HTTP 500).');
+    expect(saveError).toHaveTextContent('The request failed (HTTP 500).');
+    expect(candidateName).toHaveValue('Riley Chen Updated');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save consolidation snapshot' }));
-    expect(await screen.findByRole('button', { name: /Candidate consolidation.*2 candidates · Saved/ })).toBeInTheDocument();
-    expect(fetchMock.mock.calls[5][1]).toMatchObject({
-      method: 'PUT',
-      body: JSON.stringify({ candidateNames: ['Riley Chen', 'Morgan Diaz'] }),
-    });
-    expect(fetchMock.mock.calls[6][1]).toMatchObject({
-      method: 'PUT',
-      body: JSON.stringify({ candidateNames: ['Riley Chen', 'Morgan Diaz'] }),
-    });
+    const currentRileyRow = within(screen.getByRole('list', { name: 'Shared nomination list' }))
+      .getByText('Riley Chen Updated').closest('li');
+    fireEvent.click(within(currentRileyRow as HTMLElement).getByRole('button', { name: 'Edit' }));
+    fireEvent.click(within(currentRileyRow as HTMLElement).getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Riley Chen Updated')).toBeInTheDocument();
+    const updateRequests = fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/nominations/shared-list'));
+    expect(updateRequests).toHaveLength(2);
+    expect(updateRequests[0][1]).toMatchObject({ method: 'PUT', body: JSON.stringify({ expectedRevision: 2, entries: [
+      { id: 'shared-1', name: 'Riley Chen Updated', sequence: 1, active: true },
+    ] }) });
   });
 
   it('recommends advancing majority candidates for a multi-selection round without auto-saving decisions', async () => {
@@ -1295,10 +1357,10 @@ describe('election administration', () => {
     expect(fetchMock.mock.calls.filter(([, options]) => options?.method === 'PUT')).toHaveLength(0);
   });
 
-  it('shows an explicit empty state for a closed intake without submissions', async () => {
+  it('shows an empty shared list to admins before presentation reveal', async () => {
     const closedIntake = {
-      id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'CLOSED',
-      submissions: [], consolidatedNames: null,
+      id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'CLOSED', listCreated: true, revealed: false,
+      currentContributorCount: 0, sharedListRevision: 0, submissions: [], consolidatedNames: null, sharedList: [],
     };
     const fetchMock = signedInFetch([church], [election]);
     fetchMock.mockResolvedValueOnce(response(election)).mockResolvedValueOnce(response(closedIntake));
@@ -1309,10 +1371,9 @@ describe('election administration', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Manage nominations' }));
 
-    expect(await screen.findByText('Nominations are closed. The public link is disabled and submissions are read-only. No names were submitted; you can enter candidates manually in the list below.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Review and consolidate candidates/ })).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByLabelText('Unique candidate list')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Submitted names')).not.toBeInTheDocument();
+    expect(await screen.findByText('Nominations are closed. Review the shared list; the presentation remains hidden until you reveal it.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reveal results' })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Shared nomination list' })).toBeInTheDocument();
   });
 
   it('shows a loading state while the admin intake response is pending', async () => {
@@ -1331,16 +1392,18 @@ describe('election administration', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Loading nomination intake');
     await act(async () => {
       resolveIntake(response({
-        id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'OPEN', submissions: [], consolidatedNames: null,
+        id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'OPEN', revealed: false,
+        currentContributorCount: 0, sharedListRevision: 0, submissions: [], consolidatedNames: null, sharedList: [],
       }));
     });
-    expect(await screen.findByText('No names have been submitted yet.')).toBeInTheDocument();
+    expect(await screen.findByText('Current profile submissions')).toBeInTheDocument();
+    expect(screen.queryByText('No names have been submitted yet.')).not.toBeInTheDocument();
   });
 
   it('shows an admin intake load error with retry instead of offering to create another intake', async () => {
     const openIntake = {
-      id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'OPEN',
-      currentContributorCount: 0, submissions: [], consolidatedNames: null,
+      id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'OPEN', revealed: false,
+      currentContributorCount: 0, sharedListRevision: 0, submissions: [], consolidatedNames: null, sharedList: [],
     };
     const fetchMock = signedInFetch([church], [election]);
     fetchMock.mockResolvedValueOnce(response(election)).mockRejectedValueOnce(new Error('Network unavailable'))
@@ -1355,14 +1418,14 @@ describe('election administration', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Network unavailable');
     expect(screen.queryByRole('button', { name: 'Create intake' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry loading nominations' }));
-    expect(await screen.findByText('No names have been submitted yet.')).toBeInTheDocument();
+    expect(await screen.findByText('Current profile submissions')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create intake' })).not.toBeInTheDocument();
   });
 
   it('streams authenticated intake snapshots across chunks and aborts when collapsed', async () => {
     const openIntake = {
-      id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'OPEN', currentContributorCount: 1,
-      submissions: [{ id: 'submission-1', name: 'Riley Chen' }], consolidatedNames: null,
+      id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'OPEN', revealed: false,
+      currentContributorCount: 1, sharedListRevision: 0, submissions: [], consolidatedNames: null, sharedList: [],
     };
     let streamController!: ReadableStreamDefaultController<Uint8Array>;
     const streamResponse = {
@@ -1381,7 +1444,8 @@ describe('election administration', () => {
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Manage nominations' }));
-    expect(await screen.findByText('Riley Chen')).toBeInTheDocument();
+    expect(await screen.findByText('Current profile submissions')).toBeInTheDocument();
+    expect(screen.queryByText('Riley Chen')).not.toBeInTheDocument();
 
     const streamRequest = fetchMock.mock.calls[5];
     expect(streamRequest[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations/stream');
@@ -1392,16 +1456,15 @@ describe('election administration', () => {
     });
     expect(streamRequest[1].signal).toBeInstanceOf(AbortSignal);
 
-    const updatedSnapshot = { ...openIntake, currentContributorCount: 2, submissions: [...openIntake.submissions, { id: 'submission-2', name: 'Morgan Diaz' }] };
+    const updatedSnapshot = { ...openIntake, currentContributorCount: 2 };
     const event = `event: intake\r\ndata: ${JSON.stringify(updatedSnapshot)}\r\n\r\n`;
     await act(async () => {
       streamController.enqueue(new TextEncoder().encode(event.slice(0, 17)));
       streamController.enqueue(new TextEncoder().encode(event.slice(17, 53)));
       streamController.enqueue(new TextEncoder().encode(event.slice(53)));
     });
-    expect(await screen.findByText('Morgan Diaz')).toBeInTheDocument();
-    expect(screen.getByRole('list', { name: 'Submitted names' }).querySelectorAll('li')).toHaveLength(2);
-    expect(screen.getByRole('status')).toHaveTextContent('Submissions updated: 2 current profile submissions and 2 proposed-name entries. Added: Morgan Diaz.');
+    expect(screen.queryByText('Morgan Diaz')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Submissions updated: 2 current profile submissions.');
 
     const intakeDisclosure = screen.getByRole('button', { name: /Nomination intake.*Open · 2 current profile submissions/ });
     fireEvent.click(intakeDisclosure);

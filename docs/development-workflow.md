@@ -176,6 +176,8 @@ Actions:
 10. Split oversized stories when appropriate.
 11. Present the proposal for Product Owner approval.
 
+For context efficiency, start with the story requirements and README Code Map. Read the handoff when resuming. Search relevant product/technical sections instead of loading whole documents by default; expand context when needed to resolve dependencies, security/privacy, authorization, data handling, or correctness.
+
 After approval:
 1. Assign a unique story ID.
 2. Create:
@@ -358,7 +360,7 @@ Inputs:
 
 Actions:
 1. Build a test checklist from acceptance criteria.
-2. Run relevant automated tests.
+2. Run the most focused relevant automated tests first, then broaden regression coverage as risk warrants.
 3. Verify frontend/backend integration.
 4. Test validation and error handling.
 5. Evaluate important edge cases.
@@ -381,6 +383,7 @@ Exit Criteria:
 - Outstanding issues are documented.
 
 Do not claim tests passed unless executed.
+Preserve detailed failure output or a reproducible excerpt with QA evidence; summarize it in the report without discarding diagnostic details.
 
 ---
 
@@ -542,6 +545,8 @@ Delegation principles:
 6. Review deliverables before proceeding.
 7. Request corrections when necessary.
 8. Record significant outcomes.
+
+Classify story complexity and risk before delegating. Assign only necessary specialists, focused file paths, and explicit acceptance criteria. Share relevant repository artifacts, not entire conversation histories. Preserve independent review for security-, privacy-, authorization-, or data-integrity-sensitive changes.
 
 Do not invoke every agent for every story.
 

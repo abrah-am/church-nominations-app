@@ -5,8 +5,12 @@ import {
 	closeNominationIntake,
 	createNominationIntake,
 	getNominationIntake,
-	saveNominationConsolidation,
+	revealNominationIntake,
 	streamNominationIntake,
+	updateSharedNominationList,
+	restoreSharedNominationEntry,
+	SharedNominationEntry,
+	RemovedNominationEntry,
 } from '../../api/nominations';
 import {
 	CandidateDecision,
@@ -42,34 +46,34 @@ export type NominationAdminPanelProps = {
 };
 
 function normalizeNominationIntake(intake: NominationIntake): NominationIntake {
+	const sharedList = Array.isArray(intake.sharedList) ? intake.sharedList : [];
 	const submissions = Array.isArray(intake.submissions)
 		? intake.submissions.filter((submission) => submission && typeof submission.id === 'string' && typeof submission.name === 'string')
 		: [];
 	return {
 		...intake,
+		removedEntries: Array.isArray(intake.removedEntries) ? intake.removedEntries : [],
 		currentContributorCount: Number.isFinite(intake.currentContributorCount)
 			? intake.currentContributorCount
 			: submissions.length === 0 ? 0 : null,
-		submissions: submissions
-			.map((submission, index) => ({ submission, index }))
-			.sort((first, second) => first.submission.name.localeCompare(second.submission.name, undefined, { sensitivity: 'base' }) || first.index - second.index)
-			.map(({ submission }) => submission),
+		submissions,
+		sharedList: [...sharedList].sort((first, second) => first.sequence - second.sequence),
 	};
 }
 
 export default function NominationAdminPanel({ credentials, electionId, positionId, positionName, openingCount, onLifecycleChange, onDraftStateChange }: NominationAdminPanelProps) {
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [intakeDetailsOpen, setIntakeDetailsOpen] = useState(true);
-	const [closedSubmissionsOpen, setClosedSubmissionsOpen] = useState(false);
-	const [consolidationDetailsOpen, setConsolidationDetailsOpen] = useState(false);
+	const [sharedListOpen, setSharedListOpen] = useState(true);
 	const [intake, setIntake] = useState<NominationIntake | null>(null);
 	const [nameLimit, setNameLimit] = useState('5');
-	const [candidateDraft, setCandidateDraft] = useState('');
-	const [candidateDraftBaseline, setCandidateDraftBaseline] = useState('');
-	const [confirmed, setConfirmed] = useState(false);
+	const [sharedListDraft, setSharedListDraft] = useState<SharedNominationEntry[]>([]);
+	const [removedEntries, setRemovedEntries] = useState<RemovedNominationEntry[]>([]);
+	const [sharedListDirty, setSharedListDirty] = useState(false);
+	const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState('');
-	const [consolidationError, setConsolidationError] = useState('');
+	const [sharedListError, setSharedListError] = useState('');
 	const [streamStatus, setStreamStatus] = useState('');
 	const [copied, setCopied] = useState(false);
 	const [closeDialogOpen, setCloseDialogOpen] = useState(false);
@@ -103,6 +107,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	const closeButtonRef = useRef<HTMLButtonElement>(null);
 	const keepIntakeOpenRef = useRef<HTMLButtonElement>(null);
 	const closedStatusRef = useRef<HTMLParagraphElement>(null);
+	const sharedListSectionRef = useRef<HTMLElement>(null);
 	const previousIntakeRef = useRef<NominationIntake | null>(null);
 	useEffect(() => { lifecycleChangeRef.current = onLifecycleChange; }, [onLifecycleChange]);
 	useEffect(() => {
@@ -160,7 +165,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			? draftRound.candidates.map((candidate) => candidate.name)
 			: confirmedNames;
 	const unsavedDrafts = (!intake && nameLimit !== '5')
-		|| candidateDraft !== candidateDraftBaseline
+		|| sharedListDirty
 		|| (hasSavedSnapshot && roundsReady && selectionCount !== selectionCountBaseline)
 		|| Object.entries(decisionDrafts).some(([candidateId, draft]) => {
 			const candidate = rounds.flatMap((round) => roundResults[round.id]?.candidates ?? []).find((item) => item.id === candidateId);
@@ -296,9 +301,10 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setIntake(normalized);
 			previousIntakeRef.current = normalized;
 			setIntakeDetailsOpen(true);
-			setConsolidationDetailsOpen(normalized.status === 'CLOSED' && !normalized.consolidatedNames);
-			setCandidateDraft((normalized.consolidatedNames ?? alphabeticalNames(normalized.submissions.map((submission) => submission.name))).join('\n'));
-			setCandidateDraftBaseline((normalized.consolidatedNames ?? alphabeticalNames(normalized.submissions.map((submission) => submission.name))).join('\n'));
+			if (normalized.status === 'CLOSED') setSharedListOpen(true);
+			setSharedListDraft(normalized.sharedList);
+			setRemovedEntries(normalized.removedEntries ?? []);
+			setSharedListDirty(false);
 		} catch (requestError) {
 			if (requestError instanceof NominationsApiError && requestError.status === 404) {
 				setIntake(null);
@@ -324,31 +330,23 @@ export default function NominationAdminPanel({ credentials, electionId, position
 		const applySnapshot = (snapshot: NominationIntake) => {
 			const normalized = normalizeNominationIntake(snapshot);
 			const previous = previousIntakeRef.current;
-			if (previous && normalized.status === 'OPEN') {
-				const previousNames = previous.submissions.map((submission) => submission.name);
-				const nextNames = normalized.submissions.map((submission) => submission.name);
-				const changes = nameChanges(previousNames, nextNames);
-					const contributorCount = normalized.currentContributorCount == null
-						? 'profile submission count unavailable'
-						: `${normalized.currentContributorCount} current profile submissions`;
-				if (changes.added.length > 0 || changes.removed.length > 0) {
-					const changedNames = [
-						...(changes.added.length > 0 ? [`Added: ${changes.added.join(', ')}.`] : []),
-						...(changes.removed.length > 0 ? [`Removed: ${changes.removed.join(', ')}.`] : []),
-					].join(' ');
-						setLiveAnnouncement(`Submissions updated: ${contributorCount} and ${normalized.submissions.length} proposed-name entries. ${changedNames}`);
-				} else if (previous.currentContributorCount !== normalized.currentContributorCount || previous.submissions.length !== normalized.submissions.length) {
-						setLiveAnnouncement(`Submissions updated: ${contributorCount} and ${normalized.submissions.length} proposed-name entries.`);
-				}
+			if (previous?.status === 'CLOSED' && normalized.status === 'OPEN') return;
+			if (previous && normalized.status === 'OPEN'
+					&& previous.currentContributorCount !== normalized.currentContributorCount) {
+				const contributorCount = normalized.currentContributorCount == null
+					? 'profile submission count unavailable'
+					: `${normalized.currentContributorCount} current profile submissions`;
+				setLiveAnnouncement(`Submissions updated: ${contributorCount}.`);
 			}
 			previousIntakeRef.current = normalized;
 			intakeClosed = normalized.status === 'CLOSED';
 			setIntake(normalized);
 			previousIntakeRef.current = normalized;
 			if (normalized.status === 'CLOSED') {
-				setConsolidationDetailsOpen(!normalized.consolidatedNames);
-				setCandidateDraft((normalized.consolidatedNames ?? alphabeticalNames(normalized.submissions.map((submission) => submission.name))).join('\n'));
-				setCandidateDraftBaseline((normalized.consolidatedNames ?? alphabeticalNames(normalized.submissions.map((submission) => submission.name))).join('\n'));
+				if (previous?.status !== 'CLOSED') setSharedListOpen(true);
+				setSharedListDraft(normalized.sharedList);
+				setRemovedEntries(normalized.removedEntries ?? []);
+				setSharedListDirty(false);
 			}
 			setStreamStatus('');
 		};
@@ -401,7 +399,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setIntake(created);
 			previousIntakeRef.current = created;
 			setIntakeDetailsOpen(true);
-			setConsolidationDetailsOpen(false);
+			setSharedListOpen(false);
 			onLifecycleChange();
 		} catch (requestError) {
 			setError(requestError instanceof Error ? requestError.message : 'Could not create nomination intake.');
@@ -418,11 +416,10 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setIntake(closed);
 			previousIntakeRef.current = closed;
 			setIntakeDetailsOpen(true);
-			setClosedSubmissionsOpen(false);
-			setConsolidationDetailsOpen(!closed.consolidatedNames);
-			setCandidateDraft((closed.consolidatedNames ?? alphabeticalNames(closed.submissions.map((submission) => submission.name))).join('\n'));
-			setCandidateDraftBaseline((closed.consolidatedNames ?? alphabeticalNames(closed.submissions.map((submission) => submission.name))).join('\n'));
-			setConfirmed(false);
+			setSharedListOpen(true);
+			setSharedListDraft(closed.sharedList);
+			setRemovedEntries(closed.removedEntries ?? []);
+			setSharedListDirty(false);
 			setCloseDialogOpen(false);
 			setFocusClosedStatus(true);
 			onLifecycleChange();
@@ -433,41 +430,105 @@ export default function NominationAdminPanel({ credentials, electionId, position
 		}
 	}
 
-	async function saveConsolidation(event: FormEvent<HTMLFormElement>) {
-		event.preventDefault();
-		if (!intake || intake.status !== 'CLOSED' || !confirmed) return;
-		setConsolidationError('');
-		const candidateNames = uniqueNames(candidateDraft.split('\n'));
-		if (candidateNames.length === 0) {
-			setConsolidationError('Add at least one candidate name before saving the snapshot.');
-			return;
-		}
+	async function revealIntake() {
+		if (!intake || intake.status !== 'CLOSED' || intake.revealed) return;
 		setIsLoading(true);
 		setError('');
 		try {
-			const saved = await saveNominationConsolidation(credentials, electionId, positionId, candidateNames);
-			setIntake((current) => current ? { ...current, consolidatedNames: saved.candidateNames } : current);
-			setCandidateDraft(saved.candidateNames.join('\n'));
-			setCandidateDraftBaseline(saved.candidateNames.join('\n'));
-			setConfirmed(false);
-			setIntakeDetailsOpen(false);
-			setConsolidationDetailsOpen(false);
+			const revealed = normalizeNominationIntake(await revealNominationIntake(credentials, electionId, positionId));
+			setIntake(revealed);
+			setSharedListDraft(revealed.sharedList);
+			setRemovedEntries(revealed.removedEntries ?? []);
+			setSharedListDirty(false);
+			setSharedListOpen(true);
 			onLifecycleChange();
 		} catch (requestError) {
-			const details = requestError instanceof Error ? requestError.message : 'Please try again.';
-			setConsolidationError(`Could not save the candidate list. Your edits are still here; review them and retry. ${details}`);
+			setError(requestError instanceof Error ? requestError.message : 'Could not reveal nominations. Please retry.');
 		} finally {
 			setIsLoading(false);
 		}
 	}
 
-	function editConsolidatedCandidates() {
-		if (!intake?.consolidatedNames || rounds.length > 0 || draftRoundId) return;
-		setCandidateDraft(intake.consolidatedNames.join('\n'));
-		setCandidateDraftBaseline(intake.consolidatedNames.join('\n'));
-		setConfirmed(false);
-		setIntake((current) => current ? { ...current, consolidatedNames: null } : current);
-		setConsolidationDetailsOpen(true);
+	async function saveSharedList() {
+		if (!intake?.listCreated || !sharedListDirty) return;
+		setSharedListError('');
+		setIsLoading(true);
+		try {
+			const saved = normalizeNominationIntake(await updateSharedNominationList(
+				credentials,
+				electionId,
+				positionId,
+				intake.sharedListRevision,
+				sharedListDraft.filter((entry) => entry.active).map((entry, index) => ({
+					id: entry.id,
+					name: entry.name,
+					sequence: index + 1,
+					active: true as const,
+				})),
+			));
+			setIntake(saved);
+			setSharedListDraft(saved.sharedList);
+			setRemovedEntries(saved.removedEntries ?? []);
+			setSharedListDirty(false);
+			onLifecycleChange();
+		} catch (requestError) {
+			setSharedListError(requestError instanceof NominationsApiError && requestError.status === 409
+				? 'This list changed elsewhere. Reload the latest saved list before editing again.'
+				: requestError instanceof Error ? requestError.message : 'Could not save the shared list. Your edits are still here.');
+		} finally {
+			setIsLoading(false);
+		}
+	}
+
+	async function removeSharedEntry(entry: SharedNominationEntry) {
+		const currentIntake = intake;
+		if (!currentIntake) return;
+		setSharedListError('');
+		setIsLoading(true);
+		try {
+			const saved = normalizeNominationIntake(await updateSharedNominationList(
+				credentials, electionId, positionId, currentIntake.sharedListRevision,
+				currentIntake.sharedList.filter((item) => item.id !== entry.id).map((item) => ({ ...item, active: true as const })),
+			));
+			setIntake(saved);
+			setSharedListDraft(saved.sharedList);
+			setRemovedEntries(saved.removedEntries ?? []);
+			onLifecycleChange();
+		} catch (requestError) {
+			setSharedListError(requestError instanceof Error ? requestError.message : 'Could not remove this name.');
+		} finally {
+			setIsLoading(false);
+		}
+	}
+
+	async function restoreRemovedEntry(entry: RemovedNominationEntry) {
+		setSharedListError('');
+		setIsLoading(true);
+		try {
+			const saved = normalizeNominationIntake(await restoreSharedNominationEntry(
+				credentials, electionId, positionId, entry.auditEventId,
+			));
+			setIntake(saved);
+			setSharedListDraft(saved.sharedList);
+			setRemovedEntries(saved.removedEntries ?? []);
+			onLifecycleChange();
+		} catch (requestError) {
+			setSharedListError(requestError instanceof Error ? requestError.message : 'Could not restore this name.');
+		} finally {
+			setIsLoading(false);
+		}
+	}
+
+	function updateSharedRow(rowId: string, update: Partial<SharedNominationEntry>) {
+		setSharedListDraft((current) => current.map((entry) => entry.id === rowId ? { ...entry, ...update } : entry));
+		setSharedListDirty(true);
+	}
+
+	function editSharedList() {
+		if (rounds.length > 0 || draftRoundId) return;
+		setIntakeDetailsOpen(true);
+		setSharedListOpen(true);
+		sharedListSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	}
 
 	async function saveRoundConfiguration(event: FormEvent<HTMLFormElement>) {
@@ -758,7 +819,6 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					<div className="detail-summary intake-summary">
 						<div><span className="summary-label">Intake status</span><span className={`row-status ${intake.status === 'CLOSED' ? 'closed-status' : ''}`}>{intake.status === 'OPEN' ? 'Open' : 'Closed'}</span></div>
 						<div className="intake-metric"><span className="summary-label">Current profile submissions</span><strong>{intake.currentContributorCount ?? 'Unavailable'}</strong><span>{intake.currentContributorCount == null ? 'The connected API did not provide this count. Restart or update the API, then reload nominations.' : 'Browser profiles with at least one name currently submitted. This is not a verified count of people.'}</span></div>
-						<div className="intake-metric"><span className="summary-label">Proposed-name entries</span><strong>{intake.submissions.length}</strong><span>Includes repeated names; each submitted entry is counted separately.</span></div>
 						<div><span className="summary-label">Names allowed per profile</span><strong>{intake.nameLimit}</strong></div>
 					</div>
 					{liveAnnouncement && <p className="live-intake-announcement" role="status" aria-live="polite" aria-atomic="true">{liveAnnouncement}</p>}
@@ -771,35 +831,14 @@ export default function NominationAdminPanel({ credentials, electionId, position
 							</div>
 							<p className="form-note">Usable while intake is open.</p>
 							<p className="form-note">Anyone with this link can submit or update names until you close nominations.</p>
-							<div className="section-heading nomination-submissions-heading"><div><h3>Submitted names</h3><p>Names are shown without submitter or device identity. Repeated names remain separate until you consolidate them.</p></div></div>
-							{intake.submissions.length === 0 ? <div className="intake-empty-state"><p>No names have been submitted yet.</p><p>Share the public link to invite suggestions.</p></div> : (
-								<ol className="member-list intake-submitted-list" aria-label="Submitted names">
-									{intake.submissions.map((submission) => <li key={submission.id}>{submission.name}</li>)}
-								</ol>
-							)}
 							<div className="form-actions"><button ref={closeTriggerRef} className="secondary-button" type="button" disabled={isLoading} onClick={() => setCloseDialogOpen(true)}>Close nominations</button></div>
-							<p className="form-note">Closing disables the public link and makes all submissions read-only. You can review and consolidate the names afterward.</p>
+							<p className="form-note">Names are available to admins after closing; the presentation remains hidden until you reveal the list.</p>
 						</>
 					) : (
 						<>
 							<p className="form-note">Public link disabled. Nominations are read-only.</p>
-							<section className="closed-submissions-disclosure" aria-label="Closed nomination submissions">
-								<button className="workflow-disclosure-trigger" type="button" aria-expanded={closedSubmissionsOpen} onClick={() => setClosedSubmissionsOpen((open) => !open)}>
-									<span>Submitted names</span>
-									<span>{intake.submissions.length} proposed-name entries</span>
-									<span className="workflow-disclosure-icon" aria-hidden="true">{closedSubmissionsOpen ? '−' : '+'}</span>
-								</button>
-								{closedSubmissionsOpen && (
-									<div className="closed-submissions-content">
-										<div className="section-heading nomination-submissions-heading"><div><h3>Submitted names</h3><p>Review the submitted names, then consolidate them into the candidate list.</p></div></div>
-										{intake.submissions.length === 0 ? <div className="intake-empty-state"><p>No names were submitted before intake closed.</p><p>You can enter candidates manually in the candidate list below.</p></div> : (
-											<ol className="member-list intake-submitted-list" aria-label="Submitted names">
-												{intake.submissions.map((submission) => <li key={submission.id}>{submission.name}</li>)}
-											</ol>
-										)}
-									</div>
-								)}
-							</section>
+							{!intake.revealed && <div className="form-actions"><button className="primary-button" type="button" disabled={isLoading} onClick={() => { void revealIntake(); }}>Reveal results</button></div>}
+							{!intake.revealed && intake.listCreated && <p className="form-note">The shared list is ready for admin review. The presentation remains hidden until you reveal it.</p>}
 						</>
 					)}
 					</div>}
@@ -810,18 +849,16 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			)}
 			{isExpanded && !isLoading && intake?.status === 'CLOSED' && (
 				<p ref={closedStatusRef} tabIndex={-1} className="state-message intake-closure-status" role="status" aria-live="polite" aria-atomic="true">
-							{intake.submissions.length === 0
-						? 'Nominations are closed. The public link is disabled and submissions are read-only. No names were submitted; you can enter candidates manually in the list below.'
-						: intake.consolidatedNames
-							? 'Nominations are closed. The public link is disabled, submissions are read-only, and the candidate list is saved.'
-							: 'Nominations are closed. The public link is disabled and submissions are read-only. Review them, then refine and save the candidate list below.'}
+					{intake.revealed
+						? 'The shared list is revealed to the presentation.'
+						: 'Nominations are closed. Review the shared list; the presentation remains hidden until you reveal it.'}
 				</p>
 			)}
 			{closeDialogOpen && (
 				<div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCloseDialogOpen(false); }}>
 					<section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="close-nominations-title" aria-describedby="close-nominations-description">
 						<h3 id="close-nominations-title">Close nominations?</h3>
-						<p id="close-nominations-description">The public link will stop accepting changes. Current submitted names will remain available for review and consolidation.</p>
+						<p id="close-nominations-description">The public link will stop accepting changes. Submitted names will be available to admins; the presentation stays hidden until you reveal the list.</p>
 						{isLoading && <p role="status">Closing nominations…</p>}
 						{error && <p className="error-message" role="alert">{error}</p>}
 						<div className="dialog-actions">
@@ -831,38 +868,47 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					</section>
 				</div>
 			)}
-			{isExpanded && !isLoading && intake?.status === 'CLOSED' && !intake.consolidatedNames && (
-				<section className="workflow-details consolidation-details">
-					<button className="workflow-disclosure-trigger" type="button" aria-expanded={consolidationDetailsOpen} onClick={() => setConsolidationDetailsOpen((open) => !open)}>
-						<span>Review and consolidate candidates</span><span>{uniqueNames(candidateDraft.split('\n')).length} unique names</span>
-						<span className="workflow-disclosure-icon" aria-hidden="true">{consolidationDetailsOpen ? '−' : '+'}</span>
+			{isExpanded && !isLoading && intake?.status === 'CLOSED' && intake.listCreated && (
+				<section ref={sharedListSectionRef} className="workflow-details consolidation-details">
+					<button className="workflow-disclosure-trigger" type="button" aria-expanded={sharedListOpen} onClick={() => setSharedListOpen((open) => !open)}>
+						<span>Shared nomination list</span><span>{sharedListDraft.filter((entry) => entry.active).length} active · {sharedListDraft.filter((entry) => !entry.active).length} removed</span>
+						<span className="workflow-disclosure-icon" aria-hidden="true">{sharedListOpen ? '−' : '+'}</span>
 					</button>
-					{consolidationDetailsOpen && (
-					<form className="consolidation-form" onSubmit={saveConsolidation}>
-						<label htmlFor="consolidated-candidates">Unique candidate list</label>
-						<p className="form-note">Names are listed alphabetically. Edit the final list, one per line; duplicate entries are removed when saved.</p>
-						{consolidationError && <p className="error-message" role="alert">{consolidationError}</p>}
-						<textarea id="consolidated-candidates" rows={Math.max(4, Math.min(10, candidateDraft.split('\n').length))} value={candidateDraft} onChange={(event) => { setCandidateDraft(event.target.value); setConfirmed(false); setConsolidationError(''); updateDraftState(event.target.value !== candidateDraftBaseline); }} />
-						<label className="confirmation-label"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} /> <span>I confirm this is the final candidate list to save as the consolidation snapshot.</span></label>
-						<div className="form-actions"><button className="primary-button" type="submit" disabled={isLoading || !confirmed}>{isLoading ? 'Saving…' : 'Save consolidation snapshot'}</button></div>
-					</form>
-					)}
-				</section>
-			)}
-			{isExpanded && !isLoading && intake?.status === 'CLOSED' && intake.consolidatedNames && (
-				<section className="workflow-details consolidation-details">
-					<button className="workflow-disclosure-trigger" type="button" aria-expanded={consolidationDetailsOpen} onClick={() => setConsolidationDetailsOpen((open) => !open)}>
-						<span>Candidate consolidation</span><span>{intake.consolidatedNames.length} candidates · Saved</span>
-						<span className="workflow-disclosure-icon" aria-hidden="true">{consolidationDetailsOpen ? '−' : '+'}</span>
-					</button>
-					{consolidationDetailsOpen && (
-					<div className="consolidation-complete">
-						<ul className="member-list" aria-label="Confirmed candidate list">
-							{intake.consolidatedNames.map((name) => <li key={name}>{name}</li>)}
-						</ul>
-						<p className="state-message" role="status">Consolidation snapshot saved with {intake.consolidatedNames.length} {intake.consolidatedNames.length === 1 ? 'candidate' : 'candidates'}.</p>
-					</div>
-					)}
+					{sharedListOpen && <div className="consolidation-complete">
+						<ol className="member-list shared-nomination-list" aria-label="Shared nomination list">
+							{sharedListDraft.map((entry) => <li key={entry.id} className="shared-nomination-row">
+								{editingEntryId === entry.id ? (
+									<div className="shared-nomination-edit">
+										<label className="sr-only" htmlFor={`shared-nomination-${entry.id}`}>Correct {entry.name}</label>
+										<input id={`shared-nomination-${entry.id}`} autoFocus value={entry.name} onChange={(event) => updateSharedRow(entry.id, { name: event.target.value })} />
+										<button className="primary-button" type="button" disabled={isLoading || !entry.name.trim()} onClick={() => { void saveSharedList().then(() => setEditingEntryId(null)); }}>Save</button>
+										<button className="secondary-button" type="button" onClick={() => { setSharedListDraft(intake.sharedList); setSharedListDirty(false); setEditingEntryId(null); }}>Cancel</button>
+									</div>
+								) : (
+									<>
+										<span className="shared-nomination-name">{entry.name}</span>
+										<div className="shared-nomination-actions">
+											<button className="secondary-button" type="button" onClick={() => setEditingEntryId(entry.id)}>Edit</button>
+											<button className="secondary-button" type="button" disabled={isLoading} onClick={() => { void removeSharedEntry(entry); }}>Remove</button>
+										</div>
+									</>
+								)}
+							</li>)}
+						</ol>
+						<details className="removed-nomination-section">
+							<summary>Removed ({removedEntries.length})</summary>
+							{removedEntries.length === 0 ? <p className="form-note">No removed names.</p> : (
+								<ul className="member-list" aria-label="Removed nominations">
+									{removedEntries.map((entry) => <li key={entry.auditEventId}>
+										<span className="shared-nomination-name">{entry.name}</span>
+										<button className="secondary-button" type="button" disabled={isLoading} onClick={() => { void restoreRemovedEntry(entry); }}>Restore</button>
+									</li>)}
+								</ul>
+							)}
+						</details>
+						{sharedListError && <p className="error-message" role="alert">{sharedListError}</p>}
+						{!sharedListDirty && <p className="state-message" role="status">{intake.revealed ? 'Saved and visible on the presentation.' : 'Saved for admin review. The presentation remains hidden.'}</p>}
+					</div>}
 				</section>
 			)}
 			{isExpanded && hasSavedSnapshot && (
@@ -1040,7 +1086,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 											{candidateOptions.map((name) => <li key={name}>{name}</li>)}
 										</ul>
 										{!latestRound && rounds.length === 0 && !draftRoundId && (
-											<button className="secondary-button" type="button" onClick={editConsolidatedCandidates}>Edit candidate list</button>
+											<button className="secondary-button" type="button" onClick={editSharedList}>Edit candidate list</button>
 										)}
 									</div>
 									<label className="round-selection-count" htmlFor="round-selection-count">Number of selections allowed</label>
@@ -1158,29 +1204,4 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			)}
 		</section>
 	);
-}
-
-function uniqueNames(names: string[]): string[] {
-	const seen = new Set<string>();
-	return names.map((name) => name.trim()).filter((name) => {
-		const key = name.toLocaleLowerCase();
-		if (!name || seen.has(key)) return false;
-		seen.add(key);
-		return true;
-	});
-}
-
-function alphabeticalNames(names: string[]): string[] {
-	return uniqueNames(names).sort((first, second) => first.localeCompare(second, undefined, { sensitivity: 'base' }));
-}
-
-function nameChanges(previousNames: string[], nextNames: string[]): { added: string[]; removed: string[] } {
-	const remaining = [...previousNames];
-	const added: string[] = [];
-	for (const name of nextNames) {
-		const matchIndex = remaining.findIndex((previousName) => previousName === name);
-		if (matchIndex === -1) added.push(name);
-		else remaining.splice(matchIndex, 1);
-	}
-	return { added, removed: remaining };
 }

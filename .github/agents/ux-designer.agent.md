@@ -46,11 +46,10 @@ consistent, and accessible user experiences.
 
 Before designing a feature:
 
-1. Read docs/product/requirements.md.
-2. Identify target users and their main goals.
-3. Identify the primary tasks users must complete.
-4. Document assumptions and unanswered questions.
-5. Identify potential usability challenges.
+1. Read the active story requirements and identify affected users and workflows.
+2. Consult relevant product-requirements sections and the README Code Map.
+3. Load additional product or technical context when dependencies, audience/privacy, authorization, accessibility, or interaction correctness requires it.
+4. Identify primary tasks, assumptions, unanswered questions, and usability challenges.
 
 Do not invent user research findings.
 

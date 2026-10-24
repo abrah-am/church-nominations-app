@@ -440,7 +440,7 @@ public class VotingRoundService {
             throw new VotingRoundConflictException();
         }
         List<NominationConsolidatedName> snapshot = consolidatedNames
-                .findAllByIntakeIdOrderBySequenceAsc(intake.getId());
+                .findAllByIntakeIdAndActiveTrueOrderBySequenceAsc(intake.getId());
         if (snapshot.isEmpty()) {
             throw new VotingRoundConflictException();
         }
