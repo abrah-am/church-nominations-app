@@ -12,5 +12,6 @@ public record VotingRoundResponse(
         Integer expectedVoterCount,
         java.util.UUID accessToken,
         VotingRoundCloseReason closeReason,
-        int resetCount) {
+        int resetCount,
+        Long nominationRevision) {
 }

@@ -16,6 +16,7 @@ export type NominationIntake = {
   consolidatedNames: string[] | null;
   sharedList: SharedNominationEntry[];
   removedEntries: RemovedNominationEntry[];
+  changeEvents?: NominationChangeEvent[];
 };
 
 export type SharedNominationEntry = {
@@ -32,6 +33,32 @@ export type RemovedNominationEntry = {
   sequence: number;
   removedAt: string;
   removedBy: string;
+};
+
+export type NominationRemovalReason = 'DUPLICATE' | 'DECLINED' | 'OTHER';
+
+export type NominationChangeEvent = {
+  id: string;
+  entryId: string;
+  action: string;
+  beforeName: string | null;
+  afterName: string | null;
+  removalReason: NominationRemovalReason | null;
+  reasonDetail: string | null;
+  actorLabel: string;
+  occurredAt: string;
+};
+
+export type NominationPresentationSnapshot = {
+  revealed: boolean;
+  activeNames: string[];
+  events: NominationChangeEvent[];
+};
+
+export type NominationPresentationSession = {
+  accessToken: string;
+  viewerPath: string;
+  visible: boolean;
 };
 
 export type PublicNominationIntake = {
@@ -204,12 +231,13 @@ export function updateSharedNominationList(
   positionId: string,
   expectedRevision: number,
   entries: Array<{ id: string; name: string; sequence: number; active: true }>,
+  removals: Array<{ id: string; reason: NominationRemovalReason; detail?: string }>,
 ): Promise<NominationIntake> {
   return request<NominationIntake>(
     `/api/elections/${encodeURIComponent(electionId)}/positions/${encodeURIComponent(positionId)}/nominations/shared-list`,
     { Authorization: authorizationHeader(credentials) },
     'PUT',
-    { expectedRevision, entries },
+    { expectedRevision, entries, removals },
   );
 }
 
@@ -218,13 +246,124 @@ export function restoreSharedNominationEntry(
   electionId: string,
   positionId: string,
   auditEventId: string,
+  expectedRevision: number,
 ): Promise<NominationIntake> {
   return request<NominationIntake>(
     `/api/elections/${encodeURIComponent(electionId)}/positions/${encodeURIComponent(positionId)}/nominations/shared-list/restore`,
     { Authorization: authorizationHeader(credentials) },
     'POST',
-    { auditEventId },
+    { auditEventId, expectedRevision },
   );
+}
+
+export function showNominationPresentation(
+  credentials: string,
+  electionId: string,
+  positionId: string,
+): Promise<NominationPresentationSession> {
+  return request<NominationPresentationSession>(
+    `/api/elections/${encodeURIComponent(electionId)}/positions/${encodeURIComponent(positionId)}/nominations/presentation`,
+    { Authorization: authorizationHeader(credentials) },
+    'POST',
+  );
+}
+
+export function hideNominationPresentation(credentials: string, electionId: string, positionId: string): Promise<void> {
+  return request<void>(
+    `/api/elections/${encodeURIComponent(electionId)}/positions/${encodeURIComponent(positionId)}/nominations/presentation/hide`,
+    { Authorization: authorizationHeader(credentials) },
+    'POST',
+  );
+}
+
+export function endNominationPresentation(credentials: string, electionId: string, positionId: string): Promise<void> {
+  return request<void>(
+    `/api/elections/${encodeURIComponent(electionId)}/positions/${encodeURIComponent(positionId)}/nominations/presentation/end`,
+    { Authorization: authorizationHeader(credentials) },
+    'POST',
+  );
+}
+
+export async function getNominationPresentation(accessToken: string): Promise<NominationPresentationSnapshot> {
+  const response = await fetch(`${apiBaseUrl}/api/nomination-presentations/${encodeURIComponent(accessToken)}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new NominationsApiError(response.status, 'This presentation is unavailable.');
+  return response.json() as Promise<NominationPresentationSnapshot>;
+}
+
+export async function streamNominationPresentation(
+  accessToken: string,
+  signal: AbortSignal,
+  lastEventId: string | null,
+  onSnapshot: (snapshot: NominationPresentationSnapshot, eventId: string | null) => void,
+): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/api/nomination-presentations/${encodeURIComponent(accessToken)}/stream`, {
+    method: 'GET',
+    headers: {
+      Accept: 'text/event-stream',
+      ...(lastEventId ? { 'Last-Event-ID': lastEventId } : {}),
+    },
+    cache: 'no-store',
+    signal,
+  });
+  if (!response.ok) throw new NominationsApiError(response.status, 'This presentation is unavailable.');
+  if (!response.body) throw new Error('The live presentation stream did not provide a response body.');
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let currentEventId: string | null = null;
+  const dispatch = (frame: string) => {
+    let eventName = '';
+    let frameEventId = currentEventId;
+    const data: string[] = [];
+    for (const line of frame.replace(/^\uFEFF/, '').split(/\r\n|\r|\n/)) {
+      if (!line || line.startsWith(':')) continue;
+      const separator = line.indexOf(':');
+      const field = separator === -1 ? line : line.slice(0, separator);
+      const value = separator === -1 ? '' : line.slice(separator + 1).replace(/^ /, '');
+      if (field === 'event') eventName = value;
+      if (field === 'id') frameEventId = value;
+      if (field === 'data') data.push(value);
+    }
+    if (frameEventId) currentEventId = frameEventId;
+    if (data.length === 0) return;
+    const snapshot = JSON.parse(data.join('\n')) as NominationPresentationSnapshot;
+    if (eventName === 'snapshot') onSnapshot(snapshot, frameEventId);
+    if (eventName === 'clear') onSnapshot({ revealed: false, activeNames: [], events: [] }, frameEventId);
+  };
+  const consumeFrames = (flush = false) => {
+    let boundary = buffer.match(/\r\n\r\n|\n\n|\r\r/);
+    while (boundary?.index !== undefined) {
+      dispatch(buffer.slice(0, boundary.index));
+      buffer = buffer.slice(boundary.index + boundary[0].length);
+      boundary = buffer.match(/\r\n\r\n|\n\n|\r\r/);
+    }
+    if (flush && buffer) {
+      dispatch(buffer);
+      buffer = '';
+    }
+  };
+  const cancelReader = () => { void reader.cancel(); };
+  signal.addEventListener('abort', cancelReader, { once: true });
+  try {
+    while (!signal.aborted) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      consumeFrames();
+    }
+    if (!signal.aborted) {
+      buffer += decoder.decode();
+      consumeFrames(true);
+    }
+  } finally {
+    signal.removeEventListener('abort', cancelReader);
+    reader.releaseLock();
+  }
 }
 
 export function saveNominationConsolidation(

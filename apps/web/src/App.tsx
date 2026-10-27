@@ -33,6 +33,7 @@ import { BoardScreen, BoardsWorkspace } from './features/boards/BoardsWorkspace'
 import { ElectionForm } from './features/elections/ElectionForm';
 import NominationAdminPanel from './features/nominations/NominationAdminPanel';
 import PublicNominationPage from './features/nominations/PublicNominationPage';
+import NominationPresentationPage from './features/nominations/NominationPresentationPage';
 import PublicVotingPage from './features/voting/PublicVotingPage';
 
 type Screen = 'list' | 'detail' | 'form';
@@ -75,6 +76,8 @@ export { getCandidateRecommendation } from './features/elections/candidateRecomm
 function App() {
   const routeMatch = window.location.pathname.match(/^\/nominate\/([^/]+)\/?$/);
   if (routeMatch) return <PublicNominationPage accessToken={decodeURIComponent(routeMatch[1])} />;
+  const presentationRouteMatch = window.location.pathname.match(/^\/nomination-presentation\/([^/]+)\/?$/);
+  if (presentationRouteMatch) return <NominationPresentationPage accessToken={decodeURIComponent(presentationRouteMatch[1])} />;
   const votingRouteMatch = window.location.pathname.match(/^\/vote\/([^/]+)\/?$/);
   if (votingRouteMatch) return <PublicVotingPage accessToken={decodeURIComponent(votingRouteMatch[1])} />;
   return <AuthenticatedApp />;

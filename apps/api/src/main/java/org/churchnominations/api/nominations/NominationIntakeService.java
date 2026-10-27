@@ -4,7 +4,10 @@ import org.churchnominations.api.election.voting.VotingRoundService;
 import org.churchnominations.api.election.ElectionPosition;
 import org.churchnominations.api.election.ElectionPositionDetails;
 import org.churchnominations.api.election.ElectionService;
+import org.churchnominations.api.identity.Account;
+import org.churchnominations.api.identity.AccountRepository;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -15,6 +18,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.io.IOException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 @Transactional(readOnly = true)
@@ -27,6 +35,11 @@ public class NominationIntakeService {
     private final ElectionService elections;
     private final VotingRoundService votingRounds;
     private final NominationIntakeEventRegistry events;
+    private final NominationPresentationSessionRepository presentationSessions;
+    private final NominationPresentationControlEventRepository presentationControlEvents;
+    private final AccountRepository accounts;
+    private final Map<UUID, Set<SseEmitter>> presentationSubscribers = new ConcurrentHashMap<>();
+    private final Map<UUID, Object> presentationLocks = new ConcurrentHashMap<>();
 
     public NominationIntakeService(
             NominationIntakeRepository intakes,
@@ -36,7 +49,10 @@ public class NominationIntakeService {
             ElectionPositionRepository positions,
             ElectionService elections,
             VotingRoundService votingRounds,
-            NominationIntakeEventRegistry events) {
+            NominationIntakeEventRegistry events,
+            NominationPresentationSessionRepository presentationSessions,
+            NominationPresentationControlEventRepository presentationControlEvents,
+            AccountRepository accounts) {
         this.intakes = intakes;
         this.submissions = submissions;
         this.consolidatedNames = consolidatedNames;
@@ -45,6 +61,9 @@ public class NominationIntakeService {
         this.elections = elections;
         this.votingRounds = votingRounds;
         this.events = events;
+        this.presentationSessions = presentationSessions;
+        this.presentationControlEvents = presentationControlEvents;
+        this.accounts = accounts;
     }
 
     @Transactional
@@ -65,6 +84,157 @@ public class NominationIntakeService {
     public NominationIntakeResponse get(UUID electionId, UUID positionId, String accountEmail) {
         elections.getPositionForChurch(electionId, positionId, accountEmail);
         return adminResponse(findByPosition(positionId));
+    }
+
+    @Transactional
+    public PresentationSessionResponse showPresentation(UUID electionId, UUID positionId, String accountEmail) {
+        elections.getPositionForChurch(electionId, positionId, accountEmail);
+        NominationIntake intake = findByPosition(positionId);
+        NominationPresentationSession session = presentationSessions.findByIntakeId(intake.getId())
+            .orElseGet(() -> new NominationPresentationSession(intake.getId()));
+        session.show();
+        session = presentationSessions.saveAndFlush(session);
+        presentationControlEvents.save(new NominationPresentationControlEvent(
+            intake.getId(), NominationPresentationControlEvent.Action.START));
+        return new PresentationSessionResponse(session.getAccessToken(),
+            "/api/nomination-presentations/" + session.getAccessToken(), true);
+    }
+
+    @Transactional
+    public void hidePresentation(UUID electionId, UUID positionId, String accountEmail) {
+        controlPresentation(electionId, positionId, accountEmail, false);
+    }
+
+    @Transactional
+    public void endPresentation(UUID electionId, UUID positionId, String accountEmail) {
+        elections.getPositionForChurch(electionId, positionId, accountEmail);
+        NominationIntake intake = findByPosition(positionId);
+        presentationSessions.findByIntakeId(intake.getId()).ifPresent(session -> {
+            session.end();
+            presentationSessions.saveAndFlush(session);
+            presentationControlEvents.save(new NominationPresentationControlEvent(
+                intake.getId(), NominationPresentationControlEvent.Action.END));
+            clearPresentationSubscribersAfterCommit(intake.getId());
+        });
+    }
+
+    private void controlPresentation(UUID electionId, UUID positionId, String accountEmail, boolean show) {
+        elections.getPositionForChurch(electionId, positionId, accountEmail);
+        NominationIntake intake = findByPosition(positionId);
+        presentationSessions.findByIntakeId(intake.getId()).ifPresent(session -> {
+            session.hide();
+            presentationSessions.saveAndFlush(session);
+            presentationControlEvents.save(new NominationPresentationControlEvent(
+                intake.getId(), NominationPresentationControlEvent.Action.HIDE));
+            clearPresentationSubscribersAfterCommit(intake.getId());
+        });
+    }
+
+    public PresentationSnapshotResponse presentationSnapshot(UUID accessToken) {
+        NominationPresentationSession session = presentationSessions.findByAccessTokenAndEndedAtIsNull(accessToken)
+            .filter(NominationPresentationSession::isVisible)
+            .orElseThrow(NominationIntakeNotFoundException::new);
+        NominationIntake intake = intakes.findById(session.getIntakeId())
+            .orElseThrow(NominationIntakeNotFoundException::new);
+        return presentationProjection(intake);
+    }
+
+    public SseEmitter presentationStream(UUID accessToken, String lastEventId) {
+        NominationPresentationSession initialSession = presentationSessions.findByAccessTokenAndEndedAtIsNull(accessToken)
+            .filter(NominationPresentationSession::isVisible)
+            .orElseThrow(NominationIntakeNotFoundException::new);
+        UUID intakeId = initialSession.getIntakeId();
+        SseEmitter emitter = new SseEmitter(0L);
+        synchronized (presentationLocks.computeIfAbsent(intakeId, ignored -> new Object())) {
+            NominationPresentationSession session = presentationSessions.findByAccessTokenAndEndedAtIsNull(accessToken)
+                .filter(NominationPresentationSession::isVisible)
+                .orElseThrow(NominationIntakeNotFoundException::new);
+            NominationIntake intake = intakes.findById(session.getIntakeId())
+                .orElseThrow(NominationIntakeNotFoundException::new);
+            PresentationSnapshotResponse snapshot = presentationProjection(intake);
+            Set<SseEmitter> subscribers = presentationSubscribers.computeIfAbsent(intakeId,
+                ignored -> new CopyOnWriteArraySet<>());
+            subscribers.add(emitter);
+            emitter.onCompletion(() -> subscribers.remove(emitter));
+            emitter.onTimeout(() -> subscribers.remove(emitter));
+            emitter.onError(error -> subscribers.remove(emitter));
+            try {
+                NominationPresentationSession confirmed = presentationSessions
+                    .findByAccessTokenAndEndedAtIsNull(accessToken)
+                    .filter(NominationPresentationSession::isVisible)
+                    .orElseThrow(NominationIntakeNotFoundException::new);
+                if (!confirmed.getIntakeId().equals(intakeId)) {
+                    throw new NominationIntakeNotFoundException();
+                }
+                emitter.send(SseEmitter.event().id(Long.toString(intake.getSharedListRevision()))
+                    .name("snapshot").data(snapshot, MediaType.APPLICATION_JSON));
+            } catch (IOException | NominationIntakeNotFoundException exception) {
+                subscribers.remove(emitter);
+                emitter.complete();
+            }
+        }
+        return emitter;
+    }
+
+    private PresentationSnapshotResponse presentationProjection(NominationIntake intake) {
+        if (!intake.isRevealed()) return PresentationSnapshotResponse.neutral();
+        List<String> activeNames = consolidatedNames.findAllByIntakeIdAndActiveTrueOrderBySequenceAsc(intake.getId())
+            .stream().map(NominationConsolidatedName::getCandidateName).toList();
+        List<NominationChangeEventResponse> changeEvents = sharedListAudit
+            .findAllByIntakeIdOrderByOccurredAtAscIdAsc(intake.getId()).stream()
+            .map(NominationChangeEventResponse::from).toList();
+        return new PresentationSnapshotResponse(true, activeNames, changeEvents);
+    }
+
+    private void publishPresentationAfterCommit(UUID intakeId) {
+        Runnable publish = () -> {
+            synchronized (presentationLocks.computeIfAbsent(intakeId, ignored -> new Object())) {
+                presentationSessions.findByIntakeId(intakeId).filter(NominationPresentationSession::isVisible)
+                    .filter(session -> session.getEndedAt() == null).ifPresent(session -> {
+                        NominationIntake intake = intakes.findById(intakeId).orElseThrow();
+                        PresentationSnapshotResponse snapshot = presentationProjection(intake);
+                        long revision = intake.getSharedListRevision();
+                        for (SseEmitter emitter : presentationSubscribers.getOrDefault(intakeId, Set.of())) {
+                            try {
+                                emitter.send(SseEmitter.event().id(Long.toString(revision)).name("snapshot")
+                                    .data(snapshot, MediaType.APPLICATION_JSON));
+                            } catch (IOException exception) {
+                                emitter.completeWithError(exception);
+                            }
+                        }
+                    });
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() { publish.run(); }
+            });
+        } else publish.run();
+    }
+
+    private void clearPresentationSubscribers(UUID intakeId) {
+        synchronized (presentationLocks.computeIfAbsent(intakeId, ignored -> new Object())) {
+            Set<SseEmitter> subscribers = presentationSubscribers.remove(intakeId);
+            if (subscribers != null) subscribers.forEach(emitter -> {
+                try {
+                    emitter.send(SseEmitter.event().name("clear").data(PresentationSnapshotResponse.neutral(),
+                        MediaType.APPLICATION_JSON));
+                } catch (IOException ignored) {
+                    // The capability is revoked or hidden regardless of subscriber connectivity.
+                }
+                emitter.complete();
+            });
+        }
+    }
+
+    private void clearPresentationSubscribersAfterCommit(UUID intakeId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() { clearPresentationSubscribers(intakeId); }
+            });
+        } else {
+            clearPresentationSubscribers(intakeId);
+        }
     }
 
     public SseEmitter stream(UUID electionId, UUID positionId, String accountEmail) {
@@ -119,36 +289,28 @@ public class NominationIntakeService {
         NominationIntake saved = intakes.saveAndFlush(intake);
         NominationIntakeResponse response = adminResponse(saved);
         publishAfterCommit(saved.getId(), response, false);
+        publishPresentationAfterCommit(saved.getId());
         return response;
         }
 
     @Transactional
     public ConsolidatedNamesResponse consolidate(
             UUID electionId, UUID positionId, ConsolidateNominationsRequest request, String accountEmail) {
-        elections.lockPositionForChurch(electionId, positionId, accountEmail);
-        votingRounds.assertConsolidationEditable(positionId);
+        elections.getPositionForChurch(electionId, positionId, accountEmail);
         NominationIntake intake = findByPosition(positionId);
-        if (intake.getStatus() != NominationIntakeStatus.CLOSED) {
-            throw new NominationConflictException();
-        }
-        if (!intake.isListCreated()) {
-            throw new NominationConflictException();
-        }
-        List<String> cleanNames = validateAndClean(request.candidateNames());
-        consolidatedNames.deleteAllByIntakeId(intake.getId());
-        consolidatedNames.flush();
-        List<NominationConsolidatedName> snapshot = java.util.stream.IntStream.range(0, cleanNames.size())
-                .mapToObj(index -> new NominationConsolidatedName(intake.getId(), index + 1, cleanNames.get(index)))
-                .toList();
-        consolidatedNames.saveAllAndFlush(snapshot);
-        return new ConsolidatedNamesResponse(cleanNames);
+        if (!intake.isListCreated()) throw new NominationConflictException();
+        List<String> requested = validateAndClean(request.candidateNames());
+        List<String> current = consolidatedNames.findAllByIntakeIdAndActiveTrueOrderBySequenceAsc(intake.getId())
+            .stream().map(NominationConsolidatedName::getCandidateName).toList();
+        if (!requested.equals(current)) throw new NominationConflictException();
+        return new ConsolidatedNamesResponse(current);
     }
 
     @Transactional
     public NominationIntakeResponse updateSharedList(
             UUID electionId, UUID positionId, UpdateSharedNominationListRequest request, String accountEmail) {
-        elections.getPositionForChurch(electionId, positionId, accountEmail);
-        votingRounds.assertConsolidationEditable(positionId);
+        elections.lockPositionForChurch(electionId, positionId, accountEmail);
+        votingRounds.assertNoActiveRound(positionId);
         NominationIntake intake = intakes.findByPositionIdForUpdate(positionId)
                 .orElseThrow(NominationIntakeNotFoundException::new);
         if (!intake.isListCreated()) {
@@ -158,11 +320,17 @@ public class NominationIntakeService {
             throw new NominationConflictException();
         }
         List<UpdateSharedNominationListRequest.Entry> entries = request.entries();
-        if (entries.stream().anyMatch(entry -> entry.name().isBlank() || !entry.active())) {
+        List<UpdateSharedNominationListRequest.Removal> removals = request.removals() == null
+            ? List.of() : request.removals();
+        if (entries.stream().anyMatch(entry -> entry.name().isBlank() || !entry.active())
+                || removals.stream().anyMatch(removal -> removal.reason() == NominationRemovalReason.OTHER
+                    ? removal.detail() == null || removal.detail().isBlank()
+                    : removal.detail() != null && !removal.detail().isBlank())) {
             throw new InvalidNominationRequestException();
         }
 
-        List<NominationConsolidatedName> existing = consolidatedNames.findAllByIntakeIdOrderBySequenceAsc(intake.getId());
+        List<NominationConsolidatedName> existing = consolidatedNames
+            .findAllByIntakeIdAndActiveTrueOrderBySequenceAsc(intake.getId());
         java.util.Map<UUID, NominationConsolidatedName> existingById = existing.stream()
                 .collect(java.util.stream.Collectors.toMap(NominationConsolidatedName::getId, row -> row));
         List<UUID> submittedIds = entries.stream().map(UpdateSharedNominationListRequest.Entry::id)
@@ -172,20 +340,33 @@ public class NominationIntakeService {
                 || !existingById.keySet().containsAll(submittedIds)) {
             throw new NominationConflictException();
         }
-        if (entries.size() != existing.size()
-                && entries.stream().anyMatch(entry -> existingById.get(entry.id()).getSequence() != entry.sequence())) {
+        if (entries.stream().anyMatch(entry -> existingById.get(entry.id()).getSequence() != entry.sequence())) {
+            throw new NominationConflictException();
+        }
+        java.util.Map<UUID, UpdateSharedNominationListRequest.Removal> removalById = removals.stream()
+            .collect(java.util.stream.Collectors.toMap(UpdateSharedNominationListRequest.Removal::id, removal -> removal,
+                (first, duplicate) -> { throw new NominationConflictException(); }));
+        List<UUID> removedIds = existing.stream().map(NominationConsolidatedName::getId)
+            .filter(id -> !submittedIds.contains(id)).toList();
+        if (removalById.size() != removedIds.size() || !removalById.keySet().containsAll(removedIds)) {
             throw new NominationConflictException();
         }
         for (NominationConsolidatedName row : existing) {
             if (!submittedIds.contains(row.getId())) {
+                UpdateSharedNominationListRequest.Removal removal = removalById.get(row.getId());
                 sharedListAudit.save(new NominationSharedListAuditEvent(intake.getId(), row.getId(),
-                        row.getCandidateName(), row.getSequence(), NominationSharedListAuditEvent.Action.REMOVED, accountEmail));
-                consolidatedNames.delete(row);
+                        row.getCandidateName(), row.getSequence(), NominationSharedListAuditEvent.Action.REMOVED,
+                    row.getCandidateName(), null, removal.reason(), cleanDetail(removal.detail()),
+                    actorLabel(accountEmail)));
+                row.update(row.getCandidateName(), row.getSequence(), false);
             }
         }
         for (UpdateSharedNominationListRequest.Entry entry : entries) {
             NominationConsolidatedName row = existingById.get(entry.id());
             if (!row.getCandidateName().equals(entry.name().trim())) {
+                sharedListAudit.save(new NominationSharedListAuditEvent(intake.getId(), row.getId(),
+                    entry.name().trim(), row.getSequence(), NominationSharedListAuditEvent.Action.CORRECTED,
+                    row.getCandidateName(), entry.name().trim(), null, null, actorLabel(accountEmail)));
                 row.update(entry.name().trim(), row.getSequence(), row.isActive());
             }
         }
@@ -194,16 +375,21 @@ public class NominationIntakeService {
         consolidatedNames.flush();
         NominationIntakeResponse response = adminResponse(intake);
         publishAfterCommit(intake.getId(), response, false);
+        publishPresentationAfterCommit(intake.getId());
         return response;
     }
 
         @Transactional
         public NominationIntakeResponse restoreSharedListEntry(
             UUID electionId, UUID positionId, RestoreNominationEntryRequest request, String accountEmail) {
-        elections.getPositionForChurch(electionId, positionId, accountEmail);
+        elections.lockPositionForChurch(electionId, positionId, accountEmail);
+        votingRounds.assertNoActiveRound(positionId);
         NominationIntake intake = intakes.findByPositionIdForUpdate(positionId)
             .orElseThrow(NominationIntakeNotFoundException::new);
         if (!intake.isListCreated()) {
+            throw new NominationConflictException();
+        }
+        if (request.expectedRevision() != intake.getSharedListRevision()) {
             throw new NominationConflictException();
         }
         NominationSharedListAuditEvent removed = sharedListAudit.findById(request.auditEventId())
@@ -216,17 +402,19 @@ public class NominationIntakeService {
             throw new NominationConflictException();
         }
 
-        List<NominationConsolidatedName> rows = consolidatedNames.findAllByIntakeIdOrderBySequenceAsc(intake.getId());
-        int sequence = rows.size() + 1;
-        NominationConsolidatedName restored = new NominationConsolidatedName(
-            intake.getId(), sequence, removed.getEntryName(), true);
+        NominationConsolidatedName restored = consolidatedNames.findById(removed.getEntryId())
+            .filter(row -> !row.isActive()).orElseThrow(NominationConflictException::new);
+        int sequence = removed.getEntrySequence();
+        restored.update(removed.getEntryName(), sequence, true);
         consolidatedNames.saveAndFlush(restored);
         sharedListAudit.saveAndFlush(new NominationSharedListAuditEvent(intake.getId(), removed.getEntryId(),
-            removed.getEntryName(), sequence, NominationSharedListAuditEvent.Action.RESTORED, accountEmail));
+            removed.getEntryName(), sequence, NominationSharedListAuditEvent.Action.RESTORED,
+            null, removed.getEntryName(), null, null, actorLabel(accountEmail)));
         intake.advanceSharedListRevision();
         intakes.saveAndFlush(intake);
         NominationIntakeResponse response = adminResponse(intake);
         publishAfterCommit(intake.getId(), response, false);
+        publishPresentationAfterCommit(intake.getId());
         return response;
         }
 
@@ -305,7 +493,8 @@ public class NominationIntakeService {
         return new NominationIntakeResponse(intake.getId(), intake.getAccessToken(), intake.getNameLimit(),
             currentContributorCount, intake.getStatus(), intake.isListCreated(), intake.isRevealed(), intake.getSharedListRevision(), submitted,
                 intake.isListCreated() ? consolidated : null,
-            sharedRows.stream().map(SharedNominationEntryResponse::from).toList(),
+            sharedRows.stream().filter(NominationConsolidatedName::isActive)
+                .map(SharedNominationEntryResponse::from).toList(),
             sharedListAudit.findAllByIntakeIdAndActionOrderByOccurredAtDesc(
                     intake.getId(), NominationSharedListAuditEvent.Action.REMOVED).stream()
                 .filter(event -> sharedListAudit.findFirstByIntakeIdAndEntryIdOrderByOccurredAtDesc(
@@ -315,7 +504,8 @@ public class NominationIntakeService {
                     .orElse(false))
                 .map(event -> new RemovedNominationEntryResponse(event.getId(), event.getEntryId(),
                     event.getEntryName(), event.getEntrySequence(), event.getOccurredAt(), event.getActor()))
-                .toList());
+                .toList(), sharedListAudit.findAllByIntakeIdOrderByOccurredAtAscIdAsc(intake.getId()).stream()
+                    .map(NominationChangeEventResponse::from).toList());
     }
 
     private NominationIntakeResponse presentationResponse(NominationIntake intake) {
@@ -323,7 +513,17 @@ public class NominationIntakeService {
         if (intake.isRevealed()) return admin;
         return new NominationIntakeResponse(admin.id(), admin.accessToken(), admin.nameLimit(),
                 admin.currentContributorCount(), admin.status(), admin.listCreated(), false,
-            admin.sharedListRevision(), List.of(), null, List.of(), List.of());
+            admin.sharedListRevision(), List.of(), null, List.of(), List.of(), List.of());
+    }
+
+    private String cleanDetail(String detail) {
+        return detail == null || detail.isBlank() ? null : detail.trim();
+    }
+
+    private String actorLabel(String accountEmail) {
+        Account account = accounts.findByEmail(accountEmail)
+            .orElseThrow(NominationIntakeNotFoundException::new);
+        return "Administrator " + account.getId().toString().substring(0, 8).toUpperCase(Locale.ROOT);
     }
 
     private NominationIntake findByPosition(UUID positionId) {

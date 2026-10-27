@@ -53,8 +53,11 @@ public class VotingRoundService {
     }
 
     public void assertConsolidationEditable(UUID positionId) {
-        if (rounds.findFirstByPositionIdAndStatus(positionId, VotingRoundStatus.DRAFT).isPresent()
-            || rounds.findFirstByPositionIdAndStatus(positionId, VotingRoundStatus.ACTIVE).isPresent()) {
+        assertNoActiveRound(positionId);
+    }
+
+    public void assertNoActiveRound(UUID positionId) {
+        if (rounds.findFirstByPositionIdAndStatus(positionId, VotingRoundStatus.ACTIVE).isPresent()) {
             throw new org.churchnominations.api.nominations.NominationConflictException();
         }
     }
@@ -75,6 +78,11 @@ public class VotingRoundService {
             round = rounds.saveAndFlush(new VotingRound(positionId, roundNumber, request.selectionCount()));
         } catch (DataIntegrityViolationException exception) {
             throw new VotingRoundConflictException();
+        }
+        if (roundNumber == 1) {
+            NominationIntake intake = intakes.findByPositionId(positionId).orElse(null);
+            if (intake != null) round.captureNominationRevision(intake.getSharedListRevision());
+            round = rounds.saveAndFlush(round);
         }
         saveCandidates(round.getId(), selectedNames);
         return response(round);
@@ -98,6 +106,10 @@ public class VotingRoundService {
         candidates.deleteAllByRoundId(roundId);
         candidates.flush();
         round.updateSelectionCount(request.selectionCount());
+        if (round.getRoundNumber() == 1) {
+            intakes.findByPositionId(positionId)
+                .ifPresent(intake -> round.captureNominationRevision(intake.getSharedListRevision()));
+        }
         rounds.save(round);
         saveCandidates(roundId, selectedNames);
         return response(round);
@@ -114,6 +126,7 @@ public class VotingRoundService {
             || round.getSelectionCount() == null
             || candidates.findAllByRoundIdOrderBySequenceAsc(roundId).isEmpty()
             || rounds.existsByPositionIdAndStatus(positionId, VotingRoundStatus.ACTIVE)
+            || !hasCurrentRoster(round)
             || !hasValidPredecessorRoster(round)) {
             throw new VotingRoundConflictException();
         }
@@ -516,6 +529,14 @@ public class VotingRoundService {
         }
     }
 
+    private boolean hasCurrentRoster(VotingRound round) {
+        if (round.getRoundNumber() != 1) return true;
+        NominationIntake intake = intakes.findByPositionId(round.getPositionId()).orElse(null);
+        if (intake == null || intake.getStatus() != NominationIntakeStatus.CLOSED) return false;
+        return round.getNominationRevision() != null
+            && round.getNominationRevision() == intake.getSharedListRevision();
+    }
+
     private static List<String> normalizeRequestedNames(List<String> candidateNames) {
         List<String> requested = candidateNames.stream().map(String::trim).toList();
         if (requested.stream().anyMatch(String::isBlank)
@@ -539,7 +560,7 @@ public class VotingRoundService {
                 .toList();
         return new VotingRoundResponse(round.getId(), round.getRoundNumber(), round.getStatus(),
             round.getSelectionCount(), roundCandidates, round.getExpectedVoterCount(),
-            round.getAccessToken(), round.getCloseReason(), round.getResetCount());
+            round.getAccessToken(), round.getCloseReason(), round.getResetCount(), round.getNominationRevision());
     }
 
     private static String normalize(String name) {

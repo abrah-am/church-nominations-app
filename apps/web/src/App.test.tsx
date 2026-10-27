@@ -81,6 +81,51 @@ describe('candidate decision recommendations', () => {
   });
 });
 
+describe('read-only nomination presentation', () => {
+   it('loads an authoritative snapshot and stream without admin credentials', async () => {
+    const presentation = {
+      revealed: true,
+      activeNames: ['Riley Chen'],
+      events: [{
+        id: 'event-1', entryId: 'entry-1', action: 'REMOVED', beforeName: 'Morgan Diaz', afterName: null,
+        removalReason: 'DECLINED', reasonDetail: null, actorLabel: 'Administrator A1B2C3D4', occurredAt: '2026-10-25T12:00:00Z',
+      }],
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(response(presentation))
+      .mockResolvedValueOnce(eventStreamResponse([`id: 4\nevent: snapshot\ndata: ${JSON.stringify(presentation)}\n\n`]));
+    vi.stubGlobal('fetch', fetchMock);
+    window.history.pushState({}, '', '/nomination-presentation/view-token');
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Shared nominations' })).toBeInTheDocument();
+    expect(await screen.findByRole('list', { name: 'Current list' })).toHaveTextContent('Riley Chen');
+    expect(screen.getByRole('list', { name: 'Confirmed changes' })).toHaveTextContent('Morgan Diaz removed');
+    expect(screen.getByText(/Administrator/)).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://localhost:8080/api/nomination-presentations/view-token', expect.objectContaining({
+      method: 'GET', cache: 'no-store', headers: { Accept: 'application/json' },
+    }));
+    expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('Authorization');
+    expect(fetchMock).toHaveBeenNthCalledWith(2, 'http://localhost:8080/api/nomination-presentations/view-token/stream', expect.objectContaining({
+      method: 'GET', cache: 'no-store', headers: { Accept: 'text/event-stream' },
+    }));
+    expect(fetchMock.mock.calls[1][1].headers).not.toHaveProperty('Authorization');
+  });
+
+  it('keeps the audience neutral before reveal and exposes no shared-list history', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ revealed: false, activeNames: [], events: [] })));
+    window.history.pushState({}, '', '/nomination-presentation/neutral-token');
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Nominations are not being shown' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Current list' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Confirmed changes' })).not.toBeInTheDocument();
+  });
+});
+
 describe('voting round navigation', () => {
   it('keeps multiple rounds collapsed while summaries and round actions remain accessible', async () => {
     const savedIntake = {
@@ -863,6 +908,7 @@ describe('election administration', () => {
       removedEntries: [],
     };
     const closedIntake = { ...openIntake, status: 'CLOSED' as const, listCreated: true,
+      sharedListRevision: 1,
       sharedList: [
         { id: 'shared-1', name: 'Morgan Diaz', sequence: 1, active: true },
         { id: 'shared-2', name: 'Riley Chen', sequence: 2, active: true },
@@ -876,17 +922,26 @@ describe('election administration', () => {
         { id: 'shared-2', name: 'Riley Chen', sequence: 2, active: true },
       ],
     };
-    const savedSharedList = { ...revealedIntake, sharedListRevision: 1 };
+    const savedSharedList = {
+      ...revealedIntake,
+      sharedListRevision: 2,
+      consolidatedNames: ['Morgan Diaz Jr.', 'Riley Chen'],
+      sharedList: [
+        { id: 'shared-1', name: 'Morgan Diaz Jr.', sequence: 1, active: true },
+        { id: 'shared-2', name: 'Riley Chen', sequence: 2, active: true },
+      ],
+    };
     const createdDraft = {
       id: 'round-1', roundNumber: 1, status: 'DRAFT', selectionCount: 2,
-      candidates: [{ id: 'candidate-1', name: 'Riley Chen', sequence: 1 }, { id: 'candidate-2', name: 'Morgan Diaz', sequence: 2 }],
+      nominationRevision: 2,
+      candidates: [{ id: 'candidate-2', name: 'Morgan Diaz Jr.', sequence: 1 }, { id: 'candidate-1', name: 'Riley Chen', sequence: 2 }],
     };
     const updatedDraft = {
       ...createdDraft,
       selectionCount: 1,
       candidates: [
-        { id: 'candidate-1', name: 'Riley Chen', sequence: 1 },
-        { id: 'candidate-2', name: 'Morgan Diaz', sequence: 2 },
+        { id: 'candidate-2', name: 'Morgan Diaz Jr.', sequence: 1 },
+        { id: 'candidate-1', name: 'Riley Chen', sequence: 2 },
       ],
     };
     const activeRound = { ...updatedDraft, status: 'ACTIVE', expectedVoterCount: 16, accessToken: 'vote-token', closeReason: null };
@@ -928,7 +983,7 @@ describe('election administration', () => {
     let intakeState: NominationIntake = openIntake;
     let intakeExists = false;
     const workflowResponses = [
-      response([]), response({}, 500), response(createdDraft, 201), response(updatedDraft), response(activeRound),
+      response({}, 500), response(createdDraft, 201), response(updatedDraft), response(activeRound),
       response({}, 404), response(revealedResults), response(decidedResults), response(eliminatedResults),
       response(undoneResults), response(electedResults),
       response({ id: 'round-2', roundNumber: 2, status: 'DRAFT', selectionCount: 1, candidates: [{ id: 'candidate-1-round-2', name: 'Riley Chen', sequence: 1 }] }, 201),
@@ -936,6 +991,9 @@ describe('election administration', () => {
     ];
     let workflowResponseIndex = 0;
     let progressPollCount = 0;
+    const viewerLocation = { assign: vi.fn() };
+    const viewerWindow = { location: viewerLocation, close: vi.fn() };
+    vi.spyOn(window, 'open').mockReturnValue(viewerWindow as unknown as Window);
     fetchMock.mockImplementation(async (url, options) => {
       if (String(url) === 'http://localhost:8080/api/elections/election-1' && (!options || options.method === 'GET')) {
         return response(workflowResponseIndex === 0 ? election : { ...election, status: 'IN_PROGRESS' });
@@ -961,6 +1019,10 @@ describe('election administration', () => {
         intakeState = revealedIntake;
         return response(intakeState);
       }
+      if (requestPath.endsWith('/nominations/presentation') && requestMethod === 'POST') {
+        return response({ accessToken: 'presentation-token', viewerPath: '/api/nomination-presentations/presentation-token', visible: true });
+      }
+      if (requestPath.endsWith('/positions/position-1/rounds') && requestMethod === 'GET') return response([]);
       if (requestPath.endsWith('/nominations/shared-list')) {
         intakeState = savedSharedList;
         return response(intakeState);
@@ -1014,8 +1076,8 @@ describe('election administration', () => {
     expect(closedStatus).toHaveFocus();
     expect(screen.getByRole('button', { name: /Nomination intake.*2 current profile submissions/ })).toBeInTheDocument();
     const closedSharedList = screen.getByRole('list', { name: 'Shared nomination list' });
-    expect(within(closedSharedList).getByText('Morgan Diaz')).toBeInTheDocument();
-    expect(within(closedSharedList).getByText('Riley Chen')).toBeInTheDocument();
+    expect(within(closedSharedList).getByLabelText('Correct Morgan Diaz')).toHaveValue('Morgan Diaz');
+    expect(within(closedSharedList).getByLabelText('Correct Riley Chen')).toHaveValue('Riley Chen');
     expect(screen.queryByRole('list', { name: 'Submitted names' })).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/rounds'))).toBe(true);
     const sharedListDisclosure = screen.getByRole('button', { name: /Shared nomination list/ });
@@ -1023,24 +1085,24 @@ describe('election administration', () => {
     expect(screen.getByRole('list', { name: 'Shared nomination list' })).toBeInTheDocument();
     fireEvent.click(sharedListDisclosure);
     expect(sharedListDisclosure).toHaveAttribute('aria-expanded', 'false');
-    const scrollIntoView = vi.fn();
-    const sharedListSection = sharedListDisclosure.closest('section');
-    if (sharedListSection) sharedListSection.scrollIntoView = scrollIntoView;
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit candidate list' }));
-    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+    fireEvent.click(sharedListDisclosure);
     expect(sharedListDisclosure).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('list', { name: 'Shared nomination list' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Reveal results' }));
     const sharedList = await screen.findByRole('list', { name: 'Shared nomination list' });
-    expect(within(sharedList).getByText('Morgan Diaz')).toBeInTheDocument();
-    expect(within(sharedList).getByText('Riley Chen')).toBeInTheDocument();
-    const morganRow = within(sharedList).getByText('Morgan Diaz').closest('li');
-    fireEvent.click(within(morganRow as HTMLElement).getByRole('button', { name: 'Edit' }));
+    expect(within(sharedList).getByLabelText('Correct Morgan Diaz')).toHaveValue('Morgan Diaz');
+    expect(within(sharedList).getByLabelText('Correct Riley Chen')).toHaveValue('Riley Chen');
+    expect(screen.getByText('Correct Morgan Diaz')).toHaveClass('sr-only');
+    expect(within(sharedList).getByRole('button', { name: 'Save Morgan Diaz' })).toBeVisible();
+    expect(within(sharedList).getByRole('button', { name: 'Remove Morgan Diaz' })).toBeVisible();
+    const morganRow = within(sharedList).getByLabelText('Correct Morgan Diaz').closest('li');
+    expect(within(morganRow as HTMLElement).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
     fireEvent.change(within(morganRow as HTMLElement).getByLabelText('Correct Morgan Diaz'), { target: { value: 'Morgan Diaz Jr.' } });
-    fireEvent.click(within(morganRow as HTMLElement).getByRole('button', { name: 'Save' }));
-    expect(await screen.findByText('Saved and visible on the presentation.')).toBeInTheDocument();
+    fireEvent.click(within(morganRow as HTMLElement).getByRole('button', { name: 'Save Morgan Diaz' }));
+    expect(await screen.findByText('Saved; confirmed changes are available to the presentation.')).toBeInTheDocument();
+    expect(within(await screen.findByRole('list', { name: 'Shared nomination list' })).getByLabelText('Correct Morgan Diaz Jr.')).toHaveValue('Morgan Diaz Jr.');
     expect(screen.getByRole('heading', { name: 'Voting round configuration' })).toBeInTheDocument();
-            expect(screen.getByRole('button', { name: 'Edit candidate list' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
     const configurationDisclosure = screen.getAllByText(/Voting round configuration/)[0].closest('details');
     expect(configurationDisclosure).toHaveAttribute('open');
     const configurationSummary = configurationDisclosure?.querySelector('summary');
@@ -1050,18 +1112,21 @@ describe('election administration', () => {
     expect(configurationDisclosure).toHaveAttribute('open');
     const closeRequest = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/nominations/close'));
     const revealRequest = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/nominations/reveal'));
+    const presentationRequest = fetchMock.mock.calls.find(([url, options]) => String(url).endsWith('/nominations/presentation') && options?.method === 'POST');
     const sharedListRequest = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/nominations/shared-list'));
     expect(closeRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations/close');
     expect(closeRequest?.[1].method).toBe('POST');
     expect(revealRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations/reveal');
     expect(revealRequest?.[1].method).toBe('POST');
+    expect(presentationRequest?.[1].method).toBe('POST');
+    expect(viewerLocation.assign).toHaveBeenCalledWith('/nomination-presentation/presentation-token');
     expect(sharedListRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations/shared-list');
     expect(sharedListRequest?.[1]).toMatchObject({
       method: 'PUT',
-      body: JSON.stringify({ expectedRevision: 0, entries: [
+      body: JSON.stringify({ expectedRevision: 1, entries: [
         { id: 'shared-1', name: 'Morgan Diaz Jr.', sequence: 1, active: true },
         { id: 'shared-2', name: 'Riley Chen', sequence: 2, active: true },
-      ] }),
+      ], removals: [] }),
     });
 
     expect(await screen.findByRole('heading', { name: 'Voting round configuration' })).toBeInTheDocument();
@@ -1070,7 +1135,7 @@ describe('election administration', () => {
     expect(roundListRequest?.[1].method).toBe('GET');
     expect(screen.getByLabelText('Number of selections allowed')).toHaveValue(null);
             expect(screen.queryByText('Candidates for this round')).not.toBeInTheDocument();
-            expect(screen.getByRole('list', { name: 'Candidates in this poll' })).toHaveTextContent('Morgan DiazRiley Chen');
+            expect(screen.getByRole('list', { name: 'Candidates in this poll' })).toHaveTextContent('Morgan Diaz Jr.Riley Chen');
     fireEvent.change(screen.getByLabelText('Number of selections allowed'), { target: { value: '2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create draft round' }));
 
@@ -1080,11 +1145,11 @@ describe('election administration', () => {
     expect(await screen.findByText('Draft round configuration saved.')).toBeInTheDocument();
     const createRoundRequests = fetchMock.mock.calls.filter(([url, options]) => String(url).endsWith('/positions/position-1/rounds') && options?.method === 'POST');
     expect(createRoundRequests[0]?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
-    expect(createRoundRequests[0]?.[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ candidateNames: ['Morgan Diaz', 'Riley Chen'], selectionCount: 2 }) });
+    expect(createRoundRequests[0]?.[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ candidateNames: ['Morgan Diaz Jr.', 'Riley Chen'], selectionCount: 2 }) });
     expect(createRoundRequests[1]?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
     expect(createRoundRequests[1]?.[1]).toMatchObject({
       method: 'POST',
-      body: JSON.stringify({ candidateNames: ['Morgan Diaz', 'Riley Chen'], selectionCount: 2 }),
+      body: JSON.stringify({ candidateNames: ['Morgan Diaz Jr.', 'Riley Chen'], selectionCount: 2 }),
     });
             expect(screen.getByText('Draft round 1: allows 2 selections from 2 candidates.')).toBeInTheDocument();
 
@@ -1099,7 +1164,7 @@ describe('election administration', () => {
     expect(updateRoundRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds/round-1');
     expect(updateRoundRequest?.[1]).toMatchObject({
       method: 'PUT',
-      body: JSON.stringify({ candidateNames: ['Riley Chen', 'Morgan Diaz'], selectionCount: 1 }),
+      body: JSON.stringify({ candidateNames: ['Morgan Diaz Jr.', 'Riley Chen'], selectionCount: 1 }),
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Start voting' }));
@@ -1284,27 +1349,288 @@ describe('election administration', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Manage nominations' }));
 
     const activeList = await screen.findByRole('list', { name: 'Shared nomination list' });
-    expect(within(activeList).getByText('Riley Chen')).toBeInTheDocument();
-    const rileyRow = within(activeList).getByText('Riley Chen').closest('li');
-    fireEvent.click(within(rileyRow as HTMLElement).getByRole('button', { name: 'Edit' }));
-    const candidateName = await screen.findByDisplayValue('Riley Chen');
+    expect(within(activeList).getByLabelText('Correct Riley Chen')).toHaveValue('Riley Chen');
+    const rileyRow = within(activeList).getByLabelText('Correct Riley Chen').closest('li');
+    const candidateName = within(rileyRow as HTMLElement).getByLabelText('Correct Riley Chen');
     fireEvent.change(candidateName, { target: { value: 'Riley Chen Updated' } });
-    fireEvent.click(within(rileyRow as HTMLElement).getByRole('button', { name: 'Save' }));
+    fireEvent.click(within(rileyRow as HTMLElement).getByRole('button', { name: 'Save Riley Chen' }));
 
     const saveError = await screen.findByText('The request failed (HTTP 500).');
     expect(saveError).toHaveTextContent('The request failed (HTTP 500).');
     expect(candidateName).toHaveValue('Riley Chen Updated');
 
-    const currentRileyRow = within(screen.getByRole('list', { name: 'Shared nomination list' }))
-      .getByText('Riley Chen Updated').closest('li');
-    fireEvent.click(within(currentRileyRow as HTMLElement).getByRole('button', { name: 'Edit' }));
-    fireEvent.click(within(currentRileyRow as HTMLElement).getByRole('button', { name: 'Save' }));
-    expect(await screen.findByText('Riley Chen Updated')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(await screen.findByLabelText('Correct Riley Chen Updated')).toHaveValue('Riley Chen Updated');
     const updateRequests = fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/nominations/shared-list'));
     expect(updateRequests).toHaveLength(2);
     expect(updateRequests[0][1]).toMatchObject({ method: 'PUT', body: JSON.stringify({ expectedRevision: 2, entries: [
       { id: 'shared-1', name: 'Riley Chen Updated', sequence: 1, active: true },
-    ] }) });
+    ], removals: [] }) });
+  });
+
+  it('records a selected removal reason and restores with the current revision', async () => {
+    const initialIntake: NominationIntake = {
+      id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'CLOSED', listCreated: true, revealed: true,
+      currentContributorCount: 1, sharedListRevision: 4, submissions: [], consolidatedNames: ['Riley Chen'],
+      sharedList: [{ id: 'shared-1', name: 'Riley Chen', sequence: 1, active: true }], removedEntries: [], changeEvents: [],
+    };
+    const removedIntake: NominationIntake = {
+      ...initialIntake, sharedListRevision: 5, consolidatedNames: [], sharedList: [],
+      removedEntries: [{ auditEventId: 'removal-event-1', originalEntryId: 'shared-1', name: 'Riley Chen', sequence: 1,
+        removedAt: '2026-10-25T12:00:00Z', removedBy: 'Administrator' }],
+      changeEvents: [{ id: 'removal-event-1', entryId: 'shared-1', action: 'REMOVED', beforeName: 'Riley Chen', afterName: null,
+        removalReason: 'DECLINED', reasonDetail: null, actorLabel: 'Administrator', occurredAt: '2026-10-25T12:00:00Z' }],
+    };
+    const restoredIntake: NominationIntake = { ...initialIntake, sharedListRevision: 6, changeEvents: [
+      ...(removedIntake.changeEvents ?? []),
+      { id: 'restore-event-1', entryId: 'shared-1', action: 'RESTORED', beforeName: null, afterName: 'Riley Chen',
+        removalReason: null, reasonDetail: null, actorLabel: 'Administrator', occurredAt: '2026-10-25T12:05:00Z' },
+    ] };
+    let currentIntake: NominationIntake = initialIntake;
+    const fetchMock = signedInFetch([church], [election]);
+    fetchMock.mockImplementation(async (url, options) => {
+      const requestUrl = String(url);
+      if (requestUrl === 'http://localhost:8080/api/auth/me') return response(account);
+      if (requestUrl === 'http://localhost:8080/api/churches/my') return response([church]);
+      if (requestUrl === 'http://localhost:8080/api/elections') return response([election]);
+      if (requestUrl === 'http://localhost:8080/api/elections/election-1') return response(election);
+      if (requestUrl.endsWith('/nominations') && options?.method === 'GET') return response(currentIntake);
+      if (requestUrl.endsWith('/nominations/stream')) return eventStreamResponse([]);
+      if (requestUrl.endsWith('/nominations/shared-list') && options?.method === 'PUT') {
+        currentIntake = removedIntake;
+        return response(removedIntake);
+      }
+      if (requestUrl.endsWith('/nominations/shared-list/restore') && options?.method === 'POST') {
+        currentIntake = restoredIntake;
+        return response(restoredIntake);
+      }
+      if (requestUrl.endsWith('/rounds') && options?.method === 'GET') return response([]);
+      return response({}, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage nominations' }));
+    const activeRow = within(await screen.findByRole('list', { name: 'Shared nomination list' }))
+      .getByLabelText('Correct Riley Chen').closest('li');
+    fireEvent.click(within(activeRow as HTMLElement).getByRole('button', { name: 'Remove Riley Chen' }));
+    fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'DECLINED' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm removal' }));
+
+    await screen.findByText('Confirmed change history (1)');
+    const updateRequest = fetchMock.mock.calls.find(([url, options]) => String(url).endsWith('/nominations/shared-list') && options?.method === 'PUT');
+    expect(updateRequest?.[1]).toMatchObject({ method: 'PUT', body: JSON.stringify({
+      expectedRevision: 4,
+      entries: [],
+      removals: [{ id: 'shared-1', reason: 'DECLINED' }],
+    }) });
+    expect(screen.getByText(/Riley Chen removed · DECLINED/)).toBeInTheDocument();
+
+    const restoreButton = screen.getByRole('button', { name: 'Restore Riley Chen' });
+    await waitFor(() => expect(restoreButton).toBeEnabled());
+    fireEvent.click(restoreButton);
+    await screen.findByText('Confirmed change history (2)');
+    const restoreRequest = fetchMock.mock.calls.find(([url, options]) => String(url).endsWith('/nominations/shared-list/restore') && options?.method === 'POST');
+    expect(restoreRequest?.[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ auditEventId: 'removal-event-1', expectedRevision: 5 }) });
+    expect(within(screen.getByRole('list', { name: 'Shared nomination list' })).getByLabelText('Correct Riley Chen')).toHaveValue('Riley Chen');
+  });
+
+  it('keeps removed nominations audit-only when round 1 is active on restore refresh', async () => {
+    const removedIntake: NominationIntake = {
+      id: 'intake-1', accessToken: 'share-token', nameLimit: 2, status: 'CLOSED', listCreated: true, revealed: true,
+      currentContributorCount: 1, sharedListRevision: 2, submissions: [], consolidatedNames: [], sharedList: [],
+      removedEntries: [{ auditEventId: 'removal-event-1', originalEntryId: 'shared-1', name: 'Riley Chen', sequence: 1,
+        removedAt: '2026-10-25T12:00:00Z', removedBy: 'Administrator' }],
+      changeEvents: [{ id: 'removal-event-1', entryId: 'shared-1', action: 'REMOVED', beforeName: 'Riley Chen', afterName: null,
+        removalReason: 'DECLINED', reasonDetail: null, actorLabel: 'Administrator', occurredAt: '2026-10-25T12:00:00Z' }],
+    };
+    let roundsReads = 0;
+    const fetchMock = signedInFetch([church], [election]);
+    fetchMock.mockImplementation(async (url, options) => {
+      const requestUrl = String(url);
+      if (requestUrl === 'http://localhost:8080/api/auth/me') return response(account);
+      if (requestUrl === 'http://localhost:8080/api/churches/my') return response([church]);
+      if (requestUrl === 'http://localhost:8080/api/elections') return response([election]);
+      if (requestUrl === 'http://localhost:8080/api/elections/election-1') return response(election);
+      if (requestUrl.endsWith('/nominations') && options?.method === 'GET') return response(removedIntake);
+      if (requestUrl.endsWith('/nominations/stream')) return eventStreamResponse([]);
+      if (requestUrl.endsWith('/rounds') && options?.method === 'GET') {
+        roundsReads += 1;
+        return response(roundsReads === 1 ? [] : [{
+          id: 'round-1', roundNumber: 1, status: 'ACTIVE', selectionCount: 1,
+          candidates: [{ id: 'candidate-1', name: 'Jordan Lee', sequence: 1 }],
+        }]);
+      }
+      return response({}, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage nominations' }));
+
+    const restoreButton = await screen.findByRole('button', { name: 'Restore Riley Chen' });
+    await waitFor(() => expect(restoreButton).toBeEnabled());
+    fireEvent.click(restoreButton);
+
+    expect(await screen.findByText('The closed intake is read-only while voting is active. This name cannot be restored until the round closes.')).toBeInTheDocument();
+    expect(roundsReads).toBe(2);
+    expect(fetchMock.mock.calls.some(([url, options]) => String(url).endsWith('/nominations/shared-list/restore') && options?.method === 'POST')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Restore Riley Chen' })).toBeDisabled();
+  });
+
+  it('traps focus in the removal dialog and restores focus when dismissed with Escape', async () => {
+    const intake: NominationIntake = {
+      id: 'intake-1', accessToken: 'share-token', nameLimit: 2, status: 'CLOSED', listCreated: true, revealed: false,
+      currentContributorCount: 1, sharedListRevision: 1, submissions: [], consolidatedNames: ['Riley Chen'],
+      sharedList: [{ id: 'shared-1', name: 'Riley Chen', sequence: 1, active: true }], removedEntries: [], changeEvents: [],
+    };
+    const fetchMock = signedInFetch([church], [election]);
+    fetchMock.mockImplementation(async (url, options) => {
+      const requestUrl = String(url);
+      if (requestUrl === 'http://localhost:8080/api/auth/me') return response(account);
+      if (requestUrl === 'http://localhost:8080/api/churches/my') return response([church]);
+      if (requestUrl === 'http://localhost:8080/api/elections') return response([election]);
+      if (requestUrl === 'http://localhost:8080/api/elections/election-1') return response(election);
+      if (requestUrl.endsWith('/nominations') && options?.method === 'GET') return response(intake);
+      if (requestUrl.endsWith('/nominations/stream')) return eventStreamResponse([]);
+      if (requestUrl.endsWith('/rounds') && options?.method === 'GET') return response([]);
+      return response({}, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage nominations' }));
+    const removeButton = within(await screen.findByRole('list', { name: 'Shared nomination list' }))
+      .getByRole('button', { name: 'Remove Riley Chen' });
+    removeButton.focus();
+    fireEvent.click(removeButton);
+    const dialog = screen.getByRole('dialog', { name: 'Remove Riley Chen?' });
+    const reason = within(dialog).getByLabelText('Reason');
+    const cancel = within(dialog).getByRole('button', { name: 'Cancel' });
+    const confirm = within(dialog).getByRole('button', { name: 'Confirm removal' });
+    expect(reason).toHaveFocus();
+    fireEvent.keyDown(window, { key: 'Tab' });
+    expect(cancel).toHaveFocus();
+    fireEvent.keyDown(window, { key: 'Tab' });
+    expect(confirm).toHaveFocus();
+    fireEvent.keyDown(window, { key: 'Tab' });
+    expect(reason).toHaveFocus();
+    fireEvent.change(reason, { target: { value: 'OTHER' } });
+    const detail = within(dialog).getByLabelText('Details');
+    expect(reason).toHaveFocus();
+    fireEvent.keyDown(window, { key: 'Tab' });
+    expect(detail).toHaveFocus();
+    fireEvent.keyDown(window, { key: 'Tab' });
+    expect(cancel).toHaveFocus();
+    fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+    expect(detail).toHaveFocus();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Remove Riley Chen?' })).not.toBeInTheDocument();
+    expect(removeButton).toHaveFocus();
+  });
+
+  it('preserves fixed row sequence when correcting a name after removing another row', async () => {
+    const initialIntake: NominationIntake = {
+      id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'CLOSED', listCreated: true, revealed: false,
+      currentContributorCount: 2, sharedListRevision: 2, submissions: [], consolidatedNames: ['Alex Kim', 'Riley Chen'],
+      sharedList: [
+        { id: 'shared-1', name: 'Alex Kim', sequence: 1, active: true },
+        { id: 'shared-2', name: 'Morgan Diaz', sequence: 2, active: true },
+        { id: 'shared-3', name: 'Riley Chen', sequence: 3, active: true },
+      ], removedEntries: [], changeEvents: [],
+    };
+    const removedIntake: NominationIntake = {
+      ...initialIntake, sharedListRevision: 3, consolidatedNames: ['Alex Kim', 'Riley Chen'],
+      sharedList: [initialIntake.sharedList[0], initialIntake.sharedList[2]],
+      removedEntries: [{ auditEventId: 'removal-event-1', originalEntryId: 'shared-2', name: 'Morgan Diaz', sequence: 2,
+        removedAt: '2026-10-25T12:00:00Z', removedBy: 'Administrator' }],
+    };
+    const correctedIntake: NominationIntake = {
+      ...removedIntake, sharedListRevision: 4, consolidatedNames: ['Alex Kim', 'Riley Chen Jr.'],
+      sharedList: [removedIntake.sharedList[0], { ...removedIntake.sharedList[1], name: 'Riley Chen Jr.' }],
+    };
+    let currentIntake = initialIntake;
+    const fetchMock = signedInFetch([church], [election]);
+    fetchMock.mockImplementation(async (url, options) => {
+      const requestUrl = String(url);
+      if (requestUrl === 'http://localhost:8080/api/auth/me') return response(account);
+      if (requestUrl === 'http://localhost:8080/api/churches/my') return response([church]);
+      if (requestUrl === 'http://localhost:8080/api/elections') return response([election]);
+      if (requestUrl === 'http://localhost:8080/api/elections/election-1') return response(election);
+      if (requestUrl.endsWith('/nominations') && options?.method === 'GET') return response(currentIntake);
+      if (requestUrl.endsWith('/nominations/stream')) return eventStreamResponse([]);
+      if (requestUrl.endsWith('/nominations/shared-list') && options?.method === 'PUT') {
+        const requestBody = JSON.parse(String(options.body)) as {
+          entries: Array<{ id: string; sequence: number }>;
+          removals: Array<{ id: string }>;
+        };
+        if (requestBody.removals.length > 0) currentIntake = removedIntake;
+        else currentIntake = correctedIntake;
+        return response(currentIntake);
+      }
+      if (requestUrl.endsWith('/rounds') && options?.method === 'GET') return response([]);
+      return response({}, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage nominations' }));
+    const activeList = await screen.findByRole('list', { name: 'Shared nomination list' });
+    const morganRow = within(activeList).getByLabelText('Correct Morgan Diaz').closest('li');
+    fireEvent.click(within(morganRow as HTMLElement).getByRole('button', { name: 'Remove Morgan Diaz' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm removal' }));
+    const rileyRow = within(await screen.findByRole('list', { name: 'Shared nomination list' }))
+      .getByLabelText('Correct Riley Chen').closest('li');
+    fireEvent.change(within(rileyRow as HTMLElement).getByLabelText('Correct Riley Chen'), { target: { value: 'Riley Chen Jr.' } });
+    fireEvent.click(within(rileyRow as HTMLElement).getByRole('button', { name: 'Save Riley Chen' }));
+
+    expect(await screen.findByLabelText('Correct Riley Chen Jr.')).toHaveValue('Riley Chen Jr.');
+    const updateRequests = fetchMock.mock.calls.filter(([url, options]) => String(url).endsWith('/nominations/shared-list') && options?.method === 'PUT');
+    expect(updateRequests).toHaveLength(2);
+    expect(updateRequests[1][1]).toMatchObject({ body: JSON.stringify({ expectedRevision: 3, entries: [
+      { id: 'shared-1', name: 'Alex Kim', sequence: 1, active: true },
+      { id: 'shared-3', name: 'Riley Chen Jr.', sequence: 3, active: true },
+    ], removals: [] }) });
+  });
+
+  it('does not reveal nominations when the browser blocks the presentation tab', async () => {
+    const closedIntake: NominationIntake = {
+      id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'CLOSED', listCreated: true, revealed: false,
+      currentContributorCount: 1, sharedListRevision: 0, submissions: [], consolidatedNames: ['Riley Chen'],
+      sharedList: [{ id: 'shared-1', name: 'Riley Chen', sequence: 1, active: true }], removedEntries: [], changeEvents: [],
+    };
+    const fetchMock = signedInFetch([church], [election]);
+    fetchMock.mockImplementation(async (url, options) => {
+      const requestUrl = String(url);
+      if (requestUrl === 'http://localhost:8080/api/auth/me') return response(account);
+      if (requestUrl === 'http://localhost:8080/api/churches/my') return response([church]);
+      if (requestUrl === 'http://localhost:8080/api/elections') return response([election]);
+      if (requestUrl === 'http://localhost:8080/api/elections/election-1') return response(election);
+      if (requestUrl.endsWith('/nominations') && options?.method === 'GET') return response(closedIntake);
+      if (requestUrl.endsWith('/nominations/stream')) return eventStreamResponse([]);
+      if (requestUrl.endsWith('/rounds') && options?.method === 'GET') return response([]);
+      return response({}, 404);
+    });
+    vi.spyOn(window, 'open').mockReturnValue(null);
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage nominations' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Reveal results' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The browser blocked the presentation tab. Allow pop-ups, then reveal the list again.');
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/nominations/reveal'))).toBe(false);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/nominations/presentation'))).toBe(false);
   });
 
   it('recommends advancing majority candidates for a multi-selection round without auto-saving decisions', async () => {

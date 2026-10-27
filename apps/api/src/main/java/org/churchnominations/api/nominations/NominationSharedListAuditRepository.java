@@ -6,6 +6,8 @@ import java.util.UUID;
 import java.util.List;
 
 public interface NominationSharedListAuditRepository extends JpaRepository<NominationSharedListAuditEvent, UUID> {
+	List<NominationSharedListAuditEvent> findAllByIntakeIdOrderByOccurredAtAscIdAsc(UUID intakeId);
+
     List<NominationSharedListAuditEvent> findAllByIntakeIdAndActionOrderByOccurredAtDesc(
 	    UUID intakeId, NominationSharedListAuditEvent.Action action);
 

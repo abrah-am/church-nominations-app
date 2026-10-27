@@ -40,21 +40,46 @@ public class NominationSharedListAuditEvent {
     @Column(name = "occurred_at", nullable = false, updatable = false)
     private Instant occurredAt;
 
+    @Column(name = "before_name", updatable = false)
+    private String beforeName;
+
+    @Column(name = "after_name", updatable = false)
+    private String afterName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "removal_reason", length = 12, updatable = false)
+    private NominationRemovalReason removalReason;
+
+    @Column(name = "reason_detail", updatable = false)
+    private String reasonDetail;
+
     protected NominationSharedListAuditEvent() {
     }
 
     public NominationSharedListAuditEvent(
             UUID intakeId, UUID entryId, String entryName, int entrySequence, Action action, String actor) {
+        this(intakeId, entryId, entryName, entrySequence, action, null, null, null, null, actor);
+    }
+
+    public NominationSharedListAuditEvent(
+            UUID intakeId, UUID entryId, String entryName, int entrySequence, Action action,
+            String beforeName, String afterName, NominationRemovalReason removalReason, String reasonDetail,
+            String actor) {
         this.intakeId = intakeId;
         this.entryId = entryId;
         this.entryName = entryName;
         this.entrySequence = entrySequence;
         this.action = action;
         this.actor = actor;
+        this.beforeName = beforeName;
+        this.afterName = afterName;
+        this.removalReason = removalReason;
+        this.reasonDetail = reasonDetail;
         this.occurredAt = Instant.now();
     }
 
     public enum Action {
+        CORRECTED,
         REMOVED,
         RESTORED
     }
@@ -67,4 +92,8 @@ public class NominationSharedListAuditEvent {
     public String getActor() { return actor; }
     public Instant getOccurredAt() { return occurredAt; }
     public UUID getIntakeId() { return intakeId; }
+    public String getBeforeName() { return beforeName; }
+    public String getAfterName() { return afterName; }
+    public NominationRemovalReason getRemovalReason() { return removalReason; }
+    public String getReasonDetail() { return reasonDetail; }
 }

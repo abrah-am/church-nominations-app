@@ -2,7 +2,7 @@
 
 - **Epic:** E6 Election Completion and History
 - **Priority:** P1 (high)
-- **Workflow status:** Product Owner scope clarified 2026-10-23; implementation plan pending approval
+- **Workflow status:** Accepted by Product Owner 2026-10-26; implementation and QA complete; push pending. Not merged or deployed.
 - **User story:** As an administrator, I want to view all proposed names when nomination intake closes, then reveal the shared list in a separate presentation tab and refine it live by correcting misspellings, removing duplicates, and recording nominees who decline, so everyone present can follow the changes and verify the list as I prepare it.
 
 ## Acceptance Criteria

@@ -3,6 +3,7 @@ package org.churchnominations.api.nominations;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.CacheControl;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -86,6 +87,37 @@ public class NominationIntakeController {
             @Valid @RequestBody RestoreNominationEntryRequest request,
             Principal principal) {
         return intakes.restoreSharedListEntry(electionId, positionId, request, principal.getName());
+    }
+
+    @PostMapping("/api/elections/{electionId}/positions/{positionId}/nominations/presentation")
+    public PresentationSessionResponse showPresentation(
+            @PathVariable UUID electionId, @PathVariable UUID positionId, Principal principal) {
+        return intakes.showPresentation(electionId, positionId, principal.getName());
+    }
+
+    @PostMapping("/api/elections/{electionId}/positions/{positionId}/nominations/presentation/hide")
+    public void hidePresentation(
+            @PathVariable UUID electionId, @PathVariable UUID positionId, Principal principal) {
+        intakes.hidePresentation(electionId, positionId, principal.getName());
+    }
+
+    @PostMapping("/api/elections/{electionId}/positions/{positionId}/nominations/presentation/end")
+    public void endPresentation(
+            @PathVariable UUID electionId, @PathVariable UUID positionId, Principal principal) {
+        intakes.endPresentation(electionId, positionId, principal.getName());
+    }
+
+    @GetMapping("/api/nomination-presentations/{accessToken}")
+    public ResponseEntity<PresentationSnapshotResponse> presentationSnapshot(@PathVariable UUID accessToken) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(intakes.presentationSnapshot(accessToken));
+    }
+
+    @GetMapping(value = "/api/nomination-presentations/{accessToken}/stream",
+            produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public ResponseEntity<SseEmitter> presentationStream(@PathVariable UUID accessToken,
+            @RequestHeader(name = "Last-Event-ID", required = false) String lastEventId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+            .header("X-Accel-Buffering", "no").body(intakes.presentationStream(accessToken, lastEventId));
     }
 
     @GetMapping("/api/nomination-intakes/{accessToken}")

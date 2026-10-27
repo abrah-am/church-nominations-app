@@ -47,6 +47,7 @@ export type VotingRound = {
   accessToken?: string | null;
   closeReason?: string | null;
   resetCount?: number;
+  nominationRevision?: number | null;
 };
 
 export type VotingRoundConfiguration = {

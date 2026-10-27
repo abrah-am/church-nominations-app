@@ -9,7 +9,11 @@ import java.util.UUID;
 
 public record UpdateSharedNominationListRequest(
         @Min(0) long expectedRevision,
-    @NotNull List<@NotNull @Valid Entry> entries) {
+        @NotNull List<@NotNull @Valid Entry> entries,
+        List<@NotNull @Valid Removal> removals) {
     public record Entry(UUID id, @NotNull String name, @Min(1) int sequence, boolean active) {
+    }
+
+    public record Removal(@NotNull UUID id, @NotNull NominationRemovalReason reason, String detail) {
     }
 }

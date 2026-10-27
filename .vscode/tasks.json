@@ -4,7 +4,7 @@
 		{
 			"label": "Run Church Nominations API",
 			"type": "shell",
-			"command": "cd apps/api && JAVA_HOME=/Users/abraham/.jdk/jdk-25.0.2/jdk-25.0.2+10/Contents/Home PATH=/Users/abraham/.jdk/jdk-25.0.2/jdk-25.0.2+10/Contents/Home/bin:$PATH ./gradlew bootRun",
+			"command": "cd apps/api && set -a && . ./.env && set +a && export JAVA_HOME=/Users/abraham/.jdk/jdk-25.0.2/jdk-25.0.2+10/Contents/Home && export PATH=\"$JAVA_HOME/bin:$PATH\" && ./gradlew -Dorg.gradle.java.installations.paths=\"$JAVA_HOME\" devBootRun",
 			"isBackground": true,
 			"problemMatcher": [],
 			"group": "build"

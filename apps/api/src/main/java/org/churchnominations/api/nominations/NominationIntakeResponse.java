@@ -15,5 +15,6 @@ public record NominationIntakeResponse(
         List<NominationSubmissionResponse> submissions,
         List<String> consolidatedNames,
         List<SharedNominationEntryResponse> sharedList,
-        List<RemovedNominationEntryResponse> removedEntries) {
+        List<RemovedNominationEntryResponse> removedEntries,
+        List<NominationChangeEventResponse> changeEvents) {
 }
