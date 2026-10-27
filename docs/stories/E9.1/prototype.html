@@ -1,0 +1,1206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Static mock prototype of connected administrator, voter, and presentation election experiences.">
+  <title>Election Experiences | Mock Prototype</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1d2925;
+      --muted: #5b6862;
+      --paper: #f5f6f1;
+      --surface: #fff;
+      --line: #d7ded7;
+      --green: #176849;
+      --green-soft: #e5f2e9;
+      --orange: #9a4f18;
+      --orange-soft: #fff0dd;
+      --blue: #235d86;
+      --blue-soft: #e7f2f8;
+      --focus: #155e9a;
+      --shadow: 0 16px 38px rgba(27, 44, 35, .08);
+      font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      font-weight: 450;
+      color: var(--ink);
+      background: var(--paper);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background:
+        linear-gradient(130deg, rgba(226, 238, 225, .55), transparent 42%),
+        repeating-linear-gradient(0deg, transparent 0 31px, rgba(38, 82, 57, .035) 31px 32px),
+        var(--paper);
+    }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, a:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+    .shell { max-width: 1240px; margin: 0 auto; padding: 28px clamp(16px, 4vw, 48px) 48px; }
+    .masthead { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; border-bottom: 1px solid var(--line); padding-bottom: 20px; }
+    .eyebrow { margin: 0 0 5px; text-transform: uppercase; letter-spacing: .11em; font-size: .75rem; font-weight: 800; color: var(--green); }
+    h1 { font-size: clamp(1.45rem, 3vw, 2rem); line-height: 1.15; margin: 0; font-weight: 720; }
+    .context { margin: 8px 0 0; color: var(--muted); }
+    .mock-label { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #e6ba84; border-radius: 4px; background: var(--orange-soft); color: #73390f; padding: 7px 10px; font-size: .78rem; font-weight: 760; white-space: nowrap; }
+    .mock-label::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #bf681e; }
+    .notice { margin: 20px 0 22px; padding: 12px 15px; border-left: 4px solid var(--orange); background: #fffaf3; color: #65411f; font-size: .9rem; }
+    .notice strong { color: #603411; }
+    .context-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 9px 18px; padding: 15px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .context-bar strong { font-size: 1.05rem; }
+    .context-bar span { color: var(--muted); font-size: .9rem; }
+    .state-chip { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; color: #254c39 !important; background: var(--green-soft); padding: 5px 10px; border-radius: 999px; font-weight: 700; }
+    .state-chip::before { content: ""; background: #287c4d; width: 8px; height: 8px; border-radius: 50%; }
+    .experience-nav { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-top: 22px; overflow-x: auto; }
+    .experience-nav button { flex: 0 0 auto; border: 0; background: transparent; padding: 11px 15px 12px; color: var(--muted); border-bottom: 3px solid transparent; font-weight: 700; }
+    .experience-nav button[aria-selected="true"] { color: var(--green); border-color: var(--green); }
+    .view { display: none; padding-top: 24px; }
+    .view.active { display: block; animation: arrive .22s ease-out; }
+    .launcher { margin: 24px 0; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 5px; box-shadow: var(--shadow); }
+    .launcher-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+    .admin-home { max-width: 1040px; margin: 22px auto 0; }
+    .breadcrumb { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 0 0 16px; color: var(--muted); font-size: .88rem; }
+    .breadcrumb button { border: 0; padding: 0; background: transparent; color: var(--green); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+    .home-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 18px; }
+    .home-heading p { color: var(--muted); margin: 6px 0 0; }
+    .year-list { display: grid; gap: 10px; margin-top: 18px; }
+    .year-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 16px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; }
+    .year-row h3 { margin: 0; font-size: 1.05rem; }
+    .year-row p { margin: 4px 0 0; color: var(--muted); font-size: .88rem; }
+    .status-counts { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+    .status-count { padding: 7px 10px; border-radius: 4px; background: #edf2ec; font-size: .82rem; font-weight: 700; }
+    .status-count strong { margin-right: 4px; font-size: .95rem; }
+    .access-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 18px 0 24px; }
+    .access-tool { min-width: 0; padding: 15px 16px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+    .access-tool h3 { margin: 0 0 5px; }
+    .access-tool p { margin: 0; color: var(--muted); font-size: .86rem; }
+    .access-tool .action-row { margin-top: 12px; }
+    .access-url { overflow-wrap: anywhere; padding: 7px 9px; margin-top: 9px !important; color: #334940 !important; background: #f3f6f2; border-radius: 3px; font: .78rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .access-context { display: block; margin-top: 7px !important; color: #345b44 !important; font-weight: 680; }
+    .workflow-access { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 12px 14px; margin-bottom: 16px; border: 1px solid var(--line); border-radius: 4px; background: #f9fbf8; }
+    .workflow-access p { margin: 3px 0 0; color: var(--muted); font-size: .82rem; }
+    .workflow-access strong { font-size: .9rem; }
+    .workflow-access .btn { min-height: 38px; padding: 7px 10px; font-size: .84rem; }
+    .department { margin-top: 20px; border-top: 1px solid var(--line); }
+    .department-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 15px 0 8px; }
+    .department-heading h3 { margin: 0; font-size: 1.08rem; }
+    .position-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 16px; padding: 14px 12px; border-top: 1px solid #e5e9e4; }
+    .position-info { min-width: 0; }
+    .position-info strong { display: block; font-size: 1rem; }
+    .position-info span { display: block; margin-top: 3px; color: var(--muted); font-size: .85rem; }
+    .position-state { min-width: 112px; text-align: center; }
+    .status-not-started { color: #53635a; background: #eef1ed; }
+    .status-progress { color: #205b80; background: #e8f2f7; }
+    .status-filled { color: #25553b; background: var(--green-soft); }
+    .login-card { max-width: 430px; margin: 30px auto; padding: 26px; background: white; border: 1px solid var(--line); border-radius: 5px; box-shadow: var(--shadow); }
+    .login-card .field { margin-top: 16px; }
+    .login-card label { display: block; margin-bottom: 6px; font-weight: 680; font-size: .9rem; }
+    .login-card input { width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid #aebbb0; border-radius: 4px; }
+    .login-card .btn { width: 100%; margin-top: 20px; }
+    .admin-root[hidden], .admin-login[hidden], .admin-dashboard[hidden], .admin-election[hidden] { display: none !important; }
+    body[data-view="admin"] .admin-layout { display: block; }
+    body[data-view="admin"] .admin-grid { display: block; }
+    body[data-view="admin"][data-admin-screen="login"] .election-flow { display: none; }
+    body[data-view="admin"][data-admin-screen="dashboard"] .election-flow,
+    body[data-view="admin"][data-admin-screen="election"] .election-flow { display: none; }
+    body[data-view="admin"] #admin-home { display: block; }
+    body[data-view="admin"] #view-voter,
+    body[data-view="admin"] #view-presentation,
+    body[data-view="voter"] #view-admin,
+    body[data-view="voter"] #view-presentation,
+    body[data-view="presentation"] #view-admin,
+    body[data-view="presentation"] #view-voter { display: none !important; }
+    body[data-view="launcher"] .experience-nav,
+    body[data-view="launcher"] #view-voter,
+    body[data-view="launcher"] #view-presentation { display: none !important; }
+    body[data-view="admin"] .experience-nav,
+    body[data-view="voter"] .experience-nav,
+    body[data-view="presentation"] .experience-nav { display: none !important; }
+    body[data-view="admin"] .mock-label,
+    body[data-view="admin"] .notice,
+    body[data-view="admin"] .context-bar { display: none !important; }
+    body[data-view="launcher"] .notice,
+    body[data-view="launcher"] .context-bar,
+    body[data-view="launcher"] .mock-label { display: none !important; }
+    body[data-view="admin"] .shell { max-width: 1120px; padding-top: 20px; }
+    body[data-view="admin"] .masthead { padding-bottom: 14px; }
+    body[data-view="launcher"] .shell { max-width: 520px; padding-top: 18px; }
+    body[data-view="launcher"] .masthead { padding-bottom: 12px; }
+    body[data-view="launcher"] #view-admin { padding-top: 0; }
+    body[data-view="launcher"] .login-card { margin-top: 16px; }
+    body[data-view="voter"] { background: #f7f8f4; }
+    body[data-view="voter"] { overflow-x: hidden; }
+    body[data-view="voter"] .shell { width: 100%; max-width: 520px; min-height: 100svh; padding: 0 0 32px; background: var(--surface); overflow-x: clip; }
+    body[data-view="voter"] .masthead { display: block; padding: 12px 20px 11px; border-bottom: 0; background: #edf4ee; }
+    body[data-view="voter"] .masthead > div { max-width: 100%; }
+    body[data-view="voter"] .eyebrow,
+    body[data-view="voter"] .mock-label { display: none; }
+    body[data-view="voter"] h1 { font-size: 1.12rem; }
+    body[data-view="voter"] .context { margin-top: 4px; font-size: .86rem; }
+    body[data-view="voter"] .notice,
+    body[data-view="voter"] .context-bar { display: none; }
+    body[data-view="voter"] .view { padding: 0; }
+    body[data-view="voter"] .view.active { animation: none; transform: none; }
+    body[data-view="voter"] .mobile-stage { width: 100%; max-width: none; min-width: 0; margin: 0; padding: 0 20px 24px; border: 0; border-radius: 0; box-shadow: none; }
+    body[data-view="voter"] .mobile-top { margin: 0 -20px; padding: 9px 20px; background: #fbfcfa; font-size: .78rem; }
+    body[data-view="voter"] .ballot-heading { padding: 16px 0 12px; }
+    body[data-view="voter"] .ballot-heading h2 { font-size: 1.38rem; margin-top: 7px; }
+    body[data-view="voter"] .ballot-heading p { font-size: .94rem; line-height: 1.38; }
+    body[data-view="voter"] .choice { min-height: 63px; align-items: stretch; flex-direction: column; justify-content: center; padding: 6px 0; gap: 3px; font-size: .86rem; }
+    body[data-view="voter"] .choice span { font-weight: 650; }
+    body[data-view="voter"] input[type="text"] { width: 100%; min-width: 0; min-height: 42px; flex: 1; padding: 8px 10px; border: 1px solid #aebbb0; border-radius: 4px; font-size: 1rem; }
+    body[data-view="voter"] .btn { min-height: 50px; font-size: 1rem; }
+    body[data-view="voter"] #nomination-form { padding-bottom: 112px; }
+    body[data-view="voter"] #submit-nominations { position: fixed; z-index: 4; left: 50%; bottom: max(12px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(calc(100vw - 32px), 488px); box-shadow: 0 5px 18px rgba(27, 44, 35, .18); }
+    body[data-view="voter"] #submit-nominations::before { content: ""; position: fixed; z-index: -1; left: calc((100vw - min(100vw, 520px)) / -2); right: calc((100vw - min(100vw, 520px)) / -2); top: -12px; bottom: -12px; background: rgba(255, 255, 255, .97); border-top: 1px solid var(--line); }
+    body[data-view="voter"] .candidate-list li { min-height: 52px; padding: 12px 2px; font-size: 1rem; }
+    body[data-view="voter"] .task { margin-top: 20px; padding-top: 16px; }
+    body[data-view="voter"] .task h3 { font-size: 1rem; }
+    body[data-view="voter"] .fine-print { font-size: .86rem; }
+    body[data-view="voter"] .compact-view { max-width: none; margin: 0; }
+    body[data-view="voter"] .action-row > button { width: 100%; }
+    @media (max-width: 360px) {
+      body[data-view="voter"] .masthead { padding-left: 16px; padding-right: 16px; }
+      body[data-view="voter"] .mobile-stage { padding-left: 16px; padding-right: 16px; }
+      body[data-view="voter"] .mobile-top { margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; }
+      body[data-view="voter"] .mock-label { margin-left: 16px; }
+    }
+    @keyframes arrive { from { opacity: .5; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+    .admin-grid { display: grid; grid-template-columns: minmax(0, .85fr) minmax(340px, 1.15fr); gap: 20px; align-items: start; }
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 5px; box-shadow: var(--shadow); }
+    .panel-pad { padding: clamp(18px, 3vw, 28px); }
+    .panel-kicker { color: var(--muted); text-transform: uppercase; letter-spacing: .09em; font-size: .72rem; font-weight: 800; margin: 0 0 8px; }
+    h2 { font-size: 1.32rem; line-height: 1.25; margin: 0 0 8px; font-weight: 730; }
+    h3 { font-size: 1rem; margin: 0 0 10px; }
+    .subtle { color: var(--muted); margin: 0; }
+    .progress { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin: 20px 0 8px; }
+    .progress span { height: 5px; background: #e2e8e2; border-radius: 4px; }
+    .progress span.done { background: var(--green); }
+    .progress-note { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: .82rem; }
+    .task { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 16px; }
+    .task-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .status { display: inline-flex; align-items: center; border-radius: 3px; padding: 4px 8px; color: #244b38; background: var(--green-soft); font-size: .78rem; font-weight: 750; }
+    .step-list { list-style: none; padding: 0; margin: 18px 0 0; }
+    .step-list li { position: relative; padding: 0 0 18px 26px; border-left: 1px solid #c9d6cb; margin-left: 6px; color: var(--muted); font-size: .9rem; }
+    .step-list li:last-child { border-left-color: transparent; padding-bottom: 0; }
+    .step-list li::before { content: ""; position: absolute; left: -6px; top: 4px; width: 11px; height: 11px; border-radius: 50%; background: #d0dad1; border: 2px solid #fff; box-shadow: 0 0 0 1px #c5d1c6; }
+    .step-list li.current { color: var(--ink); font-weight: 750; }
+    .step-list li.current::before, .step-list li.complete::before { background: var(--green); box-shadow: 0 0 0 1px var(--green); }
+    .step-list li.complete { color: #3e5949; }
+    .metric { display: flex; align-items: baseline; gap: 8px; margin: 18px 0 4px; }
+    .metric strong { font-size: 2rem; line-height: 1; }
+    .metric span { color: var(--muted); }
+    .fine-print { font-size: .82rem; color: var(--muted); }
+    .action-row { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 20px; }
+    .btn { border: 1px solid transparent; border-radius: 4px; min-height: 42px; padding: 9px 14px; font-weight: 730; text-align: center; }
+    .btn-primary { background: var(--green); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #10553b; }
+    .btn-secondary { background: #fff; color: var(--ink); border-color: #b7c3ba; }
+    .btn-secondary:hover:not(:disabled) { background: #f0f4ef; }
+    .btn:disabled { opacity: .48; cursor: not-allowed; }
+    .callout { padding: 12px 14px; border-radius: 3px; background: var(--blue-soft); color: #244d68; font-size: .88rem; margin: 16px 0 0; }
+    .success { background: var(--green-soft); color: #244b38; }
+    .warning { background: var(--orange-soft); color: #693b18; }
+    .candidate-list { list-style: none; padding: 0; margin: 16px 0 0; border-top: 1px solid var(--line); }
+    .candidate-list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); padding: 11px 0; }
+    .candidate-list .name { font-weight: 640; overflow-wrap: anywhere; }
+    .candidate-list .value { font-variant-numeric: tabular-nums; font-weight: 780; min-width: 30px; text-align: right; }
+    .nominee-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+    .nominee-row input { min-width: 0; width: 100%; padding: 8px 9px; border: 1px solid #b7c3ba; border-radius: 3px; }
+    .compact-view { max-width: 440px; margin: 0 auto; }
+    .compact-view .candidate-list { font-size: .95rem; }
+    .change-log { list-style: none; padding: 0; margin: 12px 0 0; }
+    .change-log li { border-top: 1px solid var(--line); padding: 9px 0; color: var(--muted); font-size: .84rem; overflow-wrap: anywhere; }
+    .presentation-log { width: 100%; max-width: 900px; font-size: 1rem; }
+    .nominee-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+    .nominee-row input { min-width: 0; width: 100%; padding: 8px 9px; border: 1px solid #b7c3ba; border-radius: 3px; }
+    .nominee-actions { display: flex; gap: 6px; }
+    .btn-small { min-height: 36px; padding: 6px 9px; font-size: .82rem; }
+    .compact-view { max-width: 440px; margin: 0 auto; }
+    .compact-view .candidate-list { font-size: .95rem; }
+    .decision-controls { display: grid; gap: 8px; margin-top: 14px; }
+    .decision-controls label { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); padding: 9px 11px; border-radius: 4px; }
+    .decision-controls .decision-label { display: flex; flex: 1; align-items: center; justify-content: space-between; gap: 12px; }
+    .decision-controls .vote-total { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    input[type="checkbox"] { width: 19px; height: 19px; accent-color: var(--green); flex: 0 0 auto; }
+    .mobile-stage { max-width: 440px; margin: 0 auto; border: 8px solid #25332e; border-radius: 24px; padding: 18px 17px 20px; background: white; box-shadow: 0 20px 45px rgba(27, 44, 35, .15); }
+    .mobile-top { display: flex; justify-content: space-between; gap: 8px; padding-bottom: 13px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: .78rem; }
+    .ballot-heading { padding: 20px 0 14px; }
+    .ballot-heading h2 { margin-top: 7px; }
+    .choice { display: flex; gap: 12px; align-items: center; min-height: 54px; padding: 10px 8px; border-top: 1px solid #e1e6e1; cursor: pointer; }
+    .choice span { overflow-wrap: anywhere; }
+    .counter { display: flex; justify-content: space-between; margin-top: 13px; padding: 10px 0; color: var(--muted); border-top: 1px solid var(--line); font-size: .9rem; }
+    .full { width: 100%; }
+    .presentation { min-height: 480px; display: flex; flex-direction: column; justify-content: center; padding: clamp(26px, 7vw, 76px); background: #f8faf6; border-top: 7px solid var(--green); }
+    .presentation .screen-label { align-self: flex-start; text-transform: uppercase; letter-spacing: .1em; color: var(--green); font-size: .8rem; font-weight: 800; }
+    .presentation h2 { font-size: clamp(1.8rem, 4vw, 3rem); margin: 14px 0 8px; }
+    .presentation .subtitle { font-size: 1.1rem; color: var(--muted); margin: 0 0 24px; }
+    .presentation .candidate-list { font-size: clamp(1.15rem, 2.4vw, 1.7rem); margin: 0; }
+    .presentation .candidate-list li { padding: 15px 0; }
+    .presentation-empty { max-width: 720px; margin: 24px 0; color: var(--muted); font-size: 1.05rem; }
+    .screen-footer { display: flex; justify-content: space-between; gap: 14px; margin-top: auto; padding-top: 32px; color: #64736a; font-size: .78rem; }
+    [hidden] { display: none !important; }
+    @media (max-width: 760px) {
+      .shell { padding-top: 18px; }
+      .masthead { flex-direction: column; gap: 12px; }
+      .admin-grid { grid-template-columns: 1fr; }
+      .state-chip { margin-left: 0; }
+      .presentation { min-height: 430px; }
+    }
+    @media (max-width: 420px) {
+      .context-bar { align-items: flex-start; flex-direction: column; gap: 7px; }
+      .experience-nav button { padding-left: 10px; padding-right: 10px; font-size: .9rem; }
+      .mobile-stage { border-width: 5px; border-radius: 18px; padding: 14px 12px 16px; }
+      .action-row > button { width: 100%; }
+      .screen-footer { flex-direction: column; }
+    }
+    @media (max-width: 640px) {
+      .admin-home { margin: 14px 0 0; }
+      .home-heading { flex-direction: column; gap: 10px; }
+      .year-row { grid-template-columns: minmax(0, 1fr); }
+      .year-row .btn { width: 100%; }
+      .position-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 13px 4px; }
+      .position-row .position-state { grid-column: 2; grid-row: 1; min-width: auto; }
+      .position-row .position-action { grid-column: 1 / -1; width: 100%; }
+      .access-tools { grid-template-columns: minmax(0, 1fr); }
+      .workflow-access { grid-template-columns: minmax(0, 1fr) minmax(0, auto); }
+      .workflow-access .access-status { grid-column: 1 / -1; }
+      .login-card { margin: 18px 0; padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">Church Nominations · Experience prototype</p>
+        <h1>One election, three connected experiences</h1>
+        <p class="context">Grace Community Church / 2026 Elections / Administration / Director</p>
+      </div>
+      <span class="mock-label">Mock data · Not production</span>
+    </header>
+
+    <p class="notice"><strong>Prototype only.</strong> Names, counts, totals, transitions, and decisions are representative mock data. No API, persistence, authorization, live synchronization, or real ballot handling is connected. Final elected-name display on the presentation is a policy proposal pending Product Owner approval.</p>
+
+    <section class="launcher" id="experience-launcher" hidden>
+      <p class="panel-kicker">Choose a workspace</p>
+      <h2>Open an election experience</h2>
+      <p class="subtle">Administrator controls stay in this window. Participant and presentation open separately.</p>
+      <div class="launcher-actions">
+        <button class="btn btn-primary" id="choose-admin">Admin dashboard</button>
+        <button class="btn btn-secondary" data-open-view="voter">Voter link</button>
+        <button class="btn btn-secondary" data-open-view="presentation">Presenter</button>
+      </div>
+    </section>
+
+    <div class="context-bar" aria-label="Election context">
+      <strong>Grace Community Church</strong><span>2026 Elections</span><span>Administration · Director · 1 opening</span>
+      <span class="state-chip" id="global-state">Nominations · Intake not open</span>
+    </div>
+
+    <nav class="experience-nav" aria-label="Separate experience windows">
+      <button class="btn btn-secondary" data-open-view="admin">Open administrator window</button>
+      <button class="btn btn-secondary" data-open-view="voter">Open voter window</button>
+      <button class="btn btn-secondary" data-open-view="presentation">Open presentation window</button>
+    </nav>
+
+    <section class="view active" id="view-admin" role="tabpanel" aria-labelledby="tab-admin" tabindex="0">
+      <div id="admin-home" class="admin-home">
+        <section id="admin-login" class="admin-login login-card" hidden aria-labelledby="login-title">
+          <p class="panel-kicker">Church Nominations</p>
+          <h2 id="login-title">Sign in to your church</h2>
+          <p class="subtle">Use your administrator account to manage election periods and positions.</p>
+          <form id="login-form">
+            <div class="field"><label for="login-email">Email</label><input id="login-email" type="email" autocomplete="username" value="admin@gracechurch.org" required></div>
+            <div class="field"><label for="login-password">Password</label><input id="login-password" type="password" autocomplete="current-password" value="mock-password" required></div>
+            <button type="submit" class="btn btn-primary">Sign in</button>
+          </form>
+          <p class="fine-print">Prototype sign-in only. No account or credentials are checked.</p>
+        </section>
+        <section id="admin-dashboard" class="admin-dashboard" hidden aria-labelledby="church-title">
+          <div class="home-heading">
+            <div><p class="panel-kicker">My churches</p><h2 id="church-title">Grace Community Church</h2><p>Administrator workspace</p></div>
+            <button class="btn btn-secondary" id="sign-out">Sign out</button>
+          </div>
+          <div class="status-counts" aria-label="Current election overview">
+            <span class="status-count"><strong>1</strong> in progress</span>
+            <span class="status-count"><strong>2</strong> not started</span>
+            <span class="status-count"><strong>1</strong> filled</span>
+          </div>
+          <div class="task-row"><h3>Election periods</h3><button class="btn btn-secondary" id="add-period" type="button">Add period</button></div>
+          <div class="year-list">
+            <article class="year-row">
+              <div><h3>2026 Elections</h3><p>4 departments · 8 positions</p></div>
+              <button class="btn btn-primary open-election" type="button">Open election</button>
+            </article>
+            <article class="year-row">
+              <div><h3>2025 Elections</h3><p>Completed · 4 departments · 7 positions</p></div>
+              <button class="btn btn-secondary open-election" type="button">View history</button>
+            </article>
+          </div>
+        </section>
+        <section id="admin-election" class="admin-election" hidden aria-labelledby="period-title">
+          <nav class="breadcrumb" aria-label="Breadcrumb"><button type="button" id="back-to-church">Grace Community Church</button><span aria-hidden="true">/</span><span>2026 Elections</span></nav>
+          <div class="home-heading">
+            <div><p class="panel-kicker">Grace Community Church</p><h2 id="period-title">2026 Elections</h2><p>Departments, positions, and current progress</p></div>
+            <button class="btn btn-secondary" id="configure-period" type="button">Configure positions</button>
+          </div>
+          <div class="status-counts" aria-label="Position status summary">
+            <span class="status-count"><strong>1</strong> in progress</span>
+            <span class="status-count"><strong>2</strong> not started</span>
+            <span class="status-count"><strong>1</strong> filled</span>
+          </div>
+          <section class="access-tools" aria-label="Election access">
+            <article class="access-tool">
+              <h3>Participant session link</h3>
+              <p>One session link for the authorized current phase. Anyone with the link may be able to access it.</p>
+              <p class="access-url" id="participant-url">http://127.0.0.1:8765/?view=voter</p>
+              <div class="action-row"><button class="btn btn-secondary" id="copy-participant-link" type="button">Copy session link</button></div>
+            </article>
+            <article class="access-tool">
+              <h3>Audience presentation</h3>
+              <p>The separate display is read-only. Presentation controls stay in this authenticated admin workspace.</p>
+              <span class="access-context" id="election-presentation-status">Presentation display is on</span>
+              <div class="action-row">
+                <button class="btn btn-primary" id="open-election-presentation" type="button">Open presentation</button>
+                <button class="btn btn-secondary" id="toggle-election-presentation" type="button">Hide display</button>
+              </div>
+            </article>
+          </section>
+          <section class="department">
+            <div class="department-heading"><h3>Administration</h3><span class="fine-print">2 positions</span></div>
+            <article class="position-row"><div class="position-info"><strong>Director</strong><span>1 opening · Round 2</span></div><span class="status position-state status-progress">In progress</span><button class="btn btn-primary position-action" data-open-election-flow type="button">Continue election</button></article>
+            <article class="position-row"><div class="position-info"><strong>Subdirector</strong><span>1 opening</span></div><span class="status position-state status-not-started">Not started</span><button class="btn btn-secondary position-action" type="button">Start nominations</button></article>
+          </section>
+          <section class="department">
+            <div class="department-heading"><h3>Community Services</h3><span class="fine-print">2 positions</span></div>
+            <article class="position-row"><div class="position-info"><strong>Outreach Coordinator</strong><span>1 opening · Elected candidate accepted</span></div><span class="status position-state status-filled">Filled</span><button class="btn btn-secondary position-action" type="button">View result</button></article>
+            <article class="position-row"><div class="position-info"><strong>Facilities Lead</strong><span>1 opening</span></div><span class="status position-state status-not-started">Not started</span><button class="btn btn-secondary position-action" type="button">Start nominations</button></article>
+          </section>
+          <section class="department">
+            <div class="department-heading"><h3>Finance</h3><span class="fine-print">2 positions</span></div>
+            <article class="position-row"><div class="position-info"><strong>Treasurer</strong><span>1 opening</span></div><span class="status position-state status-not-started">Not started</span><button class="btn btn-secondary position-action" type="button">Start nominations</button></article>
+            <article class="position-row"><div class="position-info"><strong>Assistant Treasurer</strong><span>1 opening</span></div><span class="status position-state status-not-started">Not started</span><button class="btn btn-secondary position-action" type="button">Start nominations</button></article>
+          </section>
+          <section class="department">
+            <div class="department-heading"><h3>Education</h3><span class="fine-print">2 positions</span></div>
+            <article class="position-row"><div class="position-info"><strong>Education Director</strong><span>1 opening</span></div><span class="status position-state status-not-started">Not started</span><button class="btn btn-secondary position-action" type="button">Start nominations</button></article>
+            <article class="position-row"><div class="position-info"><strong>Youth Coordinator</strong><span>1 opening</span></div><span class="status position-state status-not-started">Not started</span><button class="btn btn-secondary position-action" type="button">Start nominations</button></article>
+          </section>
+        </section>
+      </div>
+      <div id="election-flow" class="election-flow">
+      <div class="breadcrumb"><button type="button" id="back-to-period">Grace Community Church / 2026 Elections / Administration / Director</button></div>
+      <section class="workflow-access" aria-label="Current election access shortcuts">
+        <div><strong>Current session access</strong><p>Grace Community Church · 2026 Elections · Director</p></div>
+        <span class="status access-status">Session link · current phase</span>
+        <button class="btn btn-secondary" id="copy-workflow-link" type="button">Copy link</button>
+        <button class="btn btn-primary" id="open-workflow-presentation" type="button">Presentation</button>
+      </section>
+      <div class="admin-grid">
+        <section class="panel panel-pad" aria-labelledby="admin-task-title">
+          <p class="panel-kicker">Position workflow · Current task</p>
+          <div class="task-row"><h2 id="admin-task-title">Open nomination intake</h2><span class="status" id="admin-status">Not open</span></div>
+          <p class="subtle" id="admin-instruction">Start by inviting people to submit names for this position.</p>
+          <div class="progress" aria-hidden="true"><span id="progress-1"></span><span id="progress-2"></span><span id="progress-3"></span><span id="progress-4"></span></div>
+          <div class="progress-note"><span id="progress-label">Round setup</span><span id="round-label">Round 1 of 2</span></div>
+          <ol class="step-list" aria-label="Election progress">
+            <li class="current" id="step-nominations">Collect and review nominations</li>
+            <li class="current" id="step-voting">Voting round 1</li>
+            <li id="step-decisions">Candidate decisions</li>
+            <li id="step-complete">Position complete</li>
+          </ol>
+          <div class="task" id="admin-intake-setup">
+            <h3>Nomination intake</h3>
+            <p class="subtle">People submit proposed names for Chair. Intake uses a shared position link in production.</p>
+            <div class="action-row"><button class="btn btn-primary" id="open-intake">Open nomination intake</button></div>
+          </div>
+          <div class="task" id="admin-intake-active" hidden>
+            <h3>Nomination intake is open</h3>
+            <div class="metric"><strong id="nomination-profile-count">0</strong><span>profile submissions</span></div>
+            <p class="fine-print">The count is profile-level, not a verified number of people. Audience surfaces show only names you explicitly broadcast.</p>
+            <div id="admin-working-names"></div>
+            <div class="action-row">
+              <button class="btn btn-primary" id="broadcast-nominations" disabled>Broadcast list</button>
+              <button class="btn btn-secondary" id="close-intake" disabled>Close nomination intake</button>
+            </div>
+            <p class="fine-print" id="broadcast-status" role="status">No list broadcast yet.</p>
+          </div>
+          <div class="task" id="admin-intake-review" hidden>
+            <h3>Review and consolidate</h3>
+            <p class="subtle">Edit or remove names in the working list. Confirmed refinements appear live on the read-only voter and presentation views.</p>
+            <div id="admin-review-names"></div>
+            <div class="action-row"><button class="btn btn-primary" id="confirm-nominations">Confirm consolidated list</button></div>
+          </div>
+          <div class="task" id="admin-intake-confirmed" hidden>
+            <h3>Consolidated list saved</h3>
+            <p class="subtle">The confirmed active list is saved in this mock. It remains hidden from the audience until you reveal it.</p>
+            <div class="action-row"><button class="btn btn-primary" id="reveal-nominations">Reveal nominations</button></div>
+          </div>
+          <div class="task" id="admin-intake-revealed" hidden>
+            <h3>Nominations revealed</h3>
+            <p class="subtle">The read-only presentation shows the confirmed names. Continue when ready to prepare voting.</p>
+            <div class="action-row"><button class="btn btn-primary" id="prepare-round">Prepare round 1</button></div>
+          </div>
+          <div class="task" id="admin-progress" hidden>
+            <h3>Round setup</h3>
+            <p class="subtle">Select exactly <strong id="selection-count">2</strong> candidates per ballot.</p>
+            <div class="action-row"><button class="btn btn-primary" id="open-voting">Open voting</button></div>
+          </div>
+          <div class="task">
+            <h3>Audience presentation</h3>
+            <p class="subtle" id="presentation-control-status">Presentation display is on. This mock control does not affect the voter session link.</p>
+            <div class="action-row">
+              <button class="btn btn-secondary" id="toggle-presentation" aria-pressed="true">Hide presentation</button>
+            </div>
+          </div>
+          <div class="task" id="admin-active" hidden>
+            <h3>Voting is active</h3>
+            <div class="metric"><strong id="received-count">0</strong><span>of <span id="expected-count">18</span> profile/link submissions</span></div>
+            <p class="fine-print">Profile/link submissions are not verified people. Ballot totals stay hidden.</p>
+            <div class="action-row"><button class="btn btn-primary" id="close-voting" disabled>Close voting</button></div>
+          </div>
+          <div class="task" id="admin-closed" hidden>
+            <h3>Voting closed · Results unreleased</h3>
+            <p class="callout warning">Private admin preview is ready. Both audience surfaces remain neutral until you explicitly release results.</p>
+            <ul class="candidate-list" id="admin-preview"></ul>
+            <div class="action-row"><button class="btn btn-primary" id="release-results">Release results</button></div>
+          </div>
+          <div class="task" id="admin-decisions" hidden>
+            <h3 id="decision-heading">Record candidate decisions</h3>
+            <p class="subtle" id="decision-help">Choose who advances to the next round. These decisions are admin-only.</p>
+            <div class="decision-controls" id="decision-controls"></div>
+            <div class="action-row"><button class="btn btn-primary" id="save-decisions">Save decisions</button></div>
+            <p class="callout success" id="decision-saved" hidden>Mock decisions saved. A fresh round starts with zero votes.</p>
+            <div class="action-row" id="next-round-row" hidden><button class="btn btn-primary" id="next-round">Prepare round 2</button></div>
+            <section class="task" id="candidate-response" hidden>
+              <h3 id="response-title">Candidate response</h3>
+              <p class="subtle" id="response-candidate"></p>
+              <div class="action-row">
+                <button class="btn btn-primary" id="candidate-accept">Record acceptance</button>
+                <button class="btn btn-secondary" id="candidate-decline">Record decline</button>
+              </div>
+            </section>
+            <section class="task" id="decline-options" hidden>
+              <h3>Choose a replacement path</h3>
+              <p class="subtle" id="decline-summary"></p>
+              <div class="action-row" id="runner-up-row">
+                <button class="btn btn-secondary" id="invite-runner-up">Invite next-highest candidate</button>
+              </div>
+              <div class="action-row">
+                <button class="btn btn-primary" id="choose-replacement-poll">Choose a new round</button>
+              </div>
+            </section>
+            <section class="task" id="replacement-roster" hidden>
+              <h3>Replacement round roster</h3>
+              <p class="subtle">Choose eligible candidates from the previous round. The new round starts with fresh totals.</p>
+              <div class="decision-controls" id="replacement-candidates"></div>
+              <div class="action-row"><button class="btn btn-primary" id="start-replacement-round">Start replacement round</button></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="panel panel-pad" aria-labelledby="roster-title">
+          <p class="panel-kicker" id="roster-kicker">Nomination intake</p>
+          <h2 id="roster-title">Names not yet submitted</h2>
+          <p class="subtle" id="roster-description">Submitted names are not shown to the audience before explicit reveal.</p>
+          <ul class="candidate-list" id="admin-roster"></ul>
+          <div class="callout" id="roster-note">Round setup is editable only before voting opens. This mock does not save to a server.</div>
+        </section>
+      </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-voter" role="tabpanel" aria-labelledby="tab-voter" tabindex="0" hidden>
+      <div class="mobile-stage">
+        <div class="mobile-top"><span>Spring election</span><span id="voter-stage-label">Round 1 · Not open</span></div>
+        <div id="nomination-content" class="compact-view" hidden>
+          <div class="ballot-heading">
+            <span class="status">Nomination intake open</span>
+            <h2>Submit names for Chair</h2>
+            <p class="subtle">Representative mock names are prefilled as an unsent draft. Submit them to send your list; you can revise it while intake is open.</p>
+          </div>
+          <form id="nomination-form">
+            <label class="choice"><span>Name 1</span><input type="text" name="nominee" value="Taylor Reed" maxlength="120" aria-label="Nominee name 1"></label>
+            <label class="choice"><span>Name 2</span><input type="text" name="nominee" value="Casey Lin" maxlength="120" aria-label="Nominee name 2"></label>
+            <label class="choice"><span>Name 3</span><input type="text" name="nominee" value="Emerson Brooks" maxlength="120" aria-label="Nominee name 3"></label>
+            <label class="choice"><span>Name 4</span><input type="text" name="nominee" value="Nia Carter" maxlength="120" aria-label="Nominee name 4"></label>
+            <label class="choice"><span>Name 5</span><input type="text" name="nominee" value="Alex Morgan" maxlength="120" aria-label="Nominee name 5"></label>
+            <button type="submit" class="btn btn-primary full" id="submit-nominations">Submit my nomination list</button>
+          </form>
+          <div class="callout success" id="nomination-confirmation" role="status" hidden>Your names have been submitted. You can revise them while intake is open.</div>
+          <section class="task" aria-labelledby="shared-list-title">
+            <h3 id="shared-list-title">Names shared by the administrator</h3>
+            <p class="fine-print" id="voter-nomination-copy">No names have been broadcast yet.</p>
+            <ul class="candidate-list" id="voter-nomination-list"></ul>
+          </section>
+        </div>
+        <div id="nomination-review-view" class="compact-view" hidden>
+          <div class="ballot-heading"><span class="status">List refinement · Read-only</span><h2>Names for Chair</h2><p class="subtle">The administrator is refining the shared list. Updates appear here as they are confirmed.</p></div>
+          <ul class="candidate-list" id="voter-refined-list"></ul>
+          <section class="task" aria-labelledby="voter-change-log-title">
+            <h3 id="voter-change-log-title">List changes</h3>
+            <ol class="change-log" id="voter-change-log"></ol>
+          </section>
+        </div>
+        <div id="ballot-content">
+          <div class="ballot-heading"><span class="status" id="ballot-status">Not open</span><h2>Chair · Round 1</h2><p class="subtle" id="ballot-instruction">The ballot will appear here when voting opens.</p></div>
+          <form id="ballot-form">
+            <div id="ballot-options"></div>
+            <div class="counter"><span id="selection-progress">0 of 2 selected</span><span>Required</span></div>
+            <button type="submit" class="btn btn-primary full" id="submit-ballot" disabled>Submit ballot</button>
+          </form>
+          <div class="callout success" id="ballot-confirmation" role="status" hidden>Mock ballot submitted. You may replace it while this round remains open.</div>
+        </div>
+        <div id="voter-neutral" hidden>
+          <div class="ballot-heading"><span class="status" id="neutral-status">Voting closed</span><h2 id="neutral-title">Thank you</h2><p class="subtle" id="neutral-copy">This round is closed. Results are not released.</p></div>
+        </div>
+        <div id="voter-results" hidden>
+          <div class="ballot-heading"><span class="status">Results released</span><h2 id="voter-results-title">Chair · Round 1</h2><p class="subtle">Aggregate totals only</p></div>
+          <ul class="candidate-list" id="voter-result-list"></ul>
+        </div>
+        <div id="voter-complete" hidden>
+          <div class="ballot-heading"><span class="status">Position complete</span><h2>Chair</h2><p class="subtle">The current participation phase has ended.</p></div>
+          <p class="fine-print">This session link does not provide historical reports.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-presentation" role="tabpanel" aria-labelledby="tab-presentation" tabindex="0" hidden>
+      <div class="panel presentation" aria-live="polite" aria-atomic="true">
+        <span class="screen-label" id="presentation-label">Spring election · Chair</span>
+        <h2 id="presentation-title">Welcome</h2>
+        <p class="subtitle" id="presentation-subtitle">The election presentation is ready.</p>
+        <p class="presentation-empty" id="presentation-empty">The audience sees a neutral holding screen until nomination or voting results are explicitly released.</p>
+        <ul class="candidate-list" id="presentation-list" hidden></ul>
+        <ol class="change-log presentation-log" id="presentation-change-log" hidden></ol>
+        <div class="callout warning" id="final-policy-note" hidden>Proposed final elected-candidate display. Current E6.8/E6.10 policy excludes candidate decisions from viewer surfaces. Approval is required before implementation.</div>
+        <div class="screen-footer"><span>Read-only audience view</span><span>Fullscreen: use browser controls</span></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const candidates = ["Avery Bennett", "Jordan Ellis", "Morgan Patel", "Riley Thompson", "Samira Okafor"];
+      const roundOne = [
+        { name: "Avery Bennett", votes: 12 },
+        { name: "Jordan Ellis", votes: 9 },
+        { name: "Morgan Patel", votes: 7 },
+        { name: "Riley Thompson", votes: 5 },
+        { name: "Samira Okafor", votes: 3 }
+      ];
+      const roundTwo = [
+        { name: "Avery Bennett", votes: 11 },
+        { name: "Jordan Ellis", votes: 7 },
+        { name: "Morgan Patel", votes: 4 }
+      ];
+      const state = { phase: "intake-setup", round: 1, nominationSubmitted: false, nominees: [], participantNominees: ["Taylor Reed", "Casey Lin", "Emerson Brooks", "Nia Carter", "Alex Morgan"], participantNominationSubmitted: false, candidates: [...candidates], broadcastNominees: [], broadcastReady: false, nominationChanges: [], submitted: false, selected: [], decisions: [], released: false, winner: "Avery Bennett", declinedCandidates: [], replacementCandidates: [], presentationVisible: true };
+      const $ = (id) => document.getElementById(id);
+      const prototypeKey = "church-nominations-three-experience-mock-v1";
+      const query = new URLSearchParams(location.search);
+      const requestedView = query.get("view");
+      const currentView = ["admin", "voter", "presentation"].includes(requestedView) ? requestedView : "launcher";
+      document.body.dataset.view = currentView;
+      $("experience-launcher").hidden = currentView !== "launcher";
+      const rolePanels = { admin: "view-admin", voter: "view-voter", presentation: "view-presentation" };
+      Object.entries(rolePanels).forEach(([view, panelId]) => {
+        const panel = $(panelId);
+        const isCurrent = currentView === view || (currentView === "launcher" && view === "admin");
+        panel.hidden = !isCurrent;
+        panel.classList.toggle("active", isCurrent);
+      });
+      if (currentView !== "launcher") {
+        document.title = `${currentView[0].toUpperCase()}${currentView.slice(1)} | Election Prototype`;
+        document.querySelector("h1").textContent = currentView === "admin" ? "Administrator workspace" : currentView === "voter" ? "Participant link" : "Election presentation";
+        document.querySelector(".context").textContent = `${currentView === "admin" ? "Admin" : currentView === "voter" ? "Voter" : "Presentation"} window · Grace Community Church / 2026 Elections / Administration / Director`;
+      }
+      if (currentView === "admin") {
+        document.body.dataset.adminScreen = "dashboard";
+        $("admin-login").hidden = true;
+        $("admin-dashboard").hidden = false;
+        $("admin-election").hidden = true;
+        $("election-flow").hidden = true;
+      }
+      if (currentView === "launcher") {
+        document.body.dataset.adminScreen = "login";
+        $("admin-login").hidden = false;
+        $("admin-dashboard").hidden = true;
+        $("admin-election").hidden = true;
+        $("election-flow").hidden = true;
+        $("experience-launcher").hidden = true;
+      }
+
+      function applySharedState(shared) {
+        if (!shared || typeof shared !== "object") return;
+        Object.assign(state, shared);
+        update(false);
+      }
+      try {
+        const saved = localStorage.getItem(prototypeKey);
+        if (saved) applySharedState(JSON.parse(saved));
+      } catch {
+        document.querySelector(".notice").textContent = "Prototype only. Cross-window mock synchronization is unavailable in this browser context.";
+      }
+      window.addEventListener("storage", (event) => {
+        if (event.key !== prototypeKey || !event.newValue) return;
+        try { applySharedState(JSON.parse(event.newValue)); } catch { /* Ignore malformed mock state. */ }
+      });
+      document.querySelectorAll("[data-open-view]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const targetView = button.dataset.openView;
+          window.open(`${location.pathname}?view=${targetView}`, `church-nominations-${targetView}`);
+        });
+      });
+      function showAdminScreen(screen) {
+        if (currentView !== "admin" && currentView !== "launcher") return;
+        if (currentView === "launcher") {
+          $("experience-launcher").hidden = screen !== "roles";
+          $("admin-login").hidden = screen !== "login";
+        }
+        document.body.dataset.adminScreen = screen;
+        $("admin-login").hidden = screen !== "login";
+        $("admin-dashboard").hidden = screen !== "dashboard";
+        $("admin-election").hidden = screen !== "election";
+        $("election-flow").hidden = screen !== "workflow";
+      }
+      $("login-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        showAdminScreen(currentView === "launcher" ? "roles" : "dashboard");
+      });
+      $("choose-admin").addEventListener("click", () => {
+        if (currentView === "launcher") {
+          document.body.dataset.view = "admin";
+          document.body.dataset.adminScreen = "dashboard";
+          document.title = "Admin | Election Prototype";
+          document.querySelector("h1").textContent = "Administrator workspace";
+          document.querySelector(".context").textContent = "Admin window · Grace Community Church / 2026 Elections";
+          $("experience-launcher").hidden = true;
+          $("admin-login").hidden = true;
+          $("admin-dashboard").hidden = false;
+        } else {
+          showAdminScreen("dashboard");
+        }
+      });
+      $("sign-out").addEventListener("click", () => {
+        if (currentView === "launcher") {
+          document.body.dataset.view = "launcher";
+          document.body.dataset.adminScreen = "login";
+          $("admin-login").hidden = false;
+          $("admin-dashboard").hidden = true;
+          $("admin-election").hidden = true;
+          $("election-flow").hidden = true;
+        } else showAdminScreen("login");
+      });
+      document.querySelectorAll(".open-election").forEach((button) => button.addEventListener("click", () => showAdminScreen("election")));
+      $("back-to-church").addEventListener("click", () => showAdminScreen("dashboard"));
+      document.querySelectorAll("[data-open-election-flow]").forEach((button) => button.addEventListener("click", () => showAdminScreen("workflow")));
+      $("back-to-period").addEventListener("click", () => showAdminScreen("election"));
+      $("add-period").addEventListener("click", () => window.alert("Prototype only: add election period"));
+      $("configure-period").addEventListener("click", () => window.alert("Prototype only: configure departments and positions"));
+      const participantSessionUrl = `${location.origin}${location.pathname}?view=voter`;
+      let presentationWindow = null;
+      function openPresentationWindow() {
+        presentationWindow = window.open(`${location.pathname}?view=presentation`, "church-nominations-presentation");
+        if (!presentationWindow) window.alert("Allow pop-ups to open the presentation window.");
+      }
+      function syncPresentationControls() {
+        const label = state.presentationVisible ? "Hide display" : "Show display";
+        [$("toggle-election-presentation"), $("toggle-presentation")].filter(Boolean).forEach((button) => {
+          button.textContent = label;
+          button.setAttribute("aria-pressed", String(state.presentationVisible));
+        });
+        const status = $("election-presentation-status");
+        if (status) status.textContent = `Presentation display is ${state.presentationVisible ? "on" : "off"}`;
+      }
+      async function copyParticipantLink() {
+        try {
+          await navigator.clipboard.writeText(participantSessionUrl);
+          window.alert("Participant session link copied.");
+        } catch {
+          window.prompt("Copy the participant session link:", participantSessionUrl);
+        }
+      }
+      $("copy-participant-link").addEventListener("click", copyParticipantLink);
+      $("copy-workflow-link").addEventListener("click", copyParticipantLink);
+      $("open-election-presentation").addEventListener("click", openPresentationWindow);
+      $("open-workflow-presentation").addEventListener("click", openPresentationWindow);
+      $("toggle-election-presentation").addEventListener("click", () => { state.presentationVisible = !state.presentationVisible; update(); });
+      $("toggle-presentation").addEventListener("click", () => { state.presentationVisible = !state.presentationVisible; update(); });
+
+      function results() {
+        if (state.round === 1) return roundOne;
+        if (state.round === 2) return roundTwo.filter((candidate) => state.candidates.includes(candidate.name));
+        return state.candidates.map((name, index) => ({ name, votes: [9, 6, 3][index] ?? 1 }));
+      }
+      function selectedCount() { return state.round === 1 ? 2 : 1; }
+      function listItem(name, value, suffix = "") {
+        const li = document.createElement("li");
+        const label = document.createElement("span");
+        label.className = "name";
+        label.textContent = name;
+        li.appendChild(label);
+        if (value !== undefined) {
+          const count = document.createElement("span");
+          count.className = "value";
+          count.textContent = `${value}${suffix}`;
+          li.appendChild(count);
+        }
+        return li;
+      }
+      function renderList(id, entries, showVotes = false) {
+        const list = $(id);
+        list.replaceChildren(...entries.map((entry) => listItem(entry.name, showVotes ? entry.votes : undefined)));
+      }
+      function renderBallot() {
+        const options = $("ballot-options");
+        options.replaceChildren();
+        const roster = state.candidates;
+        roster.forEach((name, index) => {
+          const label = document.createElement("label");
+          label.className = "choice";
+          const input = document.createElement("input");
+          input.type = "checkbox";
+          input.name = "candidate";
+          input.value = name;
+          input.checked = state.selected.includes(name);
+          input.disabled = !["active", "submitted"].includes(state.phase);
+          input.id = `choice-${state.round}-${index}`;
+          input.addEventListener("change", () => {
+            if (input.checked && state.selected.length >= selectedCount()) input.checked = false;
+            state.selected = [...options.querySelectorAll('input:checked')].map((control) => control.value);
+            updateBallotControls();
+          });
+          const text = document.createElement("span");
+          text.textContent = name;
+          label.append(input, text);
+          options.appendChild(label);
+        });
+        $("selection-progress").textContent = `${state.selected.length} of ${selectedCount()} selected`;
+        $("ballot-confirmation").hidden = !state.submitted || state.phase !== "active";
+        $("ballot-form").hidden = !["active", "submitted"].includes(state.phase);
+        updateBallotControls();
+      }
+      function renderVoterNominations() {
+        const nomination = ["intake-active", "intake-submitted"].includes(state.phase);
+        const refining = state.phase === "intake-review";
+        const form = $("nomination-form");
+        form.hidden = !nomination;
+        $("nomination-content").hidden = !nomination;
+        $("nomination-review-view").hidden = !refining;
+        $("nomination-confirmation").hidden = !nomination || !state.participantNominationSubmitted;
+        $("submit-nominations").textContent = state.participantNominationSubmitted ? "Update my nomination list" : "Submit my nomination list";
+        [...form.querySelectorAll('input[name="nominee"]')].forEach((input, index) => {
+          input.disabled = !nomination;
+          input.value = state.participantNominees[index] || "";
+        });
+        $("voter-nomination-copy").textContent = state.broadcastNominees.length ? "Current broadcast · Read-only" : "No names have been broadcast yet.";
+        renderList("voter-nomination-list", state.broadcastNominees.map((name) => ({ name })));
+        renderList("voter-refined-list", state.nominees.map((name) => ({ name })));
+        renderChangeLog("voter-change-log");
+      }
+      function renderChangeLog(id) {
+        const list = $(id);
+        list.replaceChildren(...state.nominationChanges.map((change) => {
+          const item = document.createElement("li");
+          item.textContent = change;
+          return item;
+        }));
+        list.hidden = state.nominationChanges.length === 0;
+      }
+      function renderAdminWorkingNames() {
+        const containers = [$("admin-working-names"), $("admin-review-names")];
+        containers.forEach((container) => container.replaceChildren());
+        state.nominees.forEach((name, index) => {
+          containers.forEach((container, contextIndex) => {
+            const row = document.createElement("div");
+            row.className = "nominee-row";
+            const input = document.createElement("input");
+            input.type = "text";
+            input.value = name;
+            input.maxLength = 120;
+            input.disabled = contextIndex === 1 && state.phase !== "intake-review";
+            input.setAttribute("aria-label", `Edit nominee ${index + 1}`);
+            let saveButton;
+            input.addEventListener("input", () => {
+              if (saveButton) saveButton.disabled = input.value.trim() === name.trim();
+              $("broadcast-nominations").disabled = !state.nominees.some((candidate) => candidate.trim());
+            });
+            if (contextIndex === 1 && state.phase === "intake-review") {
+              saveButton = document.createElement("button");
+              saveButton.type = "button";
+              saveButton.className = "btn btn-primary btn-small";
+              saveButton.textContent = "Save";
+              saveButton.disabled = true;
+              saveButton.setAttribute("aria-label", `Save correction for ${name}`);
+              saveButton.addEventListener("click", () => {
+                const correctedName = input.value.trim();
+                if (!correctedName || correctedName === state.nominees[index]) return;
+                const previousName = state.nominees[index];
+                state.nominees[index] = correctedName;
+                state.nominationChanges.push(`Name corrected: ${previousName} → ${correctedName}`);
+                updateAudienceNominationViews();
+                renderAdminWorkingNames();
+              });
+            }
+            const remove = document.createElement("button");
+            remove.type = "button";
+            remove.className = "btn btn-secondary btn-small";
+            remove.textContent = "Remove";
+            remove.disabled = contextIndex === 1 && state.phase !== "intake-review";
+            remove.setAttribute("aria-label", `Remove ${name || `nominee ${index + 1}`}`);
+            remove.addEventListener("click", () => {
+              const removedName = state.nominees[index];
+              state.nominees.splice(index, 1);
+              if (state.phase === "intake-review") {
+                state.nominationChanges.push(`Name removed: ${removedName}`);
+                updateAudienceNominationViews();
+              }
+              renderAdminWorkingNames();
+            });
+            row.append(input);
+            if (saveButton) row.append(saveButton);
+            row.append(remove);
+            container.appendChild(row);
+          });
+        });
+        $("broadcast-nominations").disabled = !state.nominees.some((name) => name.trim());
+      }
+      function updateAudienceNominationViews() {
+        renderList("voter-refined-list", state.nominees.map((name) => ({ name })));
+        renderChangeLog("voter-change-log");
+        if (state.presentationVisible && state.phase === "intake-review") {
+          renderList("presentation-list", state.nominees.map((name) => ({ name })));
+          renderChangeLog("presentation-change-log");
+          $("presentation-list").hidden = false;
+          $("presentation-empty").hidden = true;
+          $("presentation-title").textContent = "List refinement · Live updates";
+          $("presentation-subtitle").textContent = "Read-only shared nomination list";
+        }
+      }
+      function updateBallotControls() {
+        $("selection-progress").textContent = `${state.selected.length} of ${selectedCount()} selected`;
+        $("submit-ballot").textContent = state.submitted ? "Replace ballot" : "Submit ballot";
+        $("submit-ballot").disabled = state.phase !== "active" || state.selected.length !== selectedCount();
+        $("close-voting").disabled = !state.submitted;
+        $("received-count").textContent = state.submitted ? "1" : "0";
+      }
+      function renderDecisions() {
+        const controls = $("decision-controls");
+        controls.replaceChildren();
+        const totals = results().filter((candidate) => !state.declinedCandidates.includes(candidate.name));
+        const eligible = state.round > 1 ? totals.slice(0, 1) : totals;
+        eligible.forEach((name, index) => {
+          const label = document.createElement("label");
+          const input = document.createElement("input");
+          input.type = "checkbox";
+          input.value = name.name;
+          input.checked = state.decisions.includes(name.name);
+          input.id = `decision-${state.round}-${index}`;
+          const text = document.createElement("span");
+          text.className = "decision-label";
+          const candidateName = document.createElement("span");
+          candidateName.textContent = state.round > 1 ? `Elected: ${name.name}` : name.name;
+          const total = document.createElement("span");
+          total.className = "vote-total";
+          total.textContent = `${name.votes} votes`;
+          text.append(candidateName, total);
+          label.append(input, text);
+          controls.appendChild(label);
+        });
+      }
+      function renderReplacementCandidates() {
+        const container = $("replacement-candidates");
+        container.replaceChildren();
+        results()
+          .filter((candidate) => !state.declinedCandidates.includes(candidate.name))
+          .forEach((candidate, index) => {
+            const label = document.createElement("label");
+            const input = document.createElement("input");
+            input.type = "checkbox";
+            input.value = candidate.name;
+            input.checked = state.replacementCandidates.includes(candidate.name);
+            input.id = `replacement-candidate-${index}`;
+            input.addEventListener("change", () => {
+              state.replacementCandidates = [...container.querySelectorAll("input:checked")].map((item) => item.value);
+            });
+            const contents = document.createElement("span");
+            contents.className = "decision-label";
+            const name = document.createElement("span");
+            name.textContent = candidate.name;
+            const votes = document.createElement("span");
+            votes.className = "vote-total";
+            votes.textContent = `${candidate.votes} votes`;
+            contents.append(name, votes);
+            label.append(input, contents);
+            container.appendChild(label);
+          });
+      }
+      function setPanelVisibility() {
+        const intakePhases = ["intake-setup", "intake-active", "intake-submitted", "intake-review", "nominations-confirmed", "nominations-revealed"];
+        $("admin-intake-setup").hidden = state.phase !== "intake-setup";
+        $("admin-intake-active").hidden = !["intake-active", "intake-submitted"].includes(state.phase);
+        $("admin-intake-review").hidden = state.phase !== "intake-review";
+        $("admin-intake-confirmed").hidden = state.phase !== "nominations-confirmed";
+        $("admin-intake-revealed").hidden = state.phase !== "nominations-revealed";
+        $("admin-progress").hidden = !["draft", "next-draft"].includes(state.phase);
+        $("admin-active").hidden = state.phase !== "active";
+        $("admin-closed").hidden = state.phase !== "closed";
+        $("admin-decisions").hidden = !["released", "decided", "awaiting-response", "declined", "replacement-roster", "complete"].includes(state.phase);
+        $("decision-saved").hidden = state.phase !== "decided" && state.phase !== "complete";
+        $("next-round-row").hidden = state.phase !== "decided" || state.round !== 1;
+        $("candidate-response").hidden = !["awaiting-response", "declined", "replacement-decided"].includes(state.phase);
+        $("decline-options").hidden = state.phase !== "declined";
+        $("replacement-roster").hidden = state.phase !== "replacement-roster";
+        $("save-decisions").hidden = !["released"].includes(state.phase);
+        $("open-voting").textContent = state.round === 1 ? "Open voting" : "Open round 2";
+        $("selection-count").textContent = selectedCount();
+        $("round-label").textContent = `Round ${state.round}`;
+        $("roster-kicker").textContent = intakePhases.includes(state.phase) ? "Nomination intake" : `Round ${state.round} · Candidate roster`;
+        $("roster-title").textContent = state.phase === "complete" ? "Position outcome" : state.phase === "intake-setup" || state.phase === "intake-active" ? "Names not yet submitted" : "People on the ballot";
+        $("roster-description").textContent = state.phase === "intake-setup" || state.phase === "intake-active" ? "Submitted names are not shown to the audience before explicit reveal." : state.phase === "intake-review" ? "Names are visible to admins for review only; the presentation remains neutral." : state.phase === "complete" ? "A representative mock election decision." : "Representative names; the active ballot uses this same list.";
+        $("roster-note").textContent = state.phase === "complete" ? "Candidate response was recorded in this mock. Contact and response evidence are not stored." : "Round setup is editable only before voting opens. This mock does not save to a server.";
+        const copy = {
+          "intake-setup": ["Not open", "Open nomination intake", "Start by inviting people to submit names for this position.", "Open nomination intake"],
+          "intake-active": ["Intake open", "Manage nomination list", "Review the working list, edit or remove names, and broadcast updates when ready.", "Nomination intake open"],
+          "intake-submitted": ["Intake open", "Collect nominations", "A mock participant submitted a list. Intake remains open for revisions.", "Nomination intake open"],
+          "intake-review": ["Intake closed", "Review and consolidate names", "Review anonymous proposed names, resolve duplicates, and confirm the shared list.", "Nomination review"],
+          "nominations-confirmed": ["List confirmed", "Reveal the shared list", "The consolidated list is saved but remains private until you reveal it.", "Nomination review"],
+          "nominations-revealed": ["Nominations revealed", "Prepare the first voting round", "The audience can see the confirmed list. Continue to configure the first round.", "Nominations revealed"],
+          draft: ["Draft", "Prepare round 1", "Review the roster and open voting when the room is ready.", "Round setup"],
+          "next-draft": ["Round 2 · Draft", "Prepare round 2", "The next poll starts with fresh totals and the same session link.", "Round 2 setup"],
+          active: ["Voting active", "Monitor voting", "Watch permitted operational progress. Totals remain concealed.", "Voting open"],
+          closed: ["Closed · Unreleased", "Review and release results", "Review the private mock preview, then explicitly release it to both viewer surfaces.", "Voting closed"],
+          released: ["Results released", "Record candidate decisions", "Choose who advances. The audience sees no candidate decisions.", "Results released"],
+          decided: ["Decisions saved", "Prepare the next step", state.round === 1 ? "The selected mock candidates advance to a fresh round." : "Save an elected outcome to complete the opening.", "Decision saved"],
+          "awaiting-response": ["Awaiting response", "Confirm candidate decision", "Record the elected candidate's response. An acceptance fills the opening; a decline starts the replacement choices.", "Candidate response"],
+          declined: ["Candidate declined", "Choose a replacement path", "The elected candidate declined. Choose the next-highest candidate or configure a new round.", "Replacement decision"],
+          "replacement-roster": ["Replacement round", "Choose eligible candidates", "Select the previous-round candidates for a fresh replacement poll.", "Replacement roster"],
+          complete: ["Position complete", "Position complete", "The required opening is filled in this mock scenario.", "Opening filled"]
+        }[state.phase];
+        $("admin-status").textContent = copy[0];
+        $("admin-task-title").textContent = copy[1];
+        $("admin-instruction").textContent = copy[2];
+        $("progress-label").textContent = copy[3];
+        const phaseIndex = { "intake-setup": 0, "intake-active": 0, "intake-submitted": 0, "intake-review": 0, "nominations-confirmed": 0, "nominations-revealed": 0, draft: 1, "next-draft": 1, active: 1, closed: 1, released: 2, decided: 2, "awaiting-response": 3, declined: 3, "replacement-roster": 3, complete: 4 }[state.phase];
+        [1, 2, 3, 4].forEach((number) => $(`progress-${number}`).classList.toggle("done", number <= phaseIndex + 1));
+        ["step-nominations", "step-voting", "step-decisions", "step-complete"].forEach((id) => $(id).classList.remove("current", "complete"));
+        if (intakePhases.includes(state.phase)) $("step-nominations").classList.add("current");
+        else $("step-nominations").classList.add("complete");
+        if (["draft", "next-draft", "active", "closed"].includes(state.phase)) $("step-voting").classList.add("current");
+        if (["released", "decided", "complete"].includes(state.phase)) $("step-voting").classList.add("complete");
+        if (["released", "decided", "awaiting-response", "declined", "replacement-roster"].includes(state.phase)) $("step-decisions").classList.add("current");
+        if (state.phase === "complete") $("step-decisions").classList.add("complete");
+        if (state.phase === "complete") $("step-complete").classList.add("current");
+        if (["released", "decided", "complete"].includes(state.phase)) $("decision-heading").textContent = state.round > 1 ? "Confirm elected candidate" : "Choose candidates to advance";
+        $("decision-help").textContent = state.round > 1 ? "Confirm the highest-ranked candidate as elected, then record their response." : "Review vote totals and select candidates to advance.";
+        $("decision-controls").hidden = state.phase !== "released";
+        $("response-candidate").textContent = state.winner ? `${state.winner} was elected in round ${state.round}. Record the candidate's response.` : "Select a candidate decision first.";
+        $("candidate-accept").hidden = state.phase !== "awaiting-response";
+        $("candidate-decline").hidden = state.phase !== "awaiting-response";
+        $("decline-summary").textContent = `${state.winner} declined. Prior-round ranking is preserved; choose a direct invitation or a fresh replacement poll.`;
+        const ranked = results().filter((candidate) => candidate.name !== state.winner && !state.declinedCandidates.includes(candidate.name));
+        $("runner-up-row").hidden = ranked.length < 1;
+        $("invite-runner-up").textContent = ranked[0] ? `Invite ${ranked[0].name} (${ranked[0].votes} votes)` : "Invite next-highest candidate";
+        const stateLabels = { "intake-setup": "Intake not open", "intake-active": "Intake open", "intake-submitted": "Intake open", "intake-review": "Review nominations", "nominations-confirmed": "List confirmed", "nominations-revealed": "Nominations revealed", draft: "Draft", "next-draft": "Draft", active: "Voting open", closed: "Closed · Unreleased", released: "Results released", decided: "Decisions saved", "awaiting-response": "Awaiting response", declined: "Candidate declined", "replacement-roster": "Replacement roster", complete: "Position complete" };
+        $("global-state").textContent = intakePhases.includes(state.phase) ? `Nominations · ${stateLabels[state.phase]}` : `Round ${state.round} · ${stateLabels[state.phase]}`;
+        $("nomination-profile-count").textContent = state.nominationSubmitted ? "1" : "0";
+        $("close-intake").disabled = !state.nominationSubmitted;
+        const displayedNames = ["intake-active", "intake-submitted", "intake-review", "nominations-confirmed", "nominations-revealed"].includes(state.phase) ? state.nominees : intakePhases.includes(state.phase) ? [] : state.round === 1 ? state.candidates : state.candidates.slice(0, 2);
+        renderList("admin-roster", displayedNames.map((name) => ({ name })));
+        $("admin-roster").hidden = ["intake-setup", "intake-active", "intake-submitted"].includes(state.phase);
+        renderList("admin-preview", results(), true);
+        renderDecisions();
+        renderReplacementCandidates();
+        renderAdminWorkingNames();
+        renderBallot();
+        renderVoterNominations();
+        renderVoter();
+        renderPresentation();
+      }
+      function renderVoter() {
+        const nomination = ["intake-active", "intake-submitted"].includes(state.phase);
+        const open = state.phase === "active";
+        const neutral = ["intake-setup", "intake-review", "nominations-confirmed", "nominations-revealed", "closed", "released", "decided", "draft", "next-draft"].includes(state.phase);
+        const released = state.phase === "released" || state.phase === "decided";
+        const complete = state.phase === "complete";
+        $("ballot-content").hidden = !open;
+        $("voter-neutral").hidden = !neutral;
+        $("voter-results").hidden = !released;
+        $("voter-complete").hidden = !complete;
+        $("voter-stage-label").textContent = nomination ? "Nomination intake open" : state.phase === "active" ? `Round ${state.round} · Voting open` : ["intake-review", "nominations-confirmed", "nominations-revealed", "intake-setup"].includes(state.phase) ? "No current participation task" : state.phase === "draft" || state.phase === "next-draft" ? "Not open" : state.phase === "complete" ? "Session ended" : `Round ${state.round} · Closed`;
+        $("ballot-status").textContent = open ? "Voting open" : "Not open";
+        $("ballot-instruction").textContent = open ? `Choose exactly ${selectedCount()} ${selectedCount() === 1 ? "candidate" : "candidates"}. You can replace your ballot while voting is open.` : "The ballot will appear here when voting opens.";
+        $("neutral-title").textContent = released ? "Results are available" : "No current participation task";
+        $("neutral-copy").textContent = released ? "The current round's aggregate totals have been released." : state.phase === "closed" ? "This round is closed. Results are not released." : "There is no nomination or voting task available at this stage.";
+        $("voter-results-title").textContent = `Chair · Round ${state.round}`;
+        renderList("voter-result-list", results(), true);
+      }
+      function renderPresentation() {
+        const nominationsRevealed = state.broadcastReady && ["intake-active", "intake-submitted", "intake-review", "nominations-confirmed", "nominations-revealed"].includes(state.phase);
+        const refiningNominations = state.phase === "intake-review";
+        const showResults = state.phase === "released" || state.phase === "decided";
+        const completed = state.phase === "complete";
+        const visible = state.presentationVisible;
+        $("presentation-list").hidden = !visible || (!nominationsRevealed && !refiningNominations && !showResults && !completed);
+        $("presentation-change-log").hidden = !visible || !refiningNominations || state.nominationChanges.length === 0;
+        $("presentation-empty").hidden = visible && (nominationsRevealed || refiningNominations || showResults || completed);
+        $("final-policy-note").hidden = !visible || !completed;
+        $("presentation-title").textContent = !visible ? "Presentation hidden" : completed ? "Position complete" : showResults ? `Voting results · Round ${state.round}` : refiningNominations ? "List refinement · Live updates" : nominationsRevealed ? "Confirmed nominees" : "Welcome";
+        $("presentation-subtitle").textContent = !visible ? "The display was hidden by the administrator." : completed ? "One opening has been filled in this mock scenario." : showResults ? "Closed and explicitly released · Representative mock totals" : refiningNominations ? "Read-only shared nomination list" : nominationsRevealed ? "Nomination list revealed · Representative mock names" : "The election presentation is ready.";
+        $("presentation-empty").textContent = state.phase === "closed" ? "Voting is closed. The administrator may privately review results, but this screen stays neutral until explicit release." : "The audience sees a neutral holding screen until nominations or voting results are explicitly released.";
+        $("presentation-label").textContent = `Spring election · Chair${showResults ? ` · Round ${state.round}` : ""}`;
+        if (visible && refiningNominations) {
+          renderList("presentation-list", state.nominees.map((name) => ({ name })));
+          renderChangeLog("presentation-change-log");
+        } else if (visible && nominationsRevealed) {
+          renderList("presentation-list", state.broadcastNominees.map((name) => ({ name })));
+        } else {
+          $("presentation-change-log").hidden = true;
+        }
+        if (visible && showResults) renderList("presentation-list", results(), true);
+        if (visible && completed) {
+          const li = listItem(state.winner, "Elected");
+          $("presentation-list").replaceChildren(li);
+        }
+        $("toggle-presentation").textContent = visible ? "Hide presentation" : "Show presentation";
+        $("toggle-presentation").setAttribute("aria-pressed", String(visible));
+        $("presentation-control-status").textContent = `Presentation display is ${visible ? "on" : "off"}. This control does not affect the voter session link or election state.`;
+      }
+
+      $("open-intake").addEventListener("click", () => {
+        state.phase = "intake-active";
+        state.nominationSubmitted = false;
+        state.nominees = [];
+        state.participantNominees = ["Taylor Reed", "Casey Lin", "Emerson Brooks", "Nia Carter", "Alex Morgan"];
+        state.participantNominationSubmitted = false;
+        state.broadcastNominees = [];
+        state.broadcastReady = false;
+        update();
+      });
+      $("nomination-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (!["intake-active", "intake-submitted"].includes(state.phase)) return;
+        const names = [...$("nomination-form").querySelectorAll('input[name="nominee"]')]
+          .map((input) => input.value.trim())
+          .filter(Boolean);
+        if (!names.length) return;
+        state.participantNominees = names;
+        state.participantNominationSubmitted = true;
+        state.nominees = [...new Set([...state.nominees, ...names])];
+        state.nominationSubmitted = state.nominees.length > 0;
+        state.phase = "intake-submitted";
+        update();
+      });
+      $("broadcast-nominations").addEventListener("click", () => {
+        state.broadcastNominees = state.nominees.map((name) => name.trim()).filter(Boolean);
+        state.broadcastReady = true;
+        $("broadcast-status").textContent = `Broadcast updated · ${state.broadcastNominees.length} names shown on audience surfaces.`;
+        update();
+      });
+      $("close-intake").addEventListener("click", () => {
+        state.phase = "intake-review";
+        state.nominationChanges = [];
+        update();
+      });
+      $("confirm-nominations").addEventListener("click", () => {
+        state.nominees = [...new Map(state.nominees.map((name) => [name.toLocaleLowerCase(), name])).values()];
+        state.candidates = [...state.nominees];
+        state.phase = "nominations-confirmed";
+        update();
+      });
+      $("reveal-nominations").addEventListener("click", () => {
+        state.phase = "nominations-revealed";
+        state.broadcastNominees = [...state.nominees];
+        state.broadcastReady = true;
+        update();
+      });
+      $("prepare-round").addEventListener("click", () => { state.phase = "draft"; update(); });
+      $("open-voting").addEventListener("click", () => { state.phase = "active"; state.submitted = false; state.selected = []; update(); });
+      $("ballot-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (state.selected.length !== selectedCount() || state.phase !== "active") return;
+        state.submitted = true;
+        update();
+      });
+      $("close-voting").addEventListener("click", () => { state.phase = "closed"; state.released = false; update(); });
+      $("release-results").addEventListener("click", () => { state.phase = "released"; state.released = true; update(); });
+      $("save-decisions").addEventListener("click", () => {
+        state.decisions = [...$("decision-controls").querySelectorAll('input:checked')].map((input) => input.value);
+        if (!state.decisions.length) {
+          $("decision-help").textContent = "Select at least one mock decision to continue.";
+          $("decision-help").focus?.();
+          return;
+        }
+        if (state.round === 2) {
+          state.winner = state.decisions[0];
+          state.phase = "awaiting-response";
+        } else {
+          state.phase = "decided";
+        }
+        update();
+      });
+      $("next-round").addEventListener("click", () => {
+        state.candidates = [...state.decisions];
+        state.round = 2;
+        state.phase = "next-draft";
+        state.selected = [];
+        state.submitted = false;
+        state.decisions = [];
+        update();
+      });
+      $("candidate-accept").addEventListener("click", () => {
+        state.phase = "complete";
+        update();
+      });
+      $("candidate-decline").addEventListener("click", () => {
+        state.declinedCandidates.push(state.winner);
+        state.phase = "declined";
+        update();
+      });
+      $("invite-runner-up").addEventListener("click", () => {
+        const nextCandidate = results().find((candidate) => candidate.name !== state.winner && !state.declinedCandidates.includes(candidate.name));
+        if (!nextCandidate) return;
+        state.winner = nextCandidate.name;
+        state.phase = "awaiting-response";
+        update();
+      });
+      $("choose-replacement-poll").addEventListener("click", () => {
+        state.phase = "replacement-roster";
+        state.replacementCandidates = results()
+          .filter((candidate) => !state.declinedCandidates.includes(candidate.name))
+          .slice(0, 3)
+          .map((candidate) => candidate.name);
+        update();
+      });
+      $("start-replacement-round").addEventListener("click", () => {
+        if (state.replacementCandidates.length < 2) return;
+        state.round += 1;
+        state.candidates = [...state.replacementCandidates];
+        state.selected = [];
+        state.submitted = false;
+        state.released = false;
+        state.decisions = [];
+        state.phase = "next-draft";
+        update();
+      });
+      function update(persist = true) {
+        setPanelVisibility();
+        updateBallotControls();
+        syncPresentationControls();
+        if (persist && currentView !== "launcher") {
+          try { localStorage.setItem(prototypeKey, JSON.stringify(state)); } catch { /* Prototype remains usable without cross-window sync. */ }
+        }
+      }
+      update();
+    })();
+  </script>
+</body>
+</html>
