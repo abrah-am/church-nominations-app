@@ -1,63 +1,48 @@
 # E6.9 Handoff
 
-**Date:** 2026-10-23
-**Branch:** `feature/story-e6.9-shared-nomination-list`
-**Status:** Requirements revised 2026-10-23 to live, transparent presentation editing workflow. Existing implementation does not yet fulfill separate-tab presentation or visible change-history requirements; plan/API updates are pending approval and implementation.
+**Updated:** 2026-10-26
+**Branch:** `feature/story-e6.9-live-nomination-presentation`
+**Phase/status:** Product Owner accepted 2026-10-26 as a single-instance POC; implementation and QA complete. Push is authorized; not merged or deployed.
 
-## Implemented So Far
+## Completed
 
-- Added explicit list creation at close. Admin responses after close include the alphabetic, duplicate-preserving shared list; open intake remains count-only.
-- Added a separate presentation reveal state and action. Presentation projection remains neutral until explicit reveal; participant session links remain separate.
-- Profile/device tokens are cleared when close materializes the list; profile count is frozen then.
-- Current admin controls support correction, removal, and restoration only. Add and reorder remain out of scope. Current backend audits removal/restoration, but does not yet preserve correction before/after or a public change event/reason for declines.
-- UX wireframe Option 1 selected for the admin list: scan-first active names with a separate Removed disclosure and per-row Edit/Remove actions. The revised requirement adds a separate read-only presentation tab with live list updates and visible change history; the existing E6.8 design must be revised to match.
-- The admin nomination stream remains an admin API and carries admin state. Presentation data must use its own redacted, reveal-gated channel; do not use the admin stream for audience display.
-- Superseded earlier policy: correction before/after history was not retained and decline workflow was out of scope. Revised E6.9 requires append-only correction/removal/restoration events, duplicate/decline removal reasons, and presentation-visible live history after reveal.
-- Removed name-bearing open-intake SSE announcements; announcements now report profile-count changes only.
+- Closed nominations create an alphabetized, duplicate-preserving shared list; open-intake admin view exposes counts/state only.
+- Admins can correct names, remove with a reason, and restore removed entries. Changes are revision-checked and append-only audited; adding and reordering are unsupported.
+- Admin rows use an editable name textbox followed by save/remove icon controls. Accessible labels are screen-reader-only.
+- Closed intake is audit-only during active voting. The UI loads round state even when all names are removed, waits until that state is ready, refreshes the authoritative rounds list before restore, and blocks restore if any round is active. The API also calls `assertNoActiveRound` before restoring.
+- Separate opaque-token, read-only presentation supports neutral pre-reveal state, confirmed live snapshots/change history, SSE updates, and hide/end revocation. Viewer calls do not use admin credentials.
+- Presentation event projections now retain only generated pseudonymous administrator labels; legacy actor values are normalized to `Administrator` to prevent email disclosure. Focused PostgreSQL integration coverage seeds a legacy email and verifies it is absent from the viewer response.
+- Draft round captures the nomination revision; stale round-one drafts cannot start. Shared-list changes are locked during active voting.
+- The API task now loads `apps/api/.env` and runs `devBootRun`. With explicit authorization, local Flyway checksum metadata was reconciled; V14-V16 applied without resetting or deleting application data. Local API was verified at `/api/health` (200), schema v16.
 
-## Files Changed
+## Changed Files
 
-- `apps/api/src/main/resources/db/migration/V12__add_nomination_reveal_state.sql`
-- `apps/api/src/main/resources/db/migration/V13__shared_nomination_list_rows.sql`
-- `apps/api/src/main/resources/db/migration/V14__audit_nomination_removals.sql`
-- `apps/api/src/main/java/org/churchnominations/api/nominations/`
-- `apps/api/src/main/java/org/churchnominations/api/election/voting/VotingRoundService.java`
-- `apps/api/src/test/java/org/churchnominations/api/election/PostgresElectionIntegrationTest.java`
-- `apps/web/src/api/nominations.ts`
-- `apps/web/src/features/nominations/NominationAdminPanel.tsx`
-- `apps/web/src/App.test.tsx`
-- `docs/stories/E6.9/requirements.md`
-- `docs/stories/E6.9/implementation-plan.md`
-- `docs/product/backlog.md`
-- `docs/product/product-decisions.md`
-- `docs/stories/E6.8/requirements.md`
-- `docs/stories/E6.10/requirements.md`
-- `docs/stories/E6.10/handoff.md`
-- `docs/technical/api-contract.md`
+- Backend: nomination services/controllers/DTOs/audit entities and repositories; voting-round revision handling; security/CORS; migrations V15/V16; `PostgresElectionIntegrationTest.java`.
+- Frontend: `NominationAdminPanel.tsx`, `NominationPresentationPage.tsx`, nomination/round API clients, `App.tsx`, styles, and `App.test.tsx`.
+- Docs/config: `.vscode/tasks.json`, E6.9 requirements/plan/QA/handoff, backlog, and API contract.
 
-## Validation So Far
+## Validation
 
-- Full frontend suite passed: 69/69 tests.
-- Frontend production build passed.
-- Frontend lint passed with no errors; one existing non-null assertion warning remains in `apps/web/src/main.tsx`.
-- Focused PostgreSQL integration test passed for close-time admin visibility, presentation redaction/publication state, removal audit, Removed section, stale revision rejection, token clearing, and restore.
-- `git diff --check` passed.
-- Full API suite has not been rerun after the latest changes. The earlier full run had one reset-round test failure involving a directly seeded later-round fixture.
-- Responsive/browser and screen-reader UX validation remains outstanding.
-- The current implementation does not yet open a separate presentation tab or show a public live change log; do not represent the revised story as implemented.
+- Frontend focused restore lifecycle and round-navigation checks: 5 passed.
+- Full frontend suite: 76/76 passed.
+- Frontend production build: passed.
+- Frontend lint: zero errors; one existing non-null assertion warning in `apps/web/src/main.tsx`.
+- `git diff --check`: passed.
+- Focused API integration test `PostgresElectionIntegrationTest.adminCannotReadNominationNamesBeforeExplicitReveal`: passed after legacy actor redaction.
+- Earlier E6.9 evidence records a passing API full suite and a passing focused API integration test after V16. The additional API test attempted for active-round restore in this continuation was removed after its setup repeatedly failed before the restore assertion; do not claim that new API regression passed. The service guard is present in `NominationIntakeService.restoreSharedListEntry`.
+- Browser QA was limited to the neutral presentation at 320px (no horizontal overflow); successful API-backed viewer reconnect was not manually verified.
 
-## Open Risks / Follow-up
+## Decisions and Open Issues
 
-- PD-005/E8.2 retention duration and deletion obligations remain open for anonymous names and the newly required correction/removal/restoration event history.
-- Presentation delivery must remain distinct from the admin nomination stream; the dedicated E6.8 presentation authorization/session channel is still required.
-- Verify reveal idempotency/error semantics, legacy consolidation behavior, active shared-list row limits, and mobile/screen-reader behavior.
+- Product Owner decisions dated 2026-10-23 remain authoritative: explicit reveal, separate read-only presentation, no submitter/device identity exposure, and retained nomination audit history.
+- Product Owner acceptance recorded 2026-10-26; push authorized. Merge and deployment still require separate authorization.
+- Production remains blocked on PD-005/E8.2 retention/deletion policy and multi-instance SSE/session coordination.
+- Full screen-reader/contrast review and stronger direct integration coverage for `OTHER` detail persistence remain outstanding.
 
-## Next Steps
+## Git State
 
-1. Approve the revised E6.9 requirements, E6.8 presentation changes, and PD-005 event-history/retention policy.
-2. Implement the separate authorized presentation tab and reveal-gated live list/change-event channel; keep all mutations in admin workspace.
-3. Extend backend and UI for correction before/after events, duplicate/declined/other removal reasons, visible chronology, retries/conflicts, and restore events.
-4. Add tests for presentation authorization, real-time confirmed updates, audit/change-event persistence, tenant isolation, and no mutation from presentation.
-5. Run the full API/web suites and independent security/UX review.
-5. Complete E6.8 presentation-specific show/hide/end and audience workflow; do not conflate it with the participant session link.
-6. Obtain Product Owner acceptance and resolve PD-005/E8.2 before treating nomination data retention as production-ready.
+Current branch is `feature/story-e6.9-live-nomination-presentation`. The working tree contains the E6.9 implementation and documentation as modified/untracked files; changes are uncommitted. No merge or deployment occurred.
+
+## Exact Next Action
+
+Push only the E6.9 changes after final full-suite validation. Keep the branch unmerged and undeployed until separately authorized. E9.1 planning documents are untracked and must remain excluded from the E6.9 commit/push.

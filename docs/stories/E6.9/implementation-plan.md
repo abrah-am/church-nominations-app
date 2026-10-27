@@ -1,6 +1,6 @@
 # E6.9 Implementation Plan
 
-**Status:** Draft for Product Owner approval; Product Owner scope choices recorded 2026-10-23
+**Status:** Approved by Product Owner 2026-10-26; implementation in progress
 **Date:** 2026-10-23
 **Priority:** P1 (high)
 **Complexity:** Large (cross-tier workflow, privacy gating, persistence changes, and live presentation updates)
@@ -14,7 +14,18 @@ Replace the raw-submission/consolidation view with one shared admin list availab
 - `NominationIntakeService.adminResponse` currently returns submitted names for both open and closed intakes; it alphabetically sorts them, and includes the device-profile token in persisted raw submission rows.
 - Closing intake currently causes the admin UI to show raw submissions and a consolidation editor. Saving consolidation deletes/replaces a candidate-name snapshot.
 - There is no complete separate-tab presentation workflow or live nomination change-log projection. Existing removal audit events do not capture correction history or selected removal reasons.
+- Shared-list writes are blocked whenever a draft or active round exists. E6.9 approval clarifies that administrators may continue refining nominations while a round is only a draft; once voting is active, list edits remain locked. Draft candidate configuration must not silently diverge from the active shared nomination list.
 - Existing E2.1 semantics define `currentContributorCount` as profiles with a current non-empty submission and distinguish it from proposed-name-entry count.
+
+## Approved Contract Decisions (2026-10-26)
+
+- The authenticated admin workspace is the only nomination mutation surface. A presentation session is created and controlled by authenticated, tenant-scoped admin actions; the audience tab receives a separate opaque read-only capability, never admin credentials.
+- Presentation reads return a neutral projection before reveal and, after reveal, only active shared-list rows plus the append-only nomination change events. Admin Removed details and submission/profile counts are excluded. The audience capability cannot reveal, hide, end, or mutate.
+- Audience updates use a read-only event stream plus an authoritative snapshot on initial load/reconnect. Hide/end/context changes clear displayed content; stale content is not shown as current.
+- List writes are allowed while no round is active, including when the first round is a draft. Active voting locks edits. After list edits, a draft round must either be kept synchronized or be reconfigured from the current active list before it can start; implementation must not silently start a stale roster.
+- Removal reasons are `DUPLICATE`, `DECLINED`, or `OTHER`; `OTHER` requires an administrator-supplied reason. The public event projection uses a non-sensitive actor display label and timestamp, not account email.
+- The current account model has no display name. Use a stable pseudonym derived from the random account UUID for audit attribution; do not derive the viewer label from email.
+- PD-005/E8.2 retention duration remains unresolved and is a production-readiness gate, not a blocker to this local POC implementation. Preserve existing retention behavior and do not introduce unsupported deletion assumptions.
 
 ## Proposed Work
 
@@ -46,14 +57,14 @@ Replace the raw-submission/consolidation view with one shared admin list availab
 
 ## Tasks
 
-1. Confirm PD-005/E8.2 retention constraints and approve this plan.
-2. Define admin list and presentation-publication API schemas and authorization behavior; update `docs/technical/api-contract.md` before coding.
-3. Add migration and backend service/controller changes for list-created and presentation-publication states, shared rows/order, transactional token removal at close, revision checks, and separate Removed/audit representation.
-4. Add PostgreSQL integration tests for names hidden during open intake; admin-visible closed list; presentation redaction before publication; exact alphabetical ordering and duplicate preservation; transactional token deletion; tenant isolation; unauthorized reveal/edit/restore; conflict handling; audited correction before/after and removal reason/restoration; and no add/reorder capability.
-5. Update frontend API types/client and admin workflow with count-only states, explicit reveal, shared-list editing, recovery/conflict states, and accessible inactive rows.
-6. Add frontend tests for privacy gating, reveal flow, each edit action, failed save/retry, conflicts, and no name leakage in open/closed-unrevealed states.
-7. Add/extend presentation tests for separate-tab authorization, live confirmed list/change-log updates, no mutation capability, and reset/hide clearing content.
-8. Run focused API integration tests, focused web tests, full relevant checks, then independent security/code and UX review.
+1. Define admin presentation-session control and audience read/snapshot/stream schemas in `docs/technical/api-contract.md`.
+2. Add migration and backend service/controller changes for append-only correction/removal/restoration events, reasons, non-sensitive actor labels, presentation session state/capability, neutral/revealed projection, and live updates.
+3. Add PostgreSQL integration tests for open-intake privacy; closed admin list; presentation authorization/redaction/reveal; alphabetical duplicate preservation; token removal; tenant isolation; unauthorized mutation; revision conflicts; event history/reasons; read-only access; and draft-versus-active round edit locks.
+4. Update frontend API clients and admin controls for removal reasons, confirmed event history, separate-tab presentation start/hide/end, failure recovery, stale conflicts, and round-lock state.
+5. Add a read-only presentation page with neutral, loading, unavailable/stale, and revealed nomination states; subscribe to confirmed updates and reload authoritative state on reconnect.
+6. Add frontend tests for privacy gating, reveal and presentation lifecycle, live events, no write controls, edit/remove/restore and retries/conflicts, and draft/active round behavior.
+7. Run focused API and web tests, then full suites/build/lint; perform keyboard/mobile validation and independent security/code and UX review.
+8. Update QA report, handoff, and backlog for Product Owner acceptance. Do not merge or deploy. Multi-instance presentation revocation/broadcast remains a deployment scalability constraint; the POC subscriber registry is process-local. Removal dialog keyboard traversal includes reason/detail controls and returns focus to the initiating row action.
 
 ## Acceptance Evidence
 

@@ -19,6 +19,6 @@ public class WebConfiguration implements WebMvcConfigurer {
                 .allowedOrigins(allowedOrigin)
             .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
             .allowedHeaders("Accept", "Authorization", "Content-Type", "X-Nomination-Device-Token",
-                "X-Voting-Device-Token");
+                "X-Voting-Device-Token", "Last-Event-ID");
     }
 }

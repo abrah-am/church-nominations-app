@@ -41,6 +41,12 @@ public class NominationConsolidatedName {
         this.active = active;
     }
 
+    public static NominationConsolidatedName restore(UUID id, UUID intakeId, int sequence, String candidateName) {
+        NominationConsolidatedName row = new NominationConsolidatedName(intakeId, sequence, candidateName, true);
+        row.id = id;
+        return row;
+    }
+
     public String getCandidateName() {
         return candidateName;
     }

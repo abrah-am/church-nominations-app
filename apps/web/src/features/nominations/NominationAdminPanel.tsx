@@ -2,10 +2,14 @@ import { FormEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
 	NominationIntake,
 	NominationsApiError,
+	NominationRemovalReason,
 	closeNominationIntake,
 	createNominationIntake,
+	endNominationPresentation,
 	getNominationIntake,
+	hideNominationPresentation,
 	revealNominationIntake,
+	showNominationPresentation,
 	streamNominationIntake,
 	updateSharedNominationList,
 	restoreSharedNominationEntry,
@@ -53,6 +57,7 @@ function normalizeNominationIntake(intake: NominationIntake): NominationIntake {
 	return {
 		...intake,
 		removedEntries: Array.isArray(intake.removedEntries) ? intake.removedEntries : [],
+		changeEvents: Array.isArray(intake.changeEvents) ? intake.changeEvents : [],
 		currentContributorCount: Number.isFinite(intake.currentContributorCount)
 			? intake.currentContributorCount
 			: submissions.length === 0 ? 0 : null,
@@ -70,13 +75,20 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	const [sharedListDraft, setSharedListDraft] = useState<SharedNominationEntry[]>([]);
 	const [removedEntries, setRemovedEntries] = useState<RemovedNominationEntry[]>([]);
 	const [sharedListDirty, setSharedListDirty] = useState(false);
-	const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState('');
 	const [sharedListError, setSharedListError] = useState('');
+	const [sharedListConflict, setSharedListConflict] = useState(false);
 	const [streamStatus, setStreamStatus] = useState('');
 	const [copied, setCopied] = useState(false);
 	const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+	const [removalEntry, setRemovalEntry] = useState<SharedNominationEntry | null>(null);
+	const [removalReason, setRemovalReason] = useState<NominationRemovalReason>('DUPLICATE');
+	const [removalDetail, setRemovalDetail] = useState('');
+	const [presentationVisible, setPresentationVisible] = useState(false);
+	const [presentationPath, setPresentationPath] = useState('');
+	const [presentationError, setPresentationError] = useState('');
+	const [presentationBusy, setPresentationBusy] = useState(false);
 	const [liveAnnouncement, setLiveAnnouncement] = useState('');
 	const [focusClosedStatus, setFocusClosedStatus] = useState(false);
 	const [rounds, setRounds] = useState<VotingRound[]>([]);
@@ -106,6 +118,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	const closeTriggerRef = useRef<HTMLButtonElement>(null);
 	const closeButtonRef = useRef<HTMLButtonElement>(null);
 	const keepIntakeOpenRef = useRef<HTMLButtonElement>(null);
+		const removeDialogRef = useRef<HTMLElement>(null);
 	const closedStatusRef = useRef<HTMLParagraphElement>(null);
 	const sharedListSectionRef = useRef<HTMLElement>(null);
 	const previousIntakeRef = useRef<NominationIntake | null>(null);
@@ -138,6 +151,33 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			trigger?.focus();
 		};
 	}, [closeDialogOpen]);
+		useEffect(() => {
+			if (!removalEntry) return;
+			const trigger = document.activeElement instanceof HTMLButtonElement ? document.activeElement : null;
+			const focusableControls = () => Array.from(removeDialogRef.current?.querySelectorAll<HTMLElement>(
+				'button:not([disabled]), select:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+			) ?? []);
+			focusableControls()[0]?.focus();
+			const handleKeyDown = (event: KeyboardEvent) => {
+				if (event.key === 'Escape') {
+					event.preventDefault();
+					setRemovalEntry(null);
+					return;
+				}
+				if (event.key !== 'Tab') return;
+				const controls = focusableControls();
+				if (controls.length === 0) return;
+				event.preventDefault();
+				const currentIndex = controls.indexOf(document.activeElement as HTMLElement);
+				const nextIndex = (currentIndex + (event.shiftKey ? -1 : 1) + controls.length) % controls.length;
+				controls[nextIndex]?.focus();
+			};
+			window.addEventListener('keydown', handleKeyDown);
+			return () => {
+				window.removeEventListener('keydown', handleKeyDown);
+				trigger?.focus();
+			};
+		}, [removalEntry]);
 	useEffect(() => {
 		if (focusClosedStatus) {
 			closedStatusRef.current?.focus();
@@ -147,12 +187,15 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	const confirmedNames = intake?.status === 'CLOSED' && Array.isArray(intake.consolidatedNames)
 		? intake.consolidatedNames
 		: [];
+	const confirmedChangeEvents = intake?.changeEvents ?? [];
 	const hasSavedSnapshot = confirmedNames.length > 0;
 	const snapshotKey = JSON.stringify(confirmedNames);
 	const activeRound = rounds.find((round) => round.status === 'ACTIVE');
 	const hasActiveRound = Boolean(activeRound);
 	const activeRoundIdsKey = rounds.filter((round) => round.status === 'ACTIVE').map((round) => round.id).join(',');
 	const draftRound = rounds.find((round) => round.id === draftRoundId);
+	const firstRoundDraftStale = Boolean(draftRound?.roundNumber === 1 && intake
+		&& draftRound.nominationRevision !== intake.sharedListRevision);
 	const latestRound = [...rounds].sort((first, second) => first.roundNumber - second.roundNumber)[rounds.length - 1];
 	const latestClosedRound = [...rounds]
 		.filter((round) => round.status === 'CLOSED')
@@ -162,7 +205,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			.filter((candidate) => candidate.decision === 'ADVANCED')
 			.map((candidate) => candidate.name)
 		: draftRound
-			? draftRound.candidates.map((candidate) => candidate.name)
+						? draftRound.roundNumber === 1 ? confirmedNames : draftRound.candidates.map((candidate) => candidate.name)
 			: confirmedNames;
 	const unsavedDrafts = (!intake && nameLimit !== '5')
 		|| sharedListDirty
@@ -181,7 +224,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	}
 
 	useEffect(() => {
-		if (!hasSavedSnapshot) {
+		if (intake?.status !== 'CLOSED' || (!hasSavedSnapshot && removedEntries.length === 0)) {
 			setRounds([]);
 			setDraftRoundId(null);
 			setSelectionCount('');
@@ -233,7 +276,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 		});
 
 		return () => { isCurrent = false; };
-	}, [credentials, electionId, positionId, hasSavedSnapshot, snapshotKey, roundsLoadAttempt]);
+	}, [credentials, electionId, positionId, intake?.status, hasSavedSnapshot, removedEntries.length, snapshotKey, roundsLoadAttempt]);
 
 	useEffect(() => {
 		const activeRoundIds = activeRoundIdsKey ? activeRoundIdsKey.split(',') : [];
@@ -432,6 +475,11 @@ export default function NominationAdminPanel({ credentials, electionId, position
 
 	async function revealIntake() {
 		if (!intake || intake.status !== 'CLOSED' || intake.revealed) return;
+		const viewerWindow = window.open('about:blank', '_blank');
+		if (!viewerWindow) {
+			setError('The browser blocked the presentation tab. Allow pop-ups, then reveal the list again.');
+			return;
+		}
 		setIsLoading(true);
 		setError('');
 		try {
@@ -441,61 +489,98 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setRemovedEntries(revealed.removedEntries ?? []);
 			setSharedListDirty(false);
 			setSharedListOpen(true);
+			const session = await showNominationPresentation(credentials, electionId, positionId);
+			const route = `/nomination-presentation/${encodeURIComponent(session.accessToken)}`;
+			setPresentationPath(route);
+			setPresentationVisible(session.visible);
+			viewerWindow.location.assign(route);
 			onLifecycleChange();
 		} catch (requestError) {
+			viewerWindow?.close();
 			setError(requestError instanceof Error ? requestError.message : 'Could not reveal nominations. Please retry.');
 		} finally {
 			setIsLoading(false);
 		}
 	}
 
-	async function saveSharedList() {
-		if (!intake?.listCreated || !sharedListDirty) return;
+	async function saveSharedList(entryId?: string): Promise<boolean> {
+		if (!intake?.listCreated || !sharedListDirty) return false;
 		setSharedListError('');
+		setSharedListConflict(false);
 		setIsLoading(true);
 		try {
+			const draftBeforeSave = sharedListDraft;
 			const saved = normalizeNominationIntake(await updateSharedNominationList(
 				credentials,
 				electionId,
 				positionId,
 				intake.sharedListRevision,
-				sharedListDraft.filter((entry) => entry.active).map((entry, index) => ({
+				sharedListDraft.filter((entry) => entry.active).map((entry) => {
+					const confirmed = intake.sharedList.find((savedEntry) => savedEntry.id === entry.id);
+					const name = entryId && entry.id !== entryId ? confirmed?.name ?? entry.name : entry.name;
+					return {
 					id: entry.id,
-					name: entry.name,
-					sequence: index + 1,
+					name,
+					sequence: entry.sequence,
 					active: true as const,
-				})),
+					};
+				}),
+				[],
 			));
 			setIntake(saved);
-			setSharedListDraft(saved.sharedList);
+			const nextDraft = entryId
+				? saved.sharedList.map((savedEntry) => {
+					const draftEntry = draftBeforeSave.find((entry) => entry.id === savedEntry.id);
+					const priorConfirmed = intake.sharedList.find((entry) => entry.id === savedEntry.id);
+					return draftEntry && savedEntry.id !== entryId && draftEntry.name !== priorConfirmed?.name
+						? { ...savedEntry, name: draftEntry.name }
+						: savedEntry;
+				})
+				: saved.sharedList;
+			setSharedListDraft(nextDraft);
 			setRemovedEntries(saved.removedEntries ?? []);
-			setSharedListDirty(false);
+			setSharedListDirty(nextDraft.some((entry) => entry.name !== saved.sharedList.find((savedEntry) => savedEntry.id === entry.id)?.name));
 			onLifecycleChange();
+			return true;
 		} catch (requestError) {
+			setSharedListConflict(requestError instanceof NominationsApiError && requestError.status === 409);
 			setSharedListError(requestError instanceof NominationsApiError && requestError.status === 409
 				? 'This list changed elsewhere. Reload the latest saved list before editing again.'
 				: requestError instanceof Error ? requestError.message : 'Could not save the shared list. Your edits are still here.');
 		} finally {
 			setIsLoading(false);
 		}
+		return false;
 	}
 
 	async function removeSharedEntry(entry: SharedNominationEntry) {
+		setRemovalEntry(entry);
+		setRemovalReason('DUPLICATE');
+		setRemovalDetail('');
+	}
+
+	async function confirmRemoveSharedEntry() {
 		const currentIntake = intake;
-		if (!currentIntake) return;
+		const entry = removalEntry;
+		if (!currentIntake || !entry || (removalReason === 'OTHER' && !removalDetail.trim())) return;
 		setSharedListError('');
 		setIsLoading(true);
 		try {
 			const saved = normalizeNominationIntake(await updateSharedNominationList(
 				credentials, electionId, positionId, currentIntake.sharedListRevision,
 				currentIntake.sharedList.filter((item) => item.id !== entry.id).map((item) => ({ ...item, active: true as const })),
+				[{ id: entry.id, reason: removalReason, ...(removalReason === 'OTHER' ? { detail: removalDetail.trim() } : {}) }],
 			));
 			setIntake(saved);
 			setSharedListDraft(saved.sharedList);
 			setRemovedEntries(saved.removedEntries ?? []);
+			setRemovalEntry(null);
 			onLifecycleChange();
 		} catch (requestError) {
-			setSharedListError(requestError instanceof Error ? requestError.message : 'Could not remove this name.');
+			setSharedListConflict(requestError instanceof NominationsApiError && requestError.status === 409);
+			setSharedListError(requestError instanceof NominationsApiError && requestError.status === 409
+				? 'The saved list changed before this removal. Reload the latest list before trying again.'
+				: requestError instanceof Error ? requestError.message : 'Could not remove this name.');
 		} finally {
 			setIsLoading(false);
 		}
@@ -505,15 +590,24 @@ export default function NominationAdminPanel({ credentials, electionId, position
 		setSharedListError('');
 		setIsLoading(true);
 		try {
+			const latestRounds = await listVotingRounds(credentials, electionId, positionId);
+			setRounds(latestRounds);
+			if (latestRounds.some((round) => round.status === 'ACTIVE')) {
+				setSharedListError('The closed intake is read-only while voting is active. This name cannot be restored until the round closes.');
+				return;
+			}
 			const saved = normalizeNominationIntake(await restoreSharedNominationEntry(
-				credentials, electionId, positionId, entry.auditEventId,
+				credentials, electionId, positionId, entry.auditEventId, intake?.sharedListRevision ?? 0,
 			));
 			setIntake(saved);
 			setSharedListDraft(saved.sharedList);
 			setRemovedEntries(saved.removedEntries ?? []);
 			onLifecycleChange();
 		} catch (requestError) {
-			setSharedListError(requestError instanceof Error ? requestError.message : 'Could not restore this name.');
+			setSharedListConflict(requestError instanceof NominationsApiError && requestError.status === 409);
+			setSharedListError(requestError instanceof NominationsApiError && requestError.status === 409
+				? 'The saved list changed before this restoration. Reload the latest list before trying again.'
+				: requestError instanceof Error ? requestError.message : 'Could not restore this name.');
 		} finally {
 			setIsLoading(false);
 		}
@@ -525,10 +619,62 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	}
 
 	function editSharedList() {
-		if (rounds.length > 0 || draftRoundId) return;
+		if (hasActiveRound) return;
 		setIntakeDetailsOpen(true);
 		setSharedListOpen(true);
 		sharedListSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}
+
+	async function openPresentation() {
+		const viewerWindow = window.open('about:blank', '_blank');
+		setPresentationBusy(true);
+		setPresentationError('');
+		try {
+			const session = await showNominationPresentation(credentials, electionId, positionId);
+			const route = `/nomination-presentation/${encodeURIComponent(session.accessToken)}`;
+			setPresentationPath(route);
+			setPresentationVisible(session.visible);
+			if (viewerWindow) viewerWindow.location.assign(route);
+			else setPresentationError('The browser blocked the presentation tab. Allow pop-ups and try again.');
+		} catch (requestError) {
+			viewerWindow?.close();
+			setPresentationError(requestError instanceof Error ? requestError.message : 'Could not open the presentation.');
+		} finally {
+			setPresentationBusy(false);
+		}
+	}
+
+	async function reloadSharedList() {
+		setIsLoading(true);
+		setSharedListError('');
+		try {
+			const latest = normalizeNominationIntake(await getNominationIntake(credentials, electionId, positionId));
+			setIntake(latest);
+			setSharedListDraft(latest.sharedList);
+			setRemovedEntries(latest.removedEntries);
+			setSharedListDirty(false);
+			setSharedListConflict(false);
+			setRemovalEntry(null);
+		} catch (requestError) {
+			setSharedListError(requestError instanceof Error ? requestError.message : 'Could not reload the latest saved list.');
+		} finally {
+			setIsLoading(false);
+		}
+	}
+
+	async function controlPresentation(action: 'hide' | 'end') {
+		setPresentationBusy(true);
+		setPresentationError('');
+		try {
+			if (action === 'hide') await hideNominationPresentation(credentials, electionId, positionId);
+			else await endNominationPresentation(credentials, electionId, positionId);
+			setPresentationVisible(false);
+			if (action === 'end') setPresentationPath('');
+		} catch (requestError) {
+			setPresentationError(requestError instanceof Error ? requestError.message : 'Could not update presentation visibility.');
+		} finally {
+			setPresentationBusy(false);
+		}
 	}
 
 	async function saveRoundConfiguration(event: FormEvent<HTMLFormElement>) {
@@ -838,6 +984,12 @@ export default function NominationAdminPanel({ credentials, electionId, position
 						<>
 							<p className="form-note">Public link disabled. Nominations are read-only.</p>
 							{!intake.revealed && <div className="form-actions"><button className="primary-button" type="button" disabled={isLoading} onClick={() => { void revealIntake(); }}>Reveal results</button></div>}
+							{intake.revealed && <div className="presentation-admin-controls">
+								<button className="primary-button" type="button" disabled={presentationBusy} onClick={() => { void openPresentation(); }}>{presentationPath ? 'Open presentation tab' : 'Start presentation'}</button>
+								{presentationVisible && <button className="secondary-button" type="button" disabled={presentationBusy} onClick={() => { void controlPresentation('hide'); }}>Hide presentation</button>}
+								{presentationPath && <button className="secondary-button" type="button" disabled={presentationBusy} onClick={() => { void controlPresentation('end'); }}>End presentation</button>}
+								{presentationError && <p className="error-message" role="alert">{presentationError}</p>}
+							</div>}
 							{!intake.revealed && intake.listCreated && <p className="form-note">The shared list is ready for admin review. The presentation remains hidden until you reveal it.</p>}
 						</>
 					)}
@@ -868,6 +1020,21 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					</section>
 				</div>
 			)}
+			{removalEntry && (
+				<div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !isLoading) setRemovalEntry(null); }}>
+					<section ref={removeDialogRef} className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="remove-nomination-title">
+						<h3 id="remove-nomination-title">Remove {removalEntry.name}?</h3>
+						<label htmlFor="nomination-removal-reason">Reason</label>
+						<select id="nomination-removal-reason" value={removalReason} onChange={(event) => setRemovalReason(event.target.value as NominationRemovalReason)}>
+							<option value="DUPLICATE">Duplicate</option><option value="DECLINED">Declined</option><option value="OTHER">Other</option>
+						</select>
+						{removalReason === 'OTHER' && <label htmlFor="nomination-removal-detail">Details<input id="nomination-removal-detail" value={removalDetail} onChange={(event) => setRemovalDetail(event.target.value)} required /></label>}
+						{sharedListError && <p className="error-message" role="alert">{sharedListError}</p>}
+						{sharedListConflict && <button className="secondary-button" type="button" disabled={isLoading} onClick={() => { void reloadSharedList(); }}>Reload latest saved list</button>}
+						<div className="dialog-actions"><button className="secondary-button" type="button" disabled={isLoading} onClick={() => setRemovalEntry(null)}>Cancel</button><button className="danger-button" type="button" disabled={isLoading || (removalReason === 'OTHER' && !removalDetail.trim())} onClick={() => { void confirmRemoveSharedEntry(); }}>Confirm removal</button></div>
+					</section>
+				</div>
+			)}
 			{isExpanded && !isLoading && intake?.status === 'CLOSED' && intake.listCreated && (
 				<section ref={sharedListSectionRef} className="workflow-details consolidation-details">
 					<button className="workflow-disclosure-trigger" type="button" aria-expanded={sharedListOpen} onClick={() => setSharedListOpen((open) => !open)}>
@@ -876,24 +1043,22 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					</button>
 					{sharedListOpen && <div className="consolidation-complete">
 						<ol className="member-list shared-nomination-list" aria-label="Shared nomination list">
-							{sharedListDraft.map((entry) => <li key={entry.id} className="shared-nomination-row">
-								{editingEntryId === entry.id ? (
-									<div className="shared-nomination-edit">
-										<label className="sr-only" htmlFor={`shared-nomination-${entry.id}`}>Correct {entry.name}</label>
-										<input id={`shared-nomination-${entry.id}`} autoFocus value={entry.name} onChange={(event) => updateSharedRow(entry.id, { name: event.target.value })} />
-										<button className="primary-button" type="button" disabled={isLoading || !entry.name.trim()} onClick={() => { void saveSharedList().then(() => setEditingEntryId(null)); }}>Save</button>
-										<button className="secondary-button" type="button" onClick={() => { setSharedListDraft(intake.sharedList); setSharedListDirty(false); setEditingEntryId(null); }}>Cancel</button>
-									</div>
-								) : (
-									<>
-										<span className="shared-nomination-name">{entry.name}</span>
-										<div className="shared-nomination-actions">
-											<button className="secondary-button" type="button" onClick={() => setEditingEntryId(entry.id)}>Edit</button>
-											<button className="secondary-button" type="button" disabled={isLoading} onClick={() => { void removeSharedEntry(entry); }}>Remove</button>
-										</div>
-									</>
-								)}
-							</li>)}
+							{sharedListDraft.map((entry) => {
+								const savedName = intake.sharedList.find((savedEntry) => savedEntry.id === entry.id)?.name;
+								const rowDirty = entry.active && savedName !== entry.name;
+								return <li key={entry.id} className="shared-nomination-row">
+									<label className="sr-only" htmlFor={`shared-nomination-${entry.id}`}>Correct {savedName ?? entry.name}</label>
+									<input id={`shared-nomination-${entry.id}`} value={entry.name} onChange={(event) => updateSharedRow(entry.id, { name: event.target.value })} disabled={hasActiveRound || !entry.active} />
+									{entry.active && <>
+										<button className="icon-button shared-nomination-save" type="button" aria-label={`Save ${savedName ?? entry.name}`} title="Save name" disabled={isLoading || hasActiveRound || !rowDirty || !entry.name.trim()} onClick={() => { void saveSharedList(entry.id); }}>
+											<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 3h12l4 4v14H3V3h2Zm2 0v6h10V3M7 21v-8h10v8M9 15h6" /></svg>
+										</button>
+										<button className="icon-button shared-nomination-remove" type="button" aria-label={`Remove ${entry.name}`} title="Remove name" disabled={isLoading || hasActiveRound || sharedListDirty} onClick={() => { void removeSharedEntry(entry); }}>
+											<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 14H7L6 7m4 3v7m4-7v7" /></svg>
+										</button>
+									</>}
+								</li>;
+							})}
 						</ol>
 						<details className="removed-nomination-section">
 							<summary>Removed ({removedEntries.length})</summary>
@@ -901,13 +1066,17 @@ export default function NominationAdminPanel({ credentials, electionId, position
 								<ul className="member-list" aria-label="Removed nominations">
 									{removedEntries.map((entry) => <li key={entry.auditEventId}>
 										<span className="shared-nomination-name">{entry.name}</span>
-										<button className="secondary-button" type="button" disabled={isLoading} onClick={() => { void restoreRemovedEntry(entry); }}>Restore</button>
+										<button className="icon-button shared-nomination-restore" type="button" aria-label={`Restore ${entry.name}`} title="Restore name" disabled={isLoading || !roundsReady || roundsLoading || hasActiveRound || sharedListDirty} onClick={() => { void restoreRemovedEntry(entry); }}><span aria-hidden="true">↶</span></button>
 									</li>)}
 								</ul>
 							)}
 						</details>
-						{sharedListError && <p className="error-message" role="alert">{sharedListError}</p>}
-						{!sharedListDirty && <p className="state-message" role="status">{intake.revealed ? 'Saved and visible on the presentation.' : 'Saved for admin review. The presentation remains hidden.'}</p>}
+						{sharedListError && !removalEntry && <p className="error-message" role="alert">{sharedListError}</p>}
+						{sharedListDirty && <div className="shared-list-recovery"><p className="form-note">Unsaved edits are kept here and are not visible on the presentation.</p><button className="primary-button" type="button" disabled={isLoading || hasActiveRound} onClick={() => { void saveSharedList(); }}>{isLoading ? 'Saving…' : 'Save changes'}</button>{sharedListConflict && <button className="secondary-button" type="button" disabled={isLoading} onClick={() => { void reloadSharedList(); }}>Reload latest saved list</button>}</div>}
+						{sharedListConflict && !sharedListDirty && !removalEntry && <button className="secondary-button" type="button" disabled={isLoading} onClick={() => { void reloadSharedList(); }}>Reload latest saved list</button>}
+						{hasActiveRound && <p className="form-note">Shared-list editing is unavailable while voting is active.</p>}
+						{confirmedChangeEvents.length > 0 && <details className="admin-change-history"><summary>Confirmed change history ({confirmedChangeEvents.length})</summary><ol>{confirmedChangeEvents.map((event) => <li key={event.id}><span>{event.action === 'CORRECTED' ? `${event.beforeName} → ${event.afterName}` : event.action === 'REMOVED' ? `${event.beforeName} removed · ${event.removalReason ?? 'Other'}${event.reasonDetail ? `: ${event.reasonDetail}` : ''}` : `${event.afterName ?? event.beforeName} restored`}</span><small>{event.actorLabel} · {new Date(event.occurredAt).toLocaleString()}</small></li>)}</ol></details>}
+						{!sharedListDirty && <p className="state-message" role="status">{intake.revealed ? 'Saved; confirmed changes are available to the presentation.' : 'Saved for admin review. The presentation remains hidden.'}</p>}
 					</div>}
 				</section>
 			)}
@@ -950,7 +1119,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 												<span className={`row-status ${round.status === 'CLOSED' ? 'closed-status' : ''}`}>{round.status === 'DRAFT' ? 'Draft' : round.status === 'ACTIVE' ? 'Active' : 'Closed'}</span>
 											</div>
 													{round.status === 'DRAFT' ? (
-														<button className="primary-button" type="button" disabled={roundLifecycleBusy || round.selectionCount === null} onClick={() => openStartDialog(round)}>Start voting</button>
+														<><button className="primary-button" type="button" disabled={roundLifecycleBusy || round.selectionCount === null || (round.roundNumber === 1 && firstRoundDraftStale)} onClick={() => openStartDialog(round)}>Start voting</button>{round.roundNumber === 1 && firstRoundDraftStale && <p className="form-note">The shared list changed after this draft was saved. Update the draft roster before starting.</p>}</>
 											) : round.accessToken && (
 												<>
 													<label className="share-label" htmlFor={`voting-share-${round.id}`}>Public voting link</label>
@@ -1085,7 +1254,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 										<ul aria-label={latestRound ? 'Candidates advancing to this round' : 'Candidates in this poll'}>
 											{candidateOptions.map((name) => <li key={name}>{name}</li>)}
 										</ul>
-										{!latestRound && rounds.length === 0 && !draftRoundId && (
+										{!latestClosedRound && !hasActiveRound && (
 											<button className="secondary-button" type="button" onClick={editSharedList}>Edit candidate list</button>
 										)}
 									</div>

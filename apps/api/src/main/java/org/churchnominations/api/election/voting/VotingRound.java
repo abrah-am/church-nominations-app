@@ -59,6 +59,9 @@ public class VotingRound {
     @Column(name = "revealed_by", length = 320)
     private String revealedBy;
 
+    @Column(name = "nomination_revision")
+    private Long nominationRevision;
+
     protected VotingRound() {
     }
 
@@ -72,6 +75,10 @@ public class VotingRound {
 
     public void updateSelectionCount(int selectionCount) {
         this.selectionCount = selectionCount;
+    }
+
+    public void captureNominationRevision(long revision) {
+        nominationRevision = revision;
     }
 
     public void activate(int expectedVoterCount) {
@@ -164,5 +171,9 @@ public class VotingRound {
 
     public String getRevealedBy() {
         return revealedBy;
+    }
+
+    public Long getNominationRevision() {
+        return nominationRevision;
     }
 }
