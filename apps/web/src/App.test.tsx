@@ -475,6 +475,29 @@ describe('election administration', () => {
     expect(fetchMock.mock.calls[3][0]).toBe('http://localhost:8080/api/elections/election-1');
   });
 
+  it('shows the guided position workflow with the current task before intake setup', async () => {
+    const fetchMock = signedInFetch([church], [election]);
+    fetchMock.mockResolvedValueOnce(response(election));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: /Finance.*2 positions.*Setup/ }));
+
+    expect(await screen.findByRole('heading', { name: 'Position 1 of 2' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Open nomination intake' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Election positions' })).toBeInTheDocument();
+    const progress = screen.getByRole('region', { name: 'Position workflow progress' });
+    expect(within(progress).getAllByRole('listitem').map((step) => step.querySelector('span:nth-child(2)')?.textContent)).toEqual([
+      'Collect and review nominations',
+      'Voting rounds',
+      'Candidate decisions',
+      'Position complete',
+    ]);
+    expect(within(progress).getByRole('listitem', { current: 'step' })).toHaveTextContent('Collect and review nominations');
+    expect(within(progress).getByText('1 of 4')).toBeInTheDocument();
+  });
+
   it('shows static demo terms and keeps all API elections visible under the selected term', async () => {
     const fetchMock = signedInFetch([church], [election]);
     vi.stubGlobal('fetch', fetchMock);

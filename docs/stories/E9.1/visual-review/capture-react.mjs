@@ -36,8 +36,10 @@ export default async function run(page) {
     else if (url.pathname === '/api/elections') body = elections;
     else if (url.pathname === '/api/elections/e-admin') body = elections[0];
     else if (url.pathname.includes('/nominations')) body = {
-      state: 'NOT_STARTED', maxNamesPerVisitor: 5, participantCount: 0,
-      revealed: false, submissions: [], sharedList: [],
+      id: 'intake-director', accessToken: 'visual-review-only', nameLimit: 5,
+      status: 'OPEN', sharedListRevision: 0, currentContributorCount: 0,
+      listCreated: false, revealed: false, submissions: [], consolidatedNames: null,
+      sharedList: [], removedEntries: [], changeEvents: [],
     };
     await route.fulfill({ status: 200, contentType: 'application/json', headers: {
       'Access-Control-Allow-Origin': origin, 'Cache-Control': 'no-store',
@@ -55,12 +57,16 @@ export default async function run(page) {
   await capture('react-sign-in', 1280, 800);
   await capture('react-sign-in', 390, 844);
   await page.locator('.login-form').evaluate((form) => form.requestSubmit());
-  await page.getByRole('heading', { name: 'Grace Community Church' }).waitFor();
+  await page.getByRole('heading', { name: 'Administrator Workspace' }).waitFor();
+  await page.getByRole('button', { name: /Elections 2026/ }).click();
+  await page.getByRole('heading', { name: 'Department elections' }).waitFor();
   await page.waitForTimeout(300);
   await capture('react-dashboard', 1280, 800);
   await capture('react-dashboard', 390, 844);
   await page.getByRole('button', { name: 'Monitor voting: Director' }).click();
   await page.getByRole('navigation', { name: 'Election positions' }).waitFor();
+  await page.getByRole('button', { name: 'Manage nominations' }).click();
+  await page.getByRole('heading', { name: 'Collect nominations' }).waitFor();
   await page.waitForTimeout(300);
   await capture('react-position-navigation', 1280, 800);
   await capture('react-position-navigation', 390, 844);
