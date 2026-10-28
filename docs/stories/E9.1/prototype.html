@@ -73,6 +73,12 @@
     .year-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 16px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; }
     .year-row h3 { margin: 0; font-size: 1.05rem; }
     .year-row p { margin: 4px 0 0; color: var(--muted); font-size: .88rem; }
+    .demo-data-note { margin: 0 0 12px; color: #73390f; font-size: .82rem; font-weight: 700; }
+    .demo-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 18px 0 24px; }
+    .demo-link { display: grid; gap: 7px; min-width: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+    .demo-link h3 { margin: 0; font-size: .95rem; }
+    .demo-link code { overflow-wrap: anywhere; color: var(--muted); }
+    .demo-link .fine-print { color: #73390f; font-weight: 700; }
     .status-counts { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
     .status-count { padding: 7px 10px; border-radius: 4px; background: #edf2ec; font-size: .82rem; font-weight: 700; }
     .status-count strong { margin-right: 4px; font-size: .95rem; }
@@ -90,6 +96,16 @@
     .department { margin-top: 20px; border-top: 1px solid var(--line); }
     .department-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 15px 0 8px; }
     .department-heading h3 { margin: 0; font-size: 1.08rem; }
+    .department-list { display: grid; gap: 10px; margin-top: 12px; }
+    .department-accordion { overflow: hidden; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+    .department-accordion > summary { display: flex; min-height: 58px; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; cursor: pointer; list-style: none; }
+    .department-accordion > summary::-webkit-details-marker { display: none; }
+    .department-accordion > summary::after { content: "+"; display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; border: 1px solid var(--line); border-radius: 4px; color: var(--green); font-size: 1.1rem; }
+    .department-accordion[open] > summary::after { content: "−"; }
+    .department-accordion > summary:focus-visible { outline-offset: -3px; }
+    .department-accordion .department-content { padding: 0 14px 8px; border-top: 1px solid #e5e9e4; }
+    .department-accordion .position-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+    .department-accordion .position-action { grid-column: 1 / -1; width: 100%; }
     .position-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 16px; padding: 14px 12px; border-top: 1px solid #e5e9e4; }
     .position-info { min-width: 0; }
     .position-info strong { display: block; font-size: 1rem; }
@@ -270,6 +286,8 @@
       .position-row .position-state { grid-column: 2; grid-row: 1; min-width: auto; }
       .position-row .position-action { grid-column: 1 / -1; width: 100%; }
       .access-tools { grid-template-columns: minmax(0, 1fr); }
+      .demo-links { grid-template-columns: minmax(0, 1fr); }
+      .department-accordion .position-row { grid-template-columns: minmax(0, 1fr) auto; }
       .workflow-access { grid-template-columns: minmax(0, 1fr) minmax(0, auto); }
       .workflow-access .access-status { grid-column: 1 / -1; }
       .login-card { margin: 18px 0; padding: 20px; }
@@ -335,6 +353,7 @@
             <span class="status-count"><strong>1</strong> filled</span>
           </div>
           <div class="task-row"><h3>Election periods</h3><button class="btn btn-secondary" id="add-period" type="button">Add period</button></div>
+          <p class="demo-data-note">Sample election terms · prototype only</p>
           <div class="year-list">
             <article class="year-row">
               <div><h3>2026 Elections</h3><p>4 departments · 8 positions</p></div>
@@ -346,12 +365,22 @@
             </article>
           </div>
         </section>
-        <section id="admin-election" class="admin-election" hidden aria-labelledby="period-title">
-          <nav class="breadcrumb" aria-label="Breadcrumb"><button type="button" id="back-to-church">Grace Community Church</button><span aria-hidden="true">/</span><span>2026 Elections</span></nav>
-          <div class="home-heading">
-            <div><p class="panel-kicker">Grace Community Church</p><h2 id="period-title">2026 Elections</h2><p>Departments, positions, and current progress</p></div>
-            <button class="btn btn-secondary" id="configure-period" type="button">Configure positions</button>
+        <section id="admin-term-chooser" class="admin-dashboard" hidden aria-labelledby="term-chooser-title">
+          <nav class="breadcrumb" aria-label="Breadcrumb"><button type="button" id="back-to-church-from-terms">Grace Community Church</button><span aria-hidden="true">/</span><span>Administrator Workspace</span></nav>
+          <div class="home-heading"><div><p class="panel-kicker">Grace Community Church · Sample data</p><h2 id="term-chooser-title">Administrator Workspace</h2><p>Select a sample election term</p></div></div>
+          <p class="demo-data-note">These terms are visual prototype data and are not stored by the election API.</p>
+          <div class="year-list">
+            <article class="year-row"><div><h3>Elections 2026</h3><p>Sample term · 4 departments · 8 positions</p></div><button class="btn btn-primary open-election-term" type="button" data-term="2026">Open election</button></article>
+            <article class="year-row"><div><h3>Elections 2027</h3><p>Sample term · 4 departments · 8 positions</p></div><button class="btn btn-primary open-election-term" type="button" data-term="2027">Open election</button></article>
           </div>
+        </section>
+        <section id="admin-election" class="admin-election" hidden aria-labelledby="period-title">
+          <nav class="breadcrumb" aria-label="Breadcrumb"><button type="button" id="back-to-term">Administrator Workspace</button><span aria-hidden="true">/</span><span id="current-election-term">Elections 2026</span></nav>
+          <div class="home-heading">
+            <div><p class="panel-kicker">Grace Community Church · Sample term</p><h2 id="period-title">Elections 2026</h2><p>Departments, positions, and current progress</p></div>
+            <button class="btn btn-secondary" id="configure-period" type="button">Configure Position</button>
+          </div>
+          <p class="demo-data-note">The selected term and the links below are sample prototype data. The live election API does not associate elections with a term.</p>
           <div class="status-counts" aria-label="Position status summary">
             <span class="status-count"><strong>1</strong> in progress</span>
             <span class="status-count"><strong>2</strong> not started</span>
@@ -359,41 +388,36 @@
           </div>
           <section class="access-tools" aria-label="Election access">
             <article class="access-tool">
-              <h3>Participant session link</h3>
-              <p>One session link for the authorized current phase. Anyone with the link may be able to access it.</p>
-              <p class="access-url" id="participant-url">http://127.0.0.1:8765/?view=voter</p>
-              <div class="action-row"><button class="btn btn-secondary" id="copy-participant-link" type="button">Copy session link</button></div>
+              <h3>Sample voting session link</h3>
+              <p>Display-only sample. This link is not active and cannot open a ballot.</p>
+              <p class="access-url" id="participant-url">sample://voting-session/example</p>
+              <p class="fine-print">DEMO LINK · NOT ACTIVE</p>
             </article>
             <article class="access-tool">
-              <h3>Audience presentation</h3>
-              <p>The separate display is read-only. Presentation controls stay in this authenticated admin workspace.</p>
-              <span class="access-context" id="election-presentation-status">Presentation display is on</span>
-              <div class="action-row">
-                <button class="btn btn-primary" id="open-election-presentation" type="button">Open presentation</button>
-                <button class="btn btn-secondary" id="toggle-election-presentation" type="button">Hide display</button>
-              </div>
+              <h3>Sample presentation link</h3>
+              <p>Display-only sample. This link is not active and cannot open a presentation.</p>
+              <p class="access-url">sample://presentation/example</p>
+              <p class="fine-print">DEMO LINK · NOT ACTIVE</p>
             </article>
           </section>
-          <section class="department">
-            <div class="department-heading"><h3>Administration</h3><span class="fine-print">2 positions</span></div>
+          <div class="department-list">
+          <details class="department-accordion" open><summary><span><strong>Administration</strong><span class="fine-print"> · 2 positions</span></span></summary><div class="department-content">
             <article class="position-row"><div class="position-info"><strong>Director</strong><span>1 opening · Round 2</span></div><span class="status position-state status-progress">In progress</span><button class="btn btn-primary position-action" data-open-election-flow type="button">Continue election</button></article>
             <article class="position-row"><div class="position-info"><strong>Subdirector</strong><span>1 opening</span></div><span class="status position-state status-not-started">Not started</span><button class="btn btn-secondary position-action" type="button">Start nominations</button></article>
-          </section>
-          <section class="department">
-            <div class="department-heading"><h3>Community Services</h3><span class="fine-print">2 positions</span></div>
+          </div></details>
+          <details class="department-accordion"><summary><span><strong>Community Services</strong><span class="fine-print"> · 2 positions</span></span></summary><div class="department-content">
             <article class="position-row"><div class="position-info"><strong>Outreach Coordinator</strong><span>1 opening · Elected candidate accepted</span></div><span class="status position-state status-filled">Filled</span><button class="btn btn-secondary position-action" type="button">View result</button></article>
             <article class="position-row"><div class="position-info"><strong>Facilities Lead</strong><span>1 opening</span></div><span class="status position-state status-not-started">Not started</span><button class="btn btn-secondary position-action" type="button">Start nominations</button></article>
-          </section>
-          <section class="department">
-            <div class="department-heading"><h3>Finance</h3><span class="fine-print">2 positions</span></div>
+          </div></details>
+          <details class="department-accordion"><summary><span><strong>Finance</strong><span class="fine-print"> · 2 positions</span></span></summary><div class="department-content">
             <article class="position-row"><div class="position-info"><strong>Treasurer</strong><span>1 opening</span></div><span class="status position-state status-not-started">Not started</span><button class="btn btn-secondary position-action" type="button">Start nominations</button></article>
             <article class="position-row"><div class="position-info"><strong>Assistant Treasurer</strong><span>1 opening</span></div><span class="status position-state status-not-started">Not started</span><button class="btn btn-secondary position-action" type="button">Start nominations</button></article>
-          </section>
-          <section class="department">
-            <div class="department-heading"><h3>Education</h3><span class="fine-print">2 positions</span></div>
+          </div></details>
+          <details class="department-accordion"><summary><span><strong>Education</strong><span class="fine-print"> · 2 positions</span></span></summary><div class="department-content">
             <article class="position-row"><div class="position-info"><strong>Education Director</strong><span>1 opening</span></div><span class="status position-state status-not-started">Not started</span><button class="btn btn-secondary position-action" type="button">Start nominations</button></article>
             <article class="position-row"><div class="position-info"><strong>Youth Coordinator</strong><span>1 opening</span></div><span class="status position-state status-not-started">Not started</span><button class="btn btn-secondary position-action" type="button">Start nominations</button></article>
-          </section>
+          </div></details>
+          </div>
         </section>
       </div>
       <div id="election-flow" class="election-flow">
@@ -621,6 +645,7 @@
         document.title = `${currentView[0].toUpperCase()}${currentView.slice(1)} | Election Prototype`;
         document.querySelector("h1").textContent = currentView === "admin" ? "Administrator workspace" : currentView === "voter" ? "Participant link" : "Election presentation";
         document.querySelector(".context").textContent = `${currentView === "admin" ? "Admin" : currentView === "voter" ? "Voter" : "Presentation"} window · Grace Community Church / 2026 Elections / Administration / Director`;
+        $("admin-term-chooser").hidden = true;
       }
       if (currentView === "admin") {
         document.body.dataset.adminScreen = "dashboard";
@@ -633,6 +658,7 @@
         document.body.dataset.adminScreen = "login";
         $("admin-login").hidden = false;
         $("admin-dashboard").hidden = true;
+        $("admin-term-chooser").hidden = true;
         $("admin-election").hidden = true;
         $("election-flow").hidden = true;
         $("experience-launcher").hidden = true;
@@ -668,12 +694,20 @@
         document.body.dataset.adminScreen = screen;
         $("admin-login").hidden = screen !== "login";
         $("admin-dashboard").hidden = screen !== "dashboard";
+        $("admin-term-chooser").hidden = screen !== "terms";
         $("admin-election").hidden = screen !== "election";
         $("election-flow").hidden = screen !== "workflow";
       }
       $("login-form").addEventListener("submit", (event) => {
         event.preventDefault();
-        showAdminScreen(currentView === "launcher" ? "roles" : "dashboard");
+        if (currentView === "launcher") {
+          document.body.dataset.view = "admin";
+          document.title = "Admin | Election Prototype";
+          document.querySelector("h1").textContent = "Administrator workspace";
+          document.querySelector(".context").textContent = "Admin window · Grace Community Church";
+          $("experience-launcher").hidden = true;
+          showAdminScreen("terms");
+        } else showAdminScreen("terms");
       });
       $("choose-admin").addEventListener("click", () => {
         if (currentView === "launcher") {
@@ -685,9 +719,8 @@
           $("experience-launcher").hidden = true;
           $("admin-login").hidden = true;
           $("admin-dashboard").hidden = false;
-        } else {
-          showAdminScreen("dashboard");
-        }
+          showAdminScreen("terms");
+        } else showAdminScreen("terms");
       });
       $("sign-out").addEventListener("click", () => {
         if (currentView === "launcher") {
@@ -699,12 +732,20 @@
           $("election-flow").hidden = true;
         } else showAdminScreen("login");
       });
-      document.querySelectorAll(".open-election").forEach((button) => button.addEventListener("click", () => showAdminScreen("election")));
+      document.querySelectorAll(".open-election").forEach((button) => button.addEventListener("click", () => showAdminScreen("terms")));
+      document.querySelectorAll(".open-election-term").forEach((button) => button.addEventListener("click", () => {
+        const term = `Elections ${button.dataset.term}`;
+        $("current-election-term").textContent = term;
+        $("period-title").textContent = term;
+        showAdminScreen("election");
+      }));
       $("back-to-church").addEventListener("click", () => showAdminScreen("dashboard"));
+      $("back-to-church-from-terms").addEventListener("click", () => showAdminScreen("dashboard"));
+      $("back-to-term").addEventListener("click", () => showAdminScreen("terms"));
       document.querySelectorAll("[data-open-election-flow]").forEach((button) => button.addEventListener("click", () => showAdminScreen("workflow")));
       $("back-to-period").addEventListener("click", () => showAdminScreen("election"));
       $("add-period").addEventListener("click", () => window.alert("Prototype only: add election period"));
-      $("configure-period").addEventListener("click", () => window.alert("Prototype only: configure departments and positions"));
+      $("configure-period").addEventListener("click", () => window.alert("Prototype only: Configure Position"));
       const participantSessionUrl = `${location.origin}${location.pathname}?view=voter`;
       let presentationWindow = null;
       function openPresentationWindow() {
@@ -728,11 +769,11 @@
           window.prompt("Copy the participant session link:", participantSessionUrl);
         }
       }
-      $("copy-participant-link").addEventListener("click", copyParticipantLink);
+      if ($("copy-participant-link")) $("copy-participant-link").addEventListener("click", copyParticipantLink);
       $("copy-workflow-link").addEventListener("click", copyParticipantLink);
-      $("open-election-presentation").addEventListener("click", openPresentationWindow);
+      if ($("open-election-presentation")) $("open-election-presentation").addEventListener("click", openPresentationWindow);
       $("open-workflow-presentation").addEventListener("click", openPresentationWindow);
-      $("toggle-election-presentation").addEventListener("click", () => { state.presentationVisible = !state.presentationVisible; update(); });
+      if ($("toggle-election-presentation")) $("toggle-election-presentation").addEventListener("click", () => { state.presentationVisible = !state.presentationVisible; update(); });
       $("toggle-presentation").addEventListener("click", () => { state.presentationVisible = !state.presentationVisible; update(); });
 
       function results() {

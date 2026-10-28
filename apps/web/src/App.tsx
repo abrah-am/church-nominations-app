@@ -36,8 +36,10 @@ import PublicNominationPage from './features/nominations/PublicNominationPage';
 import NominationPresentationPage from './features/nominations/NominationPresentationPage';
 import PublicVotingPage from './features/voting/PublicVotingPage';
 
-type Screen = 'list' | 'detail' | 'form';
+type Screen = 'terms' | 'list' | 'detail' | 'form';
 type Workspace = 'elections' | 'boards';
+
+const demoElectionTerms = ['Elections 2026', 'Elections 2027'];
 
 const electionStatusLabels: Record<Election['status'], string> = {
   SETUP: 'Setup',
@@ -57,6 +59,18 @@ const positionProgressLabels: Record<string, string> = {
   CANDIDATES_ADVANCED: 'Candidates advanced',
   COMPLETE: 'Complete',
 };
+
+const inProgressPositionStates = new Set([
+  'NOMINATIONS_OPEN',
+  'NOMINATIONS_CLOSED',
+  'CONSOLIDATED',
+  'ROUND_DRAFT',
+  'ROUND_ACTIVE',
+  'ROUND_CLOSED_UNREVEALED',
+  'RESULTS_REVEALED',
+  'CANDIDATES_ADVANCED',
+]);
+const knownPositionStates = new Set(['NOT_STARTED', ...inProgressPositionStates, 'COMPLETE']);
 
 const positionActionLabels: Record<string, string> = {
   SET_UP_NOMINATIONS: 'Set up nominations',
@@ -92,6 +106,9 @@ function AuthenticatedApp() {
   const [registrationSuccess, setRegistrationSuccess] = useState('');
   const [loginError, setLoginError] = useState('');
   const [elections, setElections] = useState<Election[]>([]);
+  const [selectedTerm, setSelectedTerm] = useState<string | null>(null);
+  const [collapsedElectionIds, setCollapsedElectionIds] = useState<Set<string>>(() => new Set());
+  const initializedElectionAccordions = useRef(false);
   const [selectedElection, setSelectedElection] = useState<Election | null>(null);
   const [selectedPositionIndex, setSelectedPositionIndex] = useState(0);
   const [positionDraftDirty, setPositionDraftDirty] = useState(false);
@@ -123,6 +140,12 @@ function AuthenticatedApp() {
     positionDraftDirtyRef.current = dirty;
     setPositionDraftDirty(dirty);
   }, []);
+
+  useEffect(() => {
+    if (elections.length === 0 || initializedElectionAccordions.current) return;
+    initializedElectionAccordions.current = true;
+    setCollapsedElectionIds(new Set(elections.slice(1).map((election) => election.id)));
+  }, [elections]);
 
   function requestPositionChange(index: number) {
     if (index === selectedPositionIndex) return;
@@ -240,6 +263,8 @@ function AuthenticatedApp() {
       setAccount(currentAccount);
       setChurches(currentChurches);
       setElections(currentElections);
+      setSelectedTerm(null);
+      if (currentChurches.length > 0) setScreen('terms');
     } catch (error) {
       setLoginError(error instanceof ElectionsApiError && error.status === 401
         ? 'Sign-in failed. Check your email and password.'
@@ -285,6 +310,8 @@ function AuthenticatedApp() {
       const myChurches = await getMyChurches(credentials);
       setChurches(myChurches.length > 0 ? myChurches : [createdChurch]);
       setElections(await listElections(credentials));
+      setSelectedTerm(null);
+      setScreen('terms');
     } catch (error) {
       handleRequestError(error);
     } finally {
@@ -298,6 +325,8 @@ function AuthenticatedApp() {
     setAccount(null);
     setChurches([]);
     setElections([]);
+    setSelectedTerm(null);
+    setCollapsedElectionIds(new Set());
     setSelectedElection(null);
     setBoards([]);
     setSelectedBoard(null);
@@ -315,7 +344,7 @@ function AuthenticatedApp() {
     requestNavigation(performSignOut);
   }
 
-  async function openElection(election: Election) {
+  async function openElection(election: Election, positionId?: string) {
     if (!credentials) return;
     const requestVersion = ++statusRefreshVersion.current;
     const requestCredentials = credentials;
@@ -328,7 +357,9 @@ function AuthenticatedApp() {
       const openedElection = await getElection(requestCredentials, election.id);
       if (requestVersion !== statusRefreshVersion.current || credentials !== requestCredentials) return;
       setSelectedElection(openedElection);
-      setSelectedPositionIndex(0);
+      const positions = [...openedElection.positions].sort((a, b) => a.sequence - b.sequence);
+      const targetPositionIndex = positionId ? positions.findIndex((position) => position.id === positionId) : -1;
+      setSelectedPositionIndex(Math.max(0, targetPositionIndex));
     } catch (error) {
       if (requestVersion !== statusRefreshVersion.current || credentials !== requestCredentials) return;
       handleRequestError(error);
@@ -534,19 +565,38 @@ function AuthenticatedApp() {
   }
 
   const isEditing = screen === 'form' && selectedElection !== null;
+  const electionSummary = {
+    total: elections.length,
+    inProgress: elections.filter((election) => election.status === 'IN_PROGRESS').length,
+    openings: elections.reduce((total, election) => total + election.positions.reduce((positionTotal, position) => positionTotal + position.openingCount, 0), 0),
+    setup: elections.filter((election) => election.status === 'SETUP').length,
+    complete: elections.filter((election) => election.status === 'COMPLETE').length,
+    positionNotStarted: elections.reduce((total, election) => total + election.positions.filter((position) => position.progressStatus === 'NOT_STARTED').length, 0),
+    positionInProgress: elections.reduce((total, election) => total + election.positions.filter((position) => inProgressPositionStates.has(position.progressStatus)).length, 0),
+    positionComplete: elections.reduce((total, election) => total + election.positions.filter((position) => position.progressStatus === 'COMPLETE').length, 0),
+    positionUnavailable: elections.reduce((total, election) => total + election.positions.filter((position) => !position.progressStatus || !knownPositionStates.has(position.progressStatus)).length, 0),
+  };
 
   return (
-    <main ref={mainRegion} tabIndex={-1} className="app-shell">
-      <header className="topbar">
-        <a className="wordmark" href="/" aria-label="Church Nominations home" onClick={(event) => event.preventDefault()}>
-          <span className="mark" aria-hidden="true">C</span>
-          <span>Church Nominations</span>
-        </a>
-        <div className="topbar-tools">
-          <span className="environment-label">LOCAL DEVELOPMENT</span>
-          {credentials && <button className="text-button" type="button" onClick={signOut}>Sign out</button>}
-        </div>
-      </header>
+    <main ref={mainRegion} tabIndex={-1} className={`app-shell container-xl${credentials ? '' : ' access-shell'}`}>
+      {credentials ? (
+        <header className="topbar">
+          <a className="wordmark" href="/" aria-label="Church Nominations home" onClick={(event) => event.preventDefault()}>
+            <span className="mark" aria-hidden="true">C</span>
+            <span>Church Nominations</span>
+          </a>
+          <div className="topbar-tools">
+            <span className="environment-label">LOCAL DEVELOPMENT</span>
+            <button className="text-button" type="button" onClick={signOut}>Sign out</button>
+          </div>
+        </header>
+      ) : (
+        <header className="access-masthead">
+          <p className="eyebrow">Church Nominations · Administrator access</p>
+          <h1>One election, three connected experiences</h1>
+          <p className="context">Sign in to manage your church elections</p>
+        </header>
+      )}
 
       {!credentials || churches.length === 0 ? (
         <AccessGate
@@ -570,8 +620,8 @@ function AuthenticatedApp() {
               <p className="eyebrow">{workspace === 'boards' ? 'Church governance' : 'Election administration'}</p>
               <h1>{workspace === 'boards'
                 ? boardScreen === 'detail' && selectedBoard ? `${selectedBoard.year} Annual Board` : boardScreen === 'create' ? 'New Annual Board' : 'Annual Boards'
-                : screen === 'detail' && selectedElection ? selectedElection.departmentName : screen === 'form' ? (isEditing ? 'Edit setup' : 'New election') : 'My churches'}</h1>
-              <p className="intro">Current church: {churches[0]?.name ?? 'Church'}{typeof account?.email === 'string' ? ` · ${account.email}` : ''}</p>
+                : screen === 'terms' ? 'Administrator Workspace' : screen === 'detail' && selectedElection ? selectedElection.departmentName : screen === 'form' ? (isEditing ? 'Edit setup' : 'New election') : screen === 'list' && selectedTerm ? selectedTerm : churches[0]?.name ?? 'My churches'}</h1>
+              <p className="intro workspace-account">{churches[0]?.name ? `${churches[0].name} · ` : ''}Administrator workspace{typeof account?.email === 'string' ? ` · ${account.email}` : ''}</p>
             </div>
             {workspace === 'elections' && screen === 'list' && <button className="primary-button create-button" type="button" onClick={openCreateForm}>＋ <span>Create election</span></button>}
           </div>
@@ -607,13 +657,48 @@ function AuthenticatedApp() {
               onSaveAttendance={saveAttendance}
             />
           ) : <>
+          {screen === 'terms' && (
+            <section className="term-chooser" aria-labelledby="term-chooser-title">
+              <div className="section-heading">
+                <div>
+                  <h2 id="term-chooser-title">Choose an election term</h2>
+                  <p>Sample terms for this visual prototype. Terms are not stored by the election API.</p>
+                </div>
+              </div>
+              <div className="term-options">
+                {demoElectionTerms.map((term) => (
+                  <button className="term-option" type="button" key={term} onClick={() => { setSelectedTerm(term); setScreen('list'); }}>
+                    <span><strong>{term}</strong><small>Demo term · no backend association</small></span>
+                    <span aria-hidden="true">→</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
           {screen === 'list' && (
             <section className="election-section" aria-labelledby="election-list-title">
+              {selectedTerm && <div className="term-context">
+                <button className="back-button" type="button" onClick={() => { setSelectedTerm(null); setScreen('terms'); }}>← <span>All terms</span></button>
+                <span className="demo-badge">SAMPLE TERM</span>
+                <p>Live election rows below are shown under this demo term for visual presentation only. The API does not associate elections with terms.</p>
+              </div>}
+              <section className="demo-link-panels" aria-label="Sample links, display only">
+                <div className="demo-link-panel"><h3>Sample voting session link</h3><span className="demo-badge">DEMO LINK · NOT ACTIVE</span><code>sample://voting-session/example</code></div>
+                <div className="demo-link-panel"><h3>Sample presentation link</h3><span className="demo-badge">DEMO LINK · NOT ACTIVE</span><code>sample://presentation/example</code></div>
+              </section>
               <div className="section-heading">
                 <div>
                   <h2 id="election-list-title">Department elections</h2>
                   <p>{elections.length} {elections.length === 1 ? 'election' : 'elections'}</p>
                 </div>
+              </div>
+              <div className="overview-statuses" role="group" aria-label="Position status summary">
+                <span className="overview-status-label">Position progress</span>
+                <span className="status-count status-count-progress"><strong>{electionSummary.positionInProgress}</strong> in progress</span>
+                <span className="status-count"><strong>{electionSummary.positionNotStarted}</strong> not started</span>
+                <span className="status-count status-count-complete"><strong>{electionSummary.positionComplete}</strong> complete</span>
+                {electionSummary.positionUnavailable > 0 && <span className="status-count">{electionSummary.positionUnavailable} unavailable</span>}
               </div>
               {isLoading ? <p className="state-message" role="status">Loading elections…</p> : elections.length === 0 ? (
                 <div className="empty-state">
@@ -623,22 +708,58 @@ function AuthenticatedApp() {
                   <button className="secondary-button" type="button" onClick={openCreateForm}>Create first election</button>
                 </div>
               ) : (
-                <ul className="election-list">
+                <div className="accordion election-accordion">
                   {elections.map((election) => (
-                    <li key={election.id}>
-                      <button className="election-row" type="button" onClick={() => openElection(election)}>
-                        <span className="election-row-copy">
-                          <strong>{election.departmentName}</strong>
-                          <span>{election.positions.length} {election.positions.length === 1 ? 'position' : 'positions'} · {election.positions.reduce((total, position) => total + position.openingCount, 0)} openings</span>
-                        </span>
-                        <span className="row-status" role="group" aria-live="polite" aria-label={`Election status: ${electionStatusLabels[election.status]}`}>
-                          {electionStatusLabels[election.status]}
-                        </span>
-                        <span className="row-arrow" aria-hidden="true">→</span>
-                      </button>
-                    </li>
+                      <section key={election.id} className="accordion-item election-overview-item">
+                        <div className="election-accordion-header" id={`election-heading-${election.id}`}>
+                          <button className="election-row" type="button" aria-label={`${election.departmentName}, ${election.positions.length} ${election.positions.length === 1 ? 'position' : 'positions'}, ${electionStatusLabels[election.status]}`} onClick={() => { const firstPosition = [...election.positions].sort((a, b) => a.sequence - b.sequence)[0]; void openElection(election, firstPosition?.id); }}>
+                            <span className="election-row-copy">
+                              <strong>{election.departmentName}</strong>
+                              <span>{election.positions.length} {election.positions.length === 1 ? 'position' : 'positions'} · {election.positions.reduce((total, position) => total + position.openingCount, 0)} {election.positions.reduce((total, position) => total + position.openingCount, 0) === 1 ? 'opening' : 'openings'}</span>
+                            </span>
+                            <span className={`row-status row-status-${election.status.toLowerCase()}`} role="group" aria-label={`Election status: ${electionStatusLabels[election.status]}`}>{electionStatusLabels[election.status]}</span>
+                            <span className="row-arrow" aria-hidden="true">→</span>
+                          </button>
+                          <button className={`election-accordion-toggle${collapsedElectionIds.has(election.id) ? ' collapsed' : ''}`} type="button" aria-label={`${collapsedElectionIds.has(election.id) ? 'Expand' : 'Collapse'} positions`} aria-expanded={!collapsedElectionIds.has(election.id)} aria-controls={`election-panel-${election.id}`} onClick={() => setCollapsedElectionIds((current) => {
+                            const next = new Set(current);
+                            if (next.has(election.id)) next.delete(election.id); else next.add(election.id);
+                            return next;
+                          })}>
+                            <span aria-hidden="true">{collapsedElectionIds.has(election.id) ? '+' : '−'}</span>
+                          </button>
+                        </div>
+                      <div id={`election-panel-${election.id}`} className={`accordion-collapse collapse${collapsedElectionIds.has(election.id) ? '' : ' show'}`} aria-labelledby={`election-heading-${election.id}`}>
+                      {election.positions.length > 0 && (
+                        <ul className="position-overview-list" aria-label={`${election.departmentName} positions`}>
+                          {[...election.positions].sort((a, b) => a.sequence - b.sequence).map((position) => {
+                            const statusLabel = positionProgressLabels[position.progressStatus] ?? 'Progress unavailable';
+                            const actionLabel = positionActionLabels[position.nextAction] ?? 'Action unavailable';
+                            const statusClass = position.progressStatus === 'NOT_STARTED'
+                              ? 'position-status-setup'
+                              : position.progressStatus === 'COMPLETE'
+                                ? 'position-status-complete'
+                                : inProgressPositionStates.has(position.progressStatus)
+                                  ? 'position-status-progress'
+                                  : 'position-status-unavailable';
+                            return (
+                              <li className="position-overview-row" key={position.id}>
+                                <span className="position-overview-copy">
+                                  <strong>{position.name}</strong>
+                                  <span>{position.openingCount} {position.openingCount === 1 ? 'opening' : 'openings'}{position.roundNumber == null ? '' : ` · Round ${position.roundNumber}`}</span>
+                                </span>
+                                <span className={`position-overview-status ${statusClass}`}>{statusLabel}</span>
+                                <button className="position-overview-action" type="button" aria-label={`${actionLabel}: ${position.name}`} onClick={(event) => { event.stopPropagation(); void openElection(election, position.id); }}>
+                                  Configure Position<span aria-hidden="true"> →</span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                      </div>
+                    </section>
                   ))}
-                </ul>
+                </div>
               )}
             </section>
           )}
@@ -647,16 +768,23 @@ function AuthenticatedApp() {
             <section className="detail-section">
               <div className="detail-actions">
                 <button className="back-button" type="button" onClick={returnToElectionList}>← <span>All elections</span></button>
-                {selectedElection && selectedElection.positions.length > 0 && <button className="secondary-button" type="button" onClick={() => requestNavigation(() => { setPageError(''); setScreen('form'); })}>Edit setup</button>}
+                {selectedElection && selectedElection.positions.length > 0 && <button className="secondary-button" type="button" onClick={() => requestNavigation(() => { setPageError(''); setScreen('form'); })}>Configure Position</button>}
               </div>
               {isLoading || !selectedElection ? <p className="state-message" role="status">Loading election…</p> : (
                 <>
                   <div className="detail-summary">
                     <div><span className="summary-label">Department</span><strong>{selectedElection.departmentName}</strong></div>
-                    <div><span className="summary-label">Status</span><span className="row-status" role="group" aria-live="polite" aria-label={`Election status: ${electionStatusLabels[selectedElection.status]}`}>
+                    <div><span className="summary-label">Status</span><span className={`row-status row-status-${selectedElection.status.toLowerCase()}`} role="group" aria-live="polite" aria-label={`Election status: ${electionStatusLabels[selectedElection.status]}`}>
                       {electionStatusLabels[selectedElection.status]}
                     </span></div>
                     <div><span className="summary-label">Configured openings</span><strong>{selectedElection.positions.reduce((total, position) => total + position.openingCount, 0)}</strong></div>
+                  </div>
+                  <div className="overview-statuses detail-position-statuses" role="group" aria-label="Election position status summary">
+                    <span className="overview-status-label">Position progress</span>
+                    <span className="status-count status-count-progress"><strong>{selectedElection.positions.filter((position) => inProgressPositionStates.has(position.progressStatus)).length}</strong> in progress</span>
+                    <span className="status-count"><strong>{selectedElection.positions.filter((position) => position.progressStatus === 'NOT_STARTED').length}</strong> not started</span>
+                    <span className="status-count status-count-complete"><strong>{selectedElection.positions.filter((position) => position.progressStatus === 'COMPLETE').length}</strong> complete</span>
+                    {selectedElection.positions.some((position) => !position.progressStatus || !knownPositionStates.has(position.progressStatus)) && <span className="status-count">{selectedElection.positions.filter((position) => !position.progressStatus || !knownPositionStates.has(position.progressStatus)).length} unavailable</span>}
                   </div>
                   <div className="section-heading position-heading">
                     <div><h2>{selectedElection.positions.length === 0 ? 'No positions configured' : `Position ${selectedPositionIndex + 1} of ${selectedElection.positions.length}`}</h2><p>Manage positions in configured order</p></div>
@@ -670,7 +798,7 @@ function AuthenticatedApp() {
                           <span className="empty-rule" aria-hidden="true" />
                           <h3>This election has no positions</h3>
                           <p>The election remains available. Add a position to continue.</p>
-                          <button className="secondary-button" type="button" onClick={() => requestNavigation(() => { setPageError(''); setScreen('form'); })}>Edit setup</button>
+                          <button className="secondary-button" type="button" onClick={() => requestNavigation(() => { setPageError(''); setScreen('form'); })}>Configure Position</button>
                         </div>
                       );
                     }
@@ -683,7 +811,7 @@ function AuthenticatedApp() {
                     return (
                       <>
                         <nav className="position-stepper" aria-label="Election positions">
-                          <ol>
+                          <ol className="list-group list-group-flush">
                             {positions.map((item, index) => {
                               const itemStatus = item.progressStatus
                                 ? positionProgressLabels[item.progressStatus] ?? item.progressStatus.replace(/_/g, ' ').toLowerCase()
@@ -694,13 +822,14 @@ function AuthenticatedApp() {
                               const current = index === selectedPositionIndex;
                               return (
                                 <li key={item.id}>
-                                  <button type="button" aria-current={current ? 'step' : undefined} aria-label={`Position ${index + 1} of ${positions.length}: ${item.name}, ${item.openingCount} ${item.openingCount === 1 ? 'opening' : 'openings'}, ${itemStatus}, next action: ${itemAction}${item.roundNumber == null ? '' : `, round ${item.roundNumber}`}${current ? ', current position' : ''}`} onClick={() => requestPositionChange(index)}>
+                                  <button className={`list-group-item list-group-item-action position-stepper-item${current ? ' active' : ''}`} type="button" aria-current={current ? 'step' : undefined} aria-label={`Position ${index + 1} of ${positions.length}: ${item.name}, ${item.openingCount} ${item.openingCount === 1 ? 'opening' : 'openings'}, ${itemStatus}, next action: ${itemAction}${item.roundNumber == null ? '' : `, round ${item.roundNumber}`}${current ? ', current position' : ''}`} onClick={() => requestPositionChange(index)}>
                                     <span className="step-number">{index + 1}</span>
                                     <span className="step-copy">
                                       <strong>{item.name} · {item.openingCount} {item.openingCount === 1 ? 'opening' : 'openings'}</strong>
                                       <span>{itemStatus}{item.roundNumber == null ? '' : ` · Round ${item.roundNumber}`}</span>
                                       <span>Next: {itemAction}</span>
                                     </span>
+                                    <span className={`badge rounded-pill position-status-${item.progressStatus === 'NOT_STARTED' ? 'setup' : item.progressStatus === 'COMPLETE' ? 'complete' : 'progress'}`}>{itemStatus}</span>
                                   </button>
                                 </li>
                               );

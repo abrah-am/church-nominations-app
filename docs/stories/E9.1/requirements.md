@@ -2,7 +2,7 @@
 
 - **Epic:** E9 Bootstrap UI Modernization
 - **Priority:** P1 (proposed)
-- **Workflow status:** Approved for refinement; implementation not started
+- **Workflow status:** First admin slice accepted by Product Owner; Annual Boards visual migration implemented on `feature/e9.1-admin-foundation`, with the next UX review pending
 - **User story:** As an administrator or election participant, I want a consistent, responsive interface so I can understand and complete election tasks confidently across devices.
 
 ## Product Owner Approval
@@ -16,6 +16,9 @@ The Product Owner approved the UX redesign initiative and the recommended Bootst
 - Reusable accessible React primitives are established for the application shell, section headings, status/alert messages, empty/loading states, labeled fields, action groups, responsive list rows, disclosures, and confirmation dialogs.
 - The authenticated admin shell, participant surfaces, and read-only presentation remain distinct, with navigation and controls appropriate to each capability.
 - Existing routes, API contracts, election workflows, privacy boundaries, and business rules remain unchanged.
+- **Visual fidelity is an acceptance requirement:** each migrated surface must be rendered and compared directly with its approved prototype/reference at 1280px desktop and 390px mobile. Match layout, typography, palette, spacing, navigation, visual hierarchy, and responsive reflow; automated tests, lint, and build alone do not establish UX acceptance.
+- Record paired desktop/mobile screenshots for the prototype/reference and implementation. Document significant differences, whether caused by API/domain constraints or implementation choices, and resolve them or obtain explicit Product Owner acceptance before marking the UX slice done.
+- Apply the same rendered-reference comparison and evidence requirement to subsequent UX implementation slices; each feature story retains its own behavior acceptance criteria.
 - The foundation is introduced incrementally; workflow-specific layouts are migrated within their existing stories rather than rewritten in one pass.
 - Core forms, buttons, tables/lists, alerts, dialogs, and status indicators use consistent shared patterns and reflow at the supported mobile widths.
 - No horizontal scrolling, clipped content, overlapping controls, or hover-dependent actions occur in the approved core viewport matrix; long candidate and nominee names remain readable.
@@ -70,6 +73,7 @@ Do not treat E9.1 as acceptance of unfinished feature stories. Incorporate share
 - Run frontend lint, unit/component tests, and production build after each migration slice.
 - Add focused React Testing Library coverage for affected loading, empty, error, success, dialog, and keyboard-relevant states.
 - Validate at the approved viewport/browser matrix for overflow, long names, dialog sizing, action availability, and responsive control layout.
+- Capture and compare equivalent approved-reference and implemented screens at 1280px and 390px for each migrated UX slice. Review sign-in, dashboard/overview, and position navigation where included in scope. Log significant visual variance and close it or obtain Product Owner acceptance; passing component tests/lint/build is necessary but not sufficient.
 - Perform keyboard and screen-reader checks and measure contrast against the E7.1-approved target.
 - Verify privacy-sensitive states: no active-round totals, attendance remains separate from ballot activity, and presentation/participant views disclose only their approved content.
 - Do not claim conformance until the approved manual and automated checks have evidence.
