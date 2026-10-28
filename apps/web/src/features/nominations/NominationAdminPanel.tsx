@@ -45,6 +45,7 @@ export type NominationAdminPanelProps = {
 	positionId: string;
 	positionName: string;
 	openingCount: number;
+	positionProgressStatus: string;
 	onLifecycleChange: (completionMayChange?: boolean) => void;
 	onDraftStateChange: (dirty: boolean) => void;
 };
@@ -66,7 +67,7 @@ function normalizeNominationIntake(intake: NominationIntake): NominationIntake {
 	};
 }
 
-export default function NominationAdminPanel({ credentials, electionId, positionId, positionName, openingCount, onLifecycleChange, onDraftStateChange }: NominationAdminPanelProps) {
+export default function NominationAdminPanel({ credentials, electionId, positionId, positionName, openingCount, positionProgressStatus, onLifecycleChange, onDraftStateChange }: NominationAdminPanelProps) {
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [intakeDetailsOpen, setIntakeDetailsOpen] = useState(true);
 	const [sharedListOpen, setSharedListOpen] = useState(true);
@@ -200,6 +201,41 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	const latestClosedRound = [...rounds]
 		.filter((round) => round.status === 'CLOSED')
 		.sort((first, second) => second.roundNumber - first.roundNumber)[0];
+	const latestRevealedRound = [...rounds]
+		.filter((round) => round.status === 'CLOSED' && roundResults[round.id])
+		.sort((first, second) => second.roundNumber - first.roundNumber)[0];
+	const latestRevealedResult = latestRevealedRound ? roundResults[latestRevealedRound.id] : undefined;
+	const currentWorkflowTask = !intake
+		? positionProgressStatus === 'NOMINATIONS_OPEN'
+			? { stage: 0, title: 'Collect nominations', description: 'Manage the public nomination link and close intake when ready.' }
+			: positionProgressStatus === 'NOMINATIONS_CLOSED' || positionProgressStatus === 'CONSOLIDATED'
+				? { stage: 0, title: 'Review and reveal nominations', description: 'Review the consolidated list. It remains hidden from the presentation until you explicitly reveal it.' }
+				: positionProgressStatus === 'ROUND_ACTIVE'
+					? { stage: 1, title: `Monitor voting${latestRound ? ` · Round ${latestRound.roundNumber}` : ''}`, description: 'Track participation only. Ballot totals remain hidden while voting is active.' }
+					: positionProgressStatus === 'ROUND_CLOSED_UNREVEALED'
+						? { stage: 1, title: `Review results${latestClosedRound ? ` · Round ${latestClosedRound.roundNumber}` : ''}`, description: 'Voting is closed. Results remain private until you explicitly reveal them.' }
+						: positionProgressStatus === 'RESULTS_REVEALED'
+							? { stage: 2, title: 'Record candidate decisions', description: 'Review aggregate results and record who advances, is eliminated, or is elected.' }
+							: positionProgressStatus === 'CANDIDATES_ADVANCED'
+								? { stage: 1, title: 'Prepare the next round', description: 'Use the saved candidate decisions to prepare the next round.' }
+								: positionProgressStatus === 'COMPLETE'
+									? { stage: 3, title: 'Position complete', description: 'All election actions for this position are complete.' }
+									: { stage: 0, title: 'Open nomination intake', description: 'Set the name limit and create an intake link for this position.' }
+		: intake.status === 'OPEN'
+			? { stage: 0, title: 'Collect nominations', description: 'Share the nomination link, monitor profile submissions, and close intake when ready.' }
+			: !intake.revealed
+				? { stage: 0, title: 'Review and reveal nominations', description: 'Review the consolidated list. It remains hidden from the presentation until you explicitly reveal it.' }
+				: activeRound
+					? { stage: 1, title: `Monitor voting · Round ${activeRound.roundNumber}`, description: 'Track participation only. Ballot totals remain hidden while voting is active.' }
+					: latestClosedRound && unrevealedRoundIds.includes(latestClosedRound.id)
+						? { stage: 1, title: `Review results · Round ${latestClosedRound.roundNumber}`, description: 'Voting is closed. Results remain private until you explicitly reveal them.' }
+						: latestRevealedResult && !latestRevealedResult.candidates.every((candidate) => candidate.decision)
+							? { stage: 2, title: `Record candidate decisions · Round ${latestRevealedRound?.roundNumber}`, description: 'Review aggregate results and record who advances, is eliminated, or is elected.' }
+							: latestRound?.status === 'DRAFT'
+								? { stage: 1, title: `Prepare voting · Round ${latestRound.roundNumber}`, description: 'Confirm the roster and selection count before starting the voting round.' }
+								: latestRevealedRound
+									? { stage: positionProgressStatus === 'COMPLETE' ? 3 : 1, title: positionProgressStatus === 'COMPLETE' ? 'Position complete' : `Prepare the next round · Round ${latestRevealedRound.roundNumber + 1}`, description: positionProgressStatus === 'COMPLETE' ? 'All election actions for this position are complete.' : 'Use the saved candidate decisions to prepare the next round.' }
+									: { stage: 1, title: 'Prepare voting', description: 'Configure the first round using the confirmed nomination list.' };
 	const candidateOptions = latestClosedRound
 		? (roundResults[latestClosedRound.id]?.candidates ?? [])
 			.filter((candidate) => candidate.decision === 'ADVANCED')
@@ -937,12 +973,37 @@ export default function NominationAdminPanel({ credentials, electionId, position
 		}
 	}
 
+	const workflowSteps = ['Collect and review nominations', 'Voting rounds', 'Candidate decisions', 'Position complete'];
+
 	return (
 		<section className="nomination-admin" aria-labelledby="nomination-admin-title">
-			<div className="section-heading">
-				<div><h2 id="nomination-admin-title">Nomination intake</h2><p>Collect anonymous name suggestions for {positionName}.</p></div>
+			<div className="workflow-heading">
+				<div><p className="eyebrow">Position workflow</p><h2 id="nomination-admin-title">{positionName}</h2><p>Manage nominations and voting for this position.</p></div>
 				{!isExpanded && <button className="secondary-button" type="button" onClick={loadIntake}>Manage nominations</button>}
 			</div>
+			<section className="guided-workflow" aria-label="Position workflow progress">
+				<div className="guided-workflow-task" aria-live="polite" aria-atomic="true">
+					<p className="workflow-task-kicker">Current task</p>
+					<h3>{currentWorkflowTask.title}</h3>
+					<p>{currentWorkflowTask.description}</p>
+					<span className="sr-only">Workflow step {currentWorkflowTask.stage + 1} of {workflowSteps.length}.</span>
+				</div>
+				<div className="guided-workflow-progress">
+					<div className="workflow-progress-meta"><span>Election progress</span><span>{currentWorkflowTask.stage + 1} of {workflowSteps.length}</span></div>
+					<div className="workflow-progress-bar" aria-hidden="true">
+						{workflowSteps.map((step, index) => <span className={index <= currentWorkflowTask.stage ? 'is-reached' : ''} key={step} />)}
+					</div>
+					<ol className="workflow-step-list">
+						{workflowSteps.map((step, index) => (
+							<li className={index < currentWorkflowTask.stage ? 'is-complete' : index === currentWorkflowTask.stage ? 'is-current' : ''} aria-current={index === currentWorkflowTask.stage ? 'step' : undefined} key={step}>
+								<span className="workflow-step-marker" aria-hidden="true">{index < currentWorkflowTask.stage ? '✓' : index + 1}</span>
+								<span>{step}</span>
+								<span className="sr-only">{index < currentWorkflowTask.stage ? 'Complete' : index === currentWorkflowTask.stage ? 'Current step' : 'Upcoming'}</span>
+							</li>
+						))}
+					</ol>
+				</div>
+			</section>
 			{isExpanded && isLoading && <p className="state-message" role="status">Loading nomination intake…</p>}
 			{error && <p className="error-message" role="alert">{error}</p>}
 			{streamStatus && <p className="state-message" role="status">{streamStatus}</p>}

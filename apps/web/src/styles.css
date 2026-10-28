@@ -211,7 +211,28 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .attendance-list .list-group-item { padding: 0 10px; border-color: var(--line); }
 .attendance-list label { display: flex; min-height: 48px; align-items: center; gap: 11px; cursor: pointer; }
 .attendance-list input[type="checkbox"] { width: 17px; min-height: 17px; margin: 0; accent-color: var(--green); }
-.nomination-admin { max-width: 800px; margin-top: 38px; padding-top: 23px; border-top: 1px solid var(--line); }
+.nomination-admin { max-width: 920px; margin-top: 32px; padding-top: 22px; border-top: 1px solid var(--line); }
+.workflow-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 16px; }
+.workflow-heading .eyebrow { margin-bottom: 5px; }
+.workflow-heading h2 { margin: 0; font-size: 1.3rem; }
+.workflow-heading p:last-child { margin: 5px 0 0; color: var(--muted); font-size: .88rem; }
+.guided-workflow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 17px; align-items: start; margin: 0 0 22px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 4px; background: rgba(255, 255, 255, .78); }
+.guided-workflow-task { min-width: 0; padding: 2px 0; }
+.workflow-task-kicker { margin: 0 0 6px; color: var(--green); font-size: .72rem; font-weight: 800; text-transform: uppercase; }
+.guided-workflow-task h3 { margin: 0; font-family: var(--font-display); font-size: 1.2rem; line-height: 1.3; overflow-wrap: anywhere; }
+.guided-workflow-task > p:last-child { max-width: 58ch; margin: 8px 0 0; color: var(--muted); font-size: .88rem; line-height: 1.55; }
+.guided-workflow-progress { min-width: 0; }
+.workflow-progress-meta { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: .82rem; font-weight: 700; }
+.workflow-progress-bar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin: 9px 0 13px; }
+.workflow-progress-bar span { height: 4px; border-radius: 2px; background: #dfe6df; }
+.workflow-progress-bar span.is-reached { background: var(--green); }
+.workflow-step-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; margin: 0; padding: 0; list-style: none; }
+.workflow-step-list li { display: flex; min-width: 0; align-items: center; gap: 7px; color: var(--muted); font-size: .88rem; line-height: 1.4; }
+.workflow-step-list li > span:last-child { overflow-wrap: anywhere; }
+.workflow-step-marker { display: grid; width: 22px; height: 22px; flex: 0 0 22px; place-items: center; border: 1px solid #c5d1c6; border-radius: 50%; color: var(--muted); font-size: .68rem; font-weight: 750; }
+.workflow-step-list li.is-current { color: var(--ink); font-weight: 750; }
+.workflow-step-list li.is-current .workflow-step-marker, .workflow-step-list li.is-complete .workflow-step-marker { border-color: var(--green); background: var(--green); color: #fff; }
+.workflow-step-list li.is-complete { color: #3e5949; }
 .presentation-admin-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 14px; }
 .presentation-admin-controls .error-message { flex-basis: 100%; margin: 0; }
 .admin-change-history { margin-top: 18px; border-top: 1px solid var(--line); }
@@ -275,6 +296,7 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .intake-closure-status:focus { outline: 2px solid var(--green); outline-offset: 3px; }
 .closed-status { border-color: #d8c9b5; background: #f5f0e8; color: #69543b; }
 .share-controls { grid-template-columns: minmax(0, 1fr) auto; }
+.share-controls input { min-width: 0; }
 .nomination-submissions-heading { margin: 28px 0 12px; }
 .nomination-submissions-heading p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
 @media (max-width: 600px) {
@@ -421,6 +443,12 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
   .position-overview-action { grid-column: 1 / -1; width: 100%; }
   .position-stepper .position-stepper-item { align-items: flex-start; flex-wrap: wrap; gap: 9px 12px; }
   .position-stepper .badge { margin-left: 39px; }
+  .guided-workflow { grid-template-columns: minmax(0, 1fr); gap: 17px; padding: 16px; }
+  .workflow-step-list { gap: 9px; }
+  .workflow-step-list li { font-size: .82rem; }
+  .workflow-heading { align-items: flex-start; flex-direction: column; }
+  .workflow-heading > button { width: 100%; }
+  .share-controls input { font-size: .8rem; }
   .position-editor { padding: 13px; }
   .public-shell { width: min(100% - 40px, 840px); }
   .public-nomination { padding: 55px 0 65px; }

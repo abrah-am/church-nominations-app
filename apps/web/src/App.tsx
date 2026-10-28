@@ -855,6 +855,7 @@ function AuthenticatedApp() {
                           positionId={position.id}
                           positionName={position.name}
                           openingCount={position.openingCount}
+                          positionProgressStatus={position.progressStatus}
                           onLifecycleChange={() => { void refreshElectionStatus(selectedElection.id); }}
                           onDraftStateChange={reportPositionDraftState}
                         />
