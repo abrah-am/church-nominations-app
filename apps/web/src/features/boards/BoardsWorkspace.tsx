@@ -88,19 +88,19 @@ export function BoardsWorkspace({
           </div>
           {isLoading || !selectedBoard ? <p className="state-message" role="status">Loading board…</p> : (
             <>
-              <div className="detail-summary">
-                <div><span className="summary-label">Board year</span><strong>{selectedBoard.year}</strong></div>
-                <div><span className="summary-label">Roster</span><strong>{selectedBoard.members.length} {selectedBoard.members.length === 1 ? 'member' : 'members'}</strong></div>
-                <div><span className="summary-label">Recorded sessions</span><strong>{selectedBoard.sessions.length}</strong></div>
+              <div className="row row-cols-1 row-cols-sm-3 g-3 board-summary">
+                <div className="col"><div className="board-summary-item"><span className="summary-label">Board year</span><strong>{selectedBoard.year}</strong></div></div>
+                <div className="col"><div className="board-summary-item"><span className="summary-label">Roster</span><strong>{selectedBoard.members.length} {selectedBoard.members.length === 1 ? 'member' : 'members'}</strong></div></div>
+                <div className="col"><div className="board-summary-item"><span className="summary-label">Recorded sessions</span><strong>{selectedBoard.sessions.length}</strong></div></div>
               </div>
-              <div className="board-detail-grid">
-                <div>
+              <div className="row g-4 board-detail-grid">
+                <div className="col-12 col-lg-6">
                   <div className="section-heading position-heading"><div><h2>Board roster</h2><p>Names only; no member credentials are collected.</p></div></div>
                   <ul className="member-list">
                     {selectedBoard.members.map((member) => <li key={member.id}>{member.name}</li>)}
                   </ul>
                 </div>
-                <div>
+                <div className="col-12 col-lg-6">
                   <div className="section-heading position-heading"><div><h2>Sessions</h2><p>Record meeting dates and attendance.</p></div></div>
                   <form className="session-create" onSubmit={(event) => {
                     event.preventDefault();
@@ -118,10 +118,10 @@ export function BoardsWorkspace({
                     </div>
                   </form>
                   {selectedBoard.sessions.length > 0 && (
-                    <ul className="session-list" aria-label="Board sessions">
+                    <ul className="session-list list-group list-group-flush" aria-label="Board sessions">
                       {selectedBoard.sessions.map((session) => (
                         <li key={session.id}>
-                          <button type="button" aria-pressed={session.id === selectedSessionId} disabled={isSaving} onClick={() => onSelectSession(session)}>
+                          <button className="list-group-item list-group-item-action" type="button" aria-pressed={session.id === selectedSessionId} disabled={isSaving} onClick={() => onSelectSession(session)}>
                             <span>{session.sessionDate}</span>
                             <span>{session.attendedMemberIds.length} attended</span>
                           </button>
@@ -134,9 +134,9 @@ export function BoardsWorkspace({
               {selectedSession ? (
                 <form className="attendance-editor" onSubmit={(event) => { event.preventDefault(); onSaveAttendance(); }}>
                   <div className="section-heading"><div><h2>Attendance for {selectedSession.sessionDate}</h2><p>Mark who attended this session. This is not a ballot or vote.</p></div></div>
-                  <ul className="attendance-list">
+                  <ul className="attendance-list list-group list-group-flush">
                     {selectedBoard.members.map((member) => (
-                      <li key={member.id}>
+                      <li className="list-group-item" key={member.id}>
                         <label>
                           <input
                             type="checkbox"

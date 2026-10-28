@@ -36,10 +36,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function signIn(email = 'admin@example.com', password = 'secret') {
+async function signIn(email = 'admin@example.com', password = 'secret', selectDemoTerm = true) {
   fireEvent.change(screen.getByLabelText('Email'), { target: { value: email } });
   fireEvent.change(screen.getByLabelText('Password'), { target: { value: password } });
   fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+  if (selectDemoTerm) {
+    const termButton = await screen.findByRole('button', { name: /Elections 2026/ });
+    fireEvent.click(termButton);
+  }
 }
 
 function signedInFetch(churches: unknown[], elections: unknown[]) {
@@ -165,7 +169,7 @@ describe('voting round navigation', () => {
 
     render(<App />);
     await signIn();
-    fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Finance.*2 positions.*Setup/ }));
     await screen.findByRole('heading', { name: 'Position 1 of 2' });
     fireEvent.click(screen.getByRole('button', { name: 'Manage nominations' }));
 
@@ -338,7 +342,7 @@ describe('election administration', () => {
       body: JSON.stringify({ email: 'admin@example.com', password: 'secure-password-123' }),
     });
     expect(fetchMock.mock.calls[0][1].headers.Authorization).toBeUndefined();
-    expect(screen.getByRole('heading', { name: 'Election setup' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sign in to your church' })).toBeInTheDocument();
   });
 
   it('shows password requirements and explains registration validation errors', async () => {
@@ -366,7 +370,7 @@ describe('election administration', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     render(<App />);
-    await signIn();
+    await signIn('admin@example.com', 'secret', false);
 
     expect(await screen.findByRole('heading', { name: 'Register your church' })).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -387,13 +391,15 @@ describe('election administration', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     render(<App />);
-    await signIn();
+    await signIn('admin@example.com', 'secret', false);
     fireEvent.change(await screen.findByLabelText('Church name'), { target: { value: 'Grace Church' } });
     fireEvent.click(screen.getByRole('button', { name: 'Register church' }));
 
+    expect(await screen.findByRole('heading', { name: 'Administrator Workspace' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Elections 2026/ }));
     expect(await screen.findByRole('heading', { name: 'Department elections' })).toBeInTheDocument();
     expect(screen.queryByText(/Voting is not available yet/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Current church: Grace Church/)).toBeInTheDocument();
+    expect(screen.getByText(/Grace Church.*Administrator workspace/)).toBeInTheDocument();
     expect(fetchMock.mock.calls[2][0]).toBe('http://localhost:8080/api/churches');
     expect(fetchMock.mock.calls[2][1]).toMatchObject({
       method: 'POST',
@@ -413,12 +419,12 @@ describe('election administration', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     render(<App />);
-    await signIn();
+    await signIn('admin@example.com', 'secret', false);
     fireEvent.change(await screen.findByLabelText('Church name'), { target: { value: 'Grace Church' } });
     fireEvent.click(screen.getByRole('button', { name: 'Register church' }));
 
-    expect(await screen.findByRole('heading', { name: 'My churches' })).toBeInTheDocument();
-    expect(screen.getByText(/Current church: Grace Church/)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Grace Church' })).toBeInTheDocument();
+    expect(screen.getByText(/Administrator workspace/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Register church' })).not.toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('HTTP 500');
     expect(fetchMock).toHaveBeenCalledTimes(4);
@@ -433,6 +439,11 @@ describe('election administration', () => {
     await signIn();
     await screen.findByRole('heading', { name: 'Department elections' });
 
+    expect(screen.getByRole('group', { name: 'Position status summary' })).toHaveTextContent('1 not started');
+    expect(screen.getByRole('group', { name: 'Position status summary' })).toHaveTextContent('1 in progress');
+    expect(screen.getByRole('list', { name: 'Finance positions' })).toHaveTextContent('Director1 openingNot startedConfigure Position');
+    expect(screen.getByRole('list', { name: 'Finance positions' })).toHaveTextContent('Treasurer2 openingsNominations openConfigure Position');
+
     const meRequest = fetchMock.mock.calls[0];
     expect(meRequest[0]).toBe('http://localhost:8080/api/auth/me');
     expect(meRequest[1].headers).toEqual({
@@ -445,6 +456,8 @@ describe('election administration', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
 
     expect(await screen.findByRole('heading', { name: 'Position 1 of 2' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Election positions' })).toHaveTextContent('Treasurer');
+    expect(screen.getByRole('navigation', { name: 'Election positions' })).toHaveTextContent('Nominations open');
     expect(await screen.findByRole('button', { name: 'Position 1 of 2: Director, 1 opening, Not started, next action: Set up nominations, current position' })).toBeInTheDocument();
     expect(within(screen.getByLabelText(/Current position: Director/)).getByText('Director')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Position 1 of 2: Director, 1 opening, Not started, next action: Set up nominations, current position' })).toHaveAttribute('aria-current', 'step');
@@ -460,6 +473,108 @@ describe('election administration', () => {
     fireEvent.click(screen.getByRole('button', { name: /Previous position/ }));
     expect(await screen.findByRole('heading', { name: 'Position 1 of 2' })).toBeInTheDocument();
     expect(fetchMock.mock.calls[3][0]).toBe('http://localhost:8080/api/elections/election-1');
+  });
+
+  it('shows static demo terms and keeps all API elections visible under the selected term', async () => {
+    const fetchMock = signedInFetch([church], [election]);
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn('admin@example.com', 'secret', false);
+
+    expect(await screen.findByRole('heading', { name: 'Administrator Workspace' })).toBeInTheDocument();
+    expect(screen.getByText('Sample terms for this visual prototype. Terms are not stored by the election API.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Elections 2026/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Elections 2027/ })).toBeInTheDocument();
+    expect(screen.queryByText('Finance')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Elections 2027/ }));
+
+    expect(await screen.findByRole('heading', { name: 'Elections 2027' })).toBeInTheDocument();
+    expect(screen.getByText(/Live election rows below are shown under this demo term/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Finance.*2 positions.*Setup/ })).toBeInTheDocument();
+    expect(screen.getByText('Sample voting session link')).toBeInTheDocument();
+    expect(screen.getByText('Sample presentation link')).toBeInTheDocument();
+    expect(screen.getAllByText('DEMO LINK · NOT ACTIVE')).toHaveLength(2);
+    expect(fetchMock.mock.calls.filter(([url]) => url === 'http://localhost:8080/api/elections')).toHaveLength(1);
+  });
+
+  it('collapses and expands position groups with the Bootstrap accordion control', async () => {
+    vi.stubGlobal('fetch', signedInFetch([church], [election]));
+
+    render(<App />);
+    await signIn();
+
+    const accordionToggle = screen.getByRole('button', { name: 'Collapse positions' });
+    const accordionPanel = document.getElementById('election-panel-election-1');
+    expect(accordionToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('list', { name: 'Finance positions' })).toBeInTheDocument();
+    fireEvent.click(accordionToggle);
+    expect(accordionToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(accordionPanel).not.toHaveClass('show');
+    fireEvent.click(screen.getByRole('button', { name: 'Expand positions' }));
+    expect(screen.getByRole('button', { name: 'Collapse positions' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('list', { name: 'Finance positions' })).toBeInTheDocument();
+  });
+
+  it('opens the selected position from its overview next action', async () => {
+    const fetchMock = signedInFetch([church], [election]);
+    fetchMock.mockResolvedValueOnce(response(election));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: 'Close nominations: Treasurer' }));
+
+    expect(await screen.findByRole('heading', { name: 'Position 2 of 2' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Position 2 of 2: Treasurer/ })).toHaveAttribute('aria-current', 'step');
+  });
+
+  it('shows zeroed overview and an empty state when no elections exist', async () => {
+    vi.stubGlobal('fetch', signedInFetch([church], []));
+
+    render(<App />);
+    await signIn();
+
+    expect(await screen.findByRole('heading', { name: 'No elections configured' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Position status summary' })).toHaveTextContent('0 in progress');
+    expect(screen.getByRole('button', { name: 'Create first election' })).toBeInTheDocument();
+  });
+
+  it('counts unknown position progress as unavailable, not in progress', async () => {
+    const unknownProgressElection = {
+      ...election,
+      positions: [{ ...election.positions[0], progressStatus: 'FUTURE_STATE' }],
+    };
+    vi.stubGlobal('fetch', signedInFetch([church], [unknownProgressElection]));
+
+    render(<App />);
+    await signIn();
+
+    const positionSummary = await screen.findByRole('group', { name: 'Position status summary' });
+    expect(positionSummary).toHaveTextContent('0 in progress');
+    expect(positionSummary).toHaveTextContent('1 unavailable');
+    expect(screen.getByRole('list', { name: 'Finance positions' })).toHaveTextContent('Progress unavailable');
+  });
+
+  it('reports election list loading and request errors without discarding the dashboard shell', async () => {
+    let resolveElectionResponse: ((value: ReturnType<typeof response>) => void) | undefined;
+    const pendingElections = new Promise<ReturnType<typeof response>>((resolve) => { resolveElectionResponse = resolve; });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(response(account))
+      .mockResolvedValueOnce(response([church]))
+      .mockReturnValueOnce(pendingElections);
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'admin@example.com' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(await screen.findByRole('button', { name: 'Checking access…' })).toBeDisabled();
+
+    resolveElectionResponse?.(response({}, 500));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The request failed (HTTP 500).');
+    expect(screen.getByRole('heading', { name: 'Sign in to your church' })).toBeInTheDocument();
   });
 
   it('keeps election detail usable when the API omits position progress fields', async () => {
@@ -479,7 +594,7 @@ describe('election administration', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
 
     expect(await screen.findByRole('heading', { name: 'Position 1 of 2' })).toBeInTheDocument();
-    expect(screen.getAllByText('Progress unavailable')).toHaveLength(3);
+    expect(screen.getAllByText('Progress unavailable')).toHaveLength(5);
     expect(screen.getAllByText('Next: Action unavailable')).toHaveLength(2);
     expect(screen.getByText('Next action: Action unavailable')).toBeInTheDocument();
   });
@@ -655,7 +770,7 @@ describe('election administration', () => {
     fireEvent.click(confirmButton);
 
     expect(await screen.findByRole('heading', { name: 'No positions configured' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Edit setup' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Configure Position' })).toBeInTheDocument();
     expect(fetchMock.mock.calls[4][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1');
     expect(fetchMock.mock.calls[4][1].method).toBe('DELETE');
     expect(fetchMock.mock.calls[5][0]).toBe('http://localhost:8080/api/elections');
@@ -842,7 +957,7 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit setup' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Configure Position' }));
     fireEvent.change(screen.getByLabelText('Department name'), { target: { value: 'Finance Committee' } });
     fireEvent.change(screen.getAllByLabelText('Position name')[0], { target: { value: 'Senior Director' } });
     fireEvent.click(screen.getByRole('button', { name: 'Move Treasurer up' }));
@@ -868,7 +983,7 @@ describe('election administration', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     render(<App />);
-    await signIn();
+    await signIn('admin@example.com', 'secret', false);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Sign-in failed. Check your email and password.');
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
@@ -888,7 +1003,7 @@ describe('election administration', () => {
     expect(screen.getByRole('heading', { name: 'Department elections' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
 
-    expect(screen.getByRole('heading', { name: 'Election setup' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sign in to your church' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument();
   });
 
