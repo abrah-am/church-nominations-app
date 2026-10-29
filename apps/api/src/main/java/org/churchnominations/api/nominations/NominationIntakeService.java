@@ -476,14 +476,12 @@ public class NominationIntakeService {
                 .filter(java.util.Objects::nonNull)
                 .distinct()
                 .count();
-        List<NominationSubmissionResponse> submitted = intake.isListCreated()
-            ? submissions.findAllByIntakeId(intake.getId()).stream()
-                .sorted(Comparator.comparing(NominationSubmission::getName, String.CASE_INSENSITIVE_ORDER)
-                    .thenComparing(NominationSubmission::getName)
-                    .thenComparing(NominationSubmission::getId))
-                .map(NominationSubmissionResponse::from)
-                .toList()
-            : List.of();
+        List<NominationSubmissionResponse> submitted = submissions.findAllByIntakeId(intake.getId()).stream()
+            .sorted(Comparator.comparing(NominationSubmission::getName, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(NominationSubmission::getName)
+                .thenComparing(NominationSubmission::getId))
+            .map(NominationSubmissionResponse::from)
+            .toList();
         List<NominationConsolidatedName> sharedRows = intake.isListCreated()
             ? consolidatedNames.findAllByIntakeIdOrderBySequenceAsc(intake.getId()) : List.of();
         List<String> consolidated = sharedRows.stream()

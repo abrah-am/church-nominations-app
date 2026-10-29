@@ -44,8 +44,10 @@ export type NominationAdminPanelProps = {
 	electionId: string;
 	positionId: string;
 	positionName: string;
+	electionName: string;
 	openingCount: number;
 	positionProgressStatus: string;
+	onReturnToElectionList: () => void;
 	onLifecycleChange: (completionMayChange?: boolean) => void;
 	onDraftStateChange: (dirty: boolean) => void;
 };
@@ -67,10 +69,9 @@ function normalizeNominationIntake(intake: NominationIntake): NominationIntake {
 	};
 }
 
-export default function NominationAdminPanel({ credentials, electionId, positionId, positionName, openingCount, positionProgressStatus, onLifecycleChange, onDraftStateChange }: NominationAdminPanelProps) {
+export default function NominationAdminPanel({ credentials, electionId, positionId, positionName, electionName, openingCount, positionProgressStatus, onReturnToElectionList, onLifecycleChange, onDraftStateChange }: NominationAdminPanelProps) {
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [intakeDetailsOpen, setIntakeDetailsOpen] = useState(true);
-	const [sharedListOpen, setSharedListOpen] = useState(true);
 	const [intake, setIntake] = useState<NominationIntake | null>(null);
 	const [nameLimit, setNameLimit] = useState('5');
 	const [sharedListDraft, setSharedListDraft] = useState<SharedNominationEntry[]>([]);
@@ -224,7 +225,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 		: intake.status === 'OPEN'
 			? { stage: 0, title: 'Collect nominations', description: 'Share the nomination link, monitor profile submissions, and close intake when ready.' }
 			: !intake.revealed
-				? { stage: 0, title: 'Review and reveal nominations', description: 'Review the consolidated list. It remains hidden from the presentation until you explicitly reveal it.' }
+				? { stage: 0, title: 'Review and consolidate names', description: 'Review anonymous proposed names, resolve duplicates, and confirm the shared list.' }
 				: activeRound
 					? { stage: 1, title: `Monitor voting · Round ${activeRound.roundNumber}`, description: 'Track participation only. Ballot totals remain hidden while voting is active.' }
 					: latestClosedRound && unrevealedRoundIds.includes(latestClosedRound.id)
@@ -380,7 +381,6 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setIntake(normalized);
 			previousIntakeRef.current = normalized;
 			setIntakeDetailsOpen(true);
-			if (normalized.status === 'CLOSED') setSharedListOpen(true);
 			setSharedListDraft(normalized.sharedList);
 			setRemovedEntries(normalized.removedEntries ?? []);
 			setSharedListDirty(false);
@@ -422,7 +422,6 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setIntake(normalized);
 			previousIntakeRef.current = normalized;
 			if (normalized.status === 'CLOSED') {
-				if (previous?.status !== 'CLOSED') setSharedListOpen(true);
 				setSharedListDraft(normalized.sharedList);
 				setRemovedEntries(normalized.removedEntries ?? []);
 				setSharedListDirty(false);
@@ -478,7 +477,6 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setIntake(created);
 			previousIntakeRef.current = created;
 			setIntakeDetailsOpen(true);
-			setSharedListOpen(false);
 			onLifecycleChange();
 		} catch (requestError) {
 			setError(requestError instanceof Error ? requestError.message : 'Could not create nomination intake.');
@@ -495,7 +493,6 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setIntake(closed);
 			previousIntakeRef.current = closed;
 			setIntakeDetailsOpen(true);
-			setSharedListOpen(true);
 			setSharedListDraft(closed.sharedList);
 			setRemovedEntries(closed.removedEntries ?? []);
 			setSharedListDirty(false);
@@ -524,7 +521,6 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setSharedListDraft(revealed.sharedList);
 			setRemovedEntries(revealed.removedEntries ?? []);
 			setSharedListDirty(false);
-			setSharedListOpen(true);
 			const session = await showNominationPresentation(credentials, electionId, positionId);
 			const route = `/nomination-presentation/${encodeURIComponent(session.accessToken)}`;
 			setPresentationPath(route);
@@ -657,7 +653,6 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	function editSharedList() {
 		if (hasActiveRound) return;
 		setIntakeDetailsOpen(true);
-		setSharedListOpen(true);
 		sharedListSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	}
 
@@ -974,18 +969,42 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	}
 
 	const workflowSteps = ['Collect and review nominations', 'Voting rounds', 'Candidate decisions', 'Position complete'];
-
+	const workflowStatus = !intake
+		? positionProgressStatus === 'NOT_STARTED' ? 'Not open'
+			: positionProgressStatus === 'NOMINATIONS_OPEN' ? 'Open'
+				: positionProgressStatus === 'NOMINATIONS_CLOSED' || positionProgressStatus === 'CONSOLIDATED' ? 'Closed'
+					: positionProgressStatus === 'ROUND_ACTIVE' ? 'Voting open'
+						: positionProgressStatus === 'ROUND_CLOSED_UNREVEALED' ? 'Closed · unrevealed'
+							: positionProgressStatus === 'RESULTS_REVEALED' || positionProgressStatus === 'CANDIDATES_ADVANCED' ? 'In progress'
+								: positionProgressStatus === 'COMPLETE' ? 'Complete' : 'Status unavailable'
+		: intake.status === 'OPEN' ? 'Open' : intake.revealed ? 'Revealed' : 'Closed';
+	const rosterNames = intake?.status === 'CLOSED'
+		? intake.consolidatedNames ?? []
+		: intake?.status === 'OPEN'
+			? intake.submissions.map((submission) => submission.name.trim()).filter(Boolean).sort((first, second) => first.localeCompare(second, undefined, { sensitivity: 'base' }))
+			: [];
 	return (
 		<section className="nomination-admin" aria-labelledby="nomination-admin-title">
-			<div className="workflow-heading">
-				<div><p className="eyebrow">Position workflow</p><h2 id="nomination-admin-title">{positionName}</h2><p>Manage nominations and voting for this position.</p></div>
-				{!isExpanded && <button className="secondary-button" type="button" onClick={loadIntake}>Manage nominations</button>}
-			</div>
+			<nav className="position-workflow-breadcrumb" aria-label="Election workflow breadcrumb">
+				<button className="back-button" type="button" onClick={onReturnToElectionList}>← <span>All elections</span></button>
+				<span className="position-breadcrumb-crumb"><span aria-hidden="true">/&nbsp;</span>{electionName}</span>
+				<strong className="position-breadcrumb-crumb" aria-current="page"><span aria-hidden="true">/&nbsp;</span>{positionName}</strong>
+			</nav>
+			{intake?.status !== 'CLOSED' && <section className="workflow-access" aria-label="Current election access shortcuts">
+				<div><strong>Current position access</strong><p>{electionName} · {positionName}</p></div>
+				<span className="row-status">{intake?.accessToken ? 'Nomination link ready' : 'Nomination link not created'}</span>
+				<button className="secondary-button" type="button" disabled={!intake?.accessToken} onClick={copyShareUrl}>{copied ? 'Copied' : 'Copy nomination link'}</button>
+				<p className="workflow-access-note">{intake?.accessToken ? 'Anyone with this position-specific link can submit or revise names while intake is open.' : 'Open nomination intake to create its position-specific link.'} The presentation becomes available after nominations are revealed.</p>
+			</section>}
+			<div className={`workflow-stage-group${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}`}>
 			<section className="guided-workflow" aria-label="Position workflow progress">
 				<div className="guided-workflow-task" aria-live="polite" aria-atomic="true">
+					<p className="eyebrow">Position workflow</p>
+					<h2 className="workflow-position-name" id="nomination-admin-title">{positionName}</h2>
 					<p className="workflow-task-kicker">Current task</p>
-					<h3>{currentWorkflowTask.title}</h3>
+					<div className="workflow-task-heading-row"><h3>{intake?.status === 'OPEN' ? 'Nomination intake is open' : currentWorkflowTask.title}</h3><span className={`row-status ${workflowStatus === 'Not open' || (intake?.status === 'CLOSED' && !intake.revealed) ? 'closed-status' : ''}`}>{workflowStatus}</span></div>
 					<p>{currentWorkflowTask.description}</p>
+					{!isExpanded && !intake && <div className="workflow-stage-action"><button className="primary-button" type="button" onClick={() => { void loadIntake(); }}>Open nomination intake</button></div>}
 					<span className="sr-only">Workflow step {currentWorkflowTask.stage + 1} of {workflowSteps.length}.</span>
 				</div>
 				<div className="guided-workflow-progress">
@@ -1004,11 +1023,56 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					</ol>
 				</div>
 			</section>
+			{isExpanded && !isLoading && intake?.status === 'CLOSED' && (
+				<section className="closed-review-summary" aria-label="Closed nomination review">
+					<p ref={closedStatusRef} tabIndex={-1} className="closed-review-message" role="status" aria-live="polite" aria-atomic="true">
+						{intake.revealed
+							? 'The shared list is revealed to the presentation.'
+							: 'Nominations are closed. Review the shared list; the presentation remains hidden until you reveal it.'}
+					</p>
+					<div className="closed-review-meta">
+						<span>{intake.currentContributorCount ?? 'Unavailable'} current profile submissions</span>
+						<span>{intake.consolidatedNames?.length ?? intake.sharedList.filter((entry) => entry.active).length} candidates</span>
+					</div>
+					{!intake.revealed && <button className="primary-button" type="button" disabled={isLoading} onClick={() => { void revealIntake(); }}>Reveal results</button>}
+				</section>
+			)}
+			{isExpanded && !isLoading && intake?.status === 'OPEN' && (
+				<section className="intake-collection-view" aria-label="Open nomination intake">
+					<div className="intake-collection-metrics">
+						<div><strong>{intake.currentContributorCount ?? 'Unavailable'}</strong><span>profile submissions</span></div>
+						<div><strong>{intake.nameLimit}</strong><span>names allowed per profile</span></div>
+					</div>
+					<p className="form-note">{intake.currentContributorCount == null ? 'The connected API did not provide this count. Restart or update the API, then reload nominations.' : 'Browser profiles with at least one current name submission. This is not a verified count of people.'}</p>
+					{liveAnnouncement && <p className="live-intake-announcement" role="status" aria-live="polite" aria-atomic="true">{liveAnnouncement}</p>}
+					<div className="intake-collection-names" aria-live="polite">
+						<h4>Submitted names</h4>
+						{rosterNames.length > 0
+							? <ol className="position-roster-list" aria-label="Submitted names">{rosterNames.map((name, index) => <li key={`${name}-${index}`}>{name}</li>)}</ol>
+							: <p className="position-roster-empty">No names have been submitted yet.</p>}
+					</div>
+					<div className="form-actions"><button ref={closeTriggerRef} className="secondary-button" type="button" disabled={isLoading} onClick={() => setCloseDialogOpen(true)}>Close nominations</button></div>
+				</section>
+			)}
+			<section className="workflow-presentation-control" aria-labelledby="workflow-presentation-label">
+				<div><p className="eyebrow" id="workflow-presentation-label">Audience presentation</p><h3 id="workflow-presentation-title">Presentation display is {presentationVisible ? 'on' : 'off'}</h3><p>This read-only display is separate from the position workflow and session link.</p></div>
+				<div className="workflow-presentation-actions">
+					<button className="secondary-button" type="button" disabled={!intake?.revealed || presentationBusy} onClick={() => { if (presentationPath) window.open(presentationPath, '_blank', 'noopener,noreferrer'); else void openPresentation(); }}>{presentationPath ? 'Open presentation' : 'Presentation'}</button>
+					{presentationVisible && <button className="secondary-button" type="button" disabled={presentationBusy} onClick={() => { void controlPresentation('hide'); }}>Hide presentation</button>}
+					{presentationPath && <button className="secondary-button" type="button" disabled={presentationBusy} onClick={() => { void controlPresentation('end'); }}>End presentation</button>}
+				</div>
+				{presentationError && <p className="error-message workflow-presentation-error" role="alert">{presentationError}</p>}
+			</section>
+			</div>
+			<div className={`position-workflow-grid${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}`}>
+				<div className="position-workflow-main">
 			{isExpanded && isLoading && <p className="state-message" role="status">Loading nomination intake…</p>}
 			{error && <p className="error-message" role="alert">{error}</p>}
 			{streamStatus && <p className="state-message" role="status">{streamStatus}</p>}
 			{isExpanded && !isLoading && !intake && !error && (
 				<form className="intake-create" onSubmit={createIntake}>
+					<h3>Nomination intake</h3>
+					<p className="form-note">People can submit proposed names for {positionName} using a position-specific link. Their submissions remain anonymous to administrators.</p>
 					<label htmlFor="nomination-name-limit">Maximum names per visitor</label>
 					<div className="intake-controls">
 						<input id="nomination-name-limit" type="number" min="1" step="1" value={nameLimit} onChange={(event) => { setNameLimit(event.target.value); updateDraftState(event.target.value !== '5'); }} required />
@@ -1016,56 +1080,8 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					</div>
 				</form>
 			)}
-			{isExpanded && !isLoading && intake && (
-					<section className="workflow-details intake-details">
-						<button className="workflow-disclosure-trigger" type="button" aria-expanded={intakeDetailsOpen} onClick={() => setIntakeDetailsOpen((open) => !open)}>
-							<span>Nomination intake</span><span>{intake.status === 'OPEN' ? 'Open' : 'Closed'} · {intake.currentContributorCount == null ? 'profile submission count unavailable' : `${intake.currentContributorCount} current profile submissions`}{intake.consolidatedNames ? ` · ${intake.consolidatedNames.length} candidates` : ''}</span>
-							<span className="workflow-disclosure-icon" aria-hidden="true">{intakeDetailsOpen ? '−' : '+'}</span>
-						</button>
-						{intakeDetailsOpen && <div className="intake-content">
-					<div className="detail-summary intake-summary">
-						<div><span className="summary-label">Intake status</span><span className={`row-status ${intake.status === 'CLOSED' ? 'closed-status' : ''}`}>{intake.status === 'OPEN' ? 'Open' : 'Closed'}</span></div>
-						<div className="intake-metric"><span className="summary-label">Current profile submissions</span><strong>{intake.currentContributorCount ?? 'Unavailable'}</strong><span>{intake.currentContributorCount == null ? 'The connected API did not provide this count. Restart or update the API, then reload nominations.' : 'Browser profiles with at least one name currently submitted. This is not a verified count of people.'}</span></div>
-						<div><span className="summary-label">Names allowed per profile</span><strong>{intake.nameLimit}</strong></div>
-					</div>
-					{liveAnnouncement && <p className="live-intake-announcement" role="status" aria-live="polite" aria-atomic="true">{liveAnnouncement}</p>}
-					{intake.status === 'OPEN' ? (
-						<>
-							<label className="share-label" htmlFor="nomination-share-url">Public nomination link</label>
-							<div className="intake-controls share-controls">
-								<input id="nomination-share-url" value={`${window.location.origin}/nominate/${encodeURIComponent(intake.accessToken)}`} readOnly onFocus={(event) => event.currentTarget.select()} />
-								<button className="secondary-button" type="button" onClick={copyShareUrl}>{copied ? 'Copied' : 'Copy link'}</button>
-							</div>
-							<p className="form-note">Usable while intake is open.</p>
-							<p className="form-note">Anyone with this link can submit or update names until you close nominations.</p>
-							<div className="form-actions"><button ref={closeTriggerRef} className="secondary-button" type="button" disabled={isLoading} onClick={() => setCloseDialogOpen(true)}>Close nominations</button></div>
-							<p className="form-note">Names are available to admins after closing; the presentation remains hidden until you reveal the list.</p>
-						</>
-					) : (
-						<>
-							<p className="form-note">Public link disabled. Nominations are read-only.</p>
-							{!intake.revealed && <div className="form-actions"><button className="primary-button" type="button" disabled={isLoading} onClick={() => { void revealIntake(); }}>Reveal results</button></div>}
-							{intake.revealed && <div className="presentation-admin-controls">
-								<button className="primary-button" type="button" disabled={presentationBusy} onClick={() => { void openPresentation(); }}>{presentationPath ? 'Open presentation tab' : 'Start presentation'}</button>
-								{presentationVisible && <button className="secondary-button" type="button" disabled={presentationBusy} onClick={() => { void controlPresentation('hide'); }}>Hide presentation</button>}
-								{presentationPath && <button className="secondary-button" type="button" disabled={presentationBusy} onClick={() => { void controlPresentation('end'); }}>End presentation</button>}
-								{presentationError && <p className="error-message" role="alert">{presentationError}</p>}
-							</div>}
-							{!intake.revealed && intake.listCreated && <p className="form-note">The shared list is ready for admin review. The presentation remains hidden until you reveal it.</p>}
-						</>
-					)}
-					</div>}
-				</section>
-			)}
 			{isExpanded && !isLoading && !intake && error && (
 				<button className="secondary-button" type="button" onClick={() => { void loadIntake(); }}>Retry loading nominations</button>
-			)}
-			{isExpanded && !isLoading && intake?.status === 'CLOSED' && (
-				<p ref={closedStatusRef} tabIndex={-1} className="state-message intake-closure-status" role="status" aria-live="polite" aria-atomic="true">
-					{intake.revealed
-						? 'The shared list is revealed to the presentation.'
-						: 'Nominations are closed. Review the shared list; the presentation remains hidden until you reveal it.'}
-				</p>
 			)}
 			{closeDialogOpen && (
 				<div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCloseDialogOpen(false); }}>
@@ -1098,11 +1114,11 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			)}
 			{isExpanded && !isLoading && intake?.status === 'CLOSED' && intake.listCreated && (
 				<section ref={sharedListSectionRef} className="workflow-details consolidation-details">
-					<button className="workflow-disclosure-trigger" type="button" aria-expanded={sharedListOpen} onClick={() => setSharedListOpen((open) => !open)}>
-						<span>Shared nomination list</span><span>{sharedListDraft.filter((entry) => entry.active).length} active · {sharedListDraft.filter((entry) => !entry.active).length} removed</span>
-						<span className="workflow-disclosure-icon" aria-hidden="true">{sharedListOpen ? '−' : '+'}</span>
-					</button>
-					{sharedListOpen && <div className="consolidation-complete">
+					<div className="consolidation-list-heading">
+						<h3>Shared nomination list</h3>
+						<span>{sharedListDraft.filter((entry) => entry.active).length} candidates</span>
+					</div>
+					<div className="consolidation-complete">
 						<ol className="member-list shared-nomination-list" aria-label="Shared nomination list">
 							{sharedListDraft.map((entry) => {
 								const savedName = intake.sharedList.find((savedEntry) => savedEntry.id === entry.id)?.name;
@@ -1121,9 +1137,9 @@ export default function NominationAdminPanel({ credentials, electionId, position
 								</li>;
 							})}
 						</ol>
-						<details className="removed-nomination-section">
+						{removedEntries.length > 0 && <details className="removed-nomination-section">
 							<summary>Removed ({removedEntries.length})</summary>
-							{removedEntries.length === 0 ? <p className="form-note">No removed names.</p> : (
+							{(
 								<ul className="member-list" aria-label="Removed nominations">
 									{removedEntries.map((entry) => <li key={entry.auditEventId}>
 										<span className="shared-nomination-name">{entry.name}</span>
@@ -1131,17 +1147,16 @@ export default function NominationAdminPanel({ credentials, electionId, position
 									</li>)}
 								</ul>
 							)}
-						</details>
+						</details>}
 						{sharedListError && !removalEntry && <p className="error-message" role="alert">{sharedListError}</p>}
 						{sharedListDirty && <div className="shared-list-recovery"><p className="form-note">Unsaved edits are kept here and are not visible on the presentation.</p><button className="primary-button" type="button" disabled={isLoading || hasActiveRound} onClick={() => { void saveSharedList(); }}>{isLoading ? 'Saving…' : 'Save changes'}</button>{sharedListConflict && <button className="secondary-button" type="button" disabled={isLoading} onClick={() => { void reloadSharedList(); }}>Reload latest saved list</button>}</div>}
 						{sharedListConflict && !sharedListDirty && !removalEntry && <button className="secondary-button" type="button" disabled={isLoading} onClick={() => { void reloadSharedList(); }}>Reload latest saved list</button>}
 						{hasActiveRound && <p className="form-note">Shared-list editing is unavailable while voting is active.</p>}
 						{confirmedChangeEvents.length > 0 && <details className="admin-change-history"><summary>Confirmed change history ({confirmedChangeEvents.length})</summary><ol>{confirmedChangeEvents.map((event) => <li key={event.id}><span>{event.action === 'CORRECTED' ? `${event.beforeName} → ${event.afterName}` : event.action === 'REMOVED' ? `${event.beforeName} removed · ${event.removalReason ?? 'Other'}${event.reasonDetail ? `: ${event.reasonDetail}` : ''}` : `${event.afterName ?? event.beforeName} restored`}</span><small>{event.actorLabel} · {new Date(event.occurredAt).toLocaleString()}</small></li>)}</ol></details>}
-						{!sharedListDirty && <p className="state-message" role="status">{intake.revealed ? 'Saved; confirmed changes are available to the presentation.' : 'Saved for admin review. The presentation remains hidden.'}</p>}
-					</div>}
+					</div>
 				</section>
 			)}
-			{isExpanded && hasSavedSnapshot && (
+			{isExpanded && hasSavedSnapshot && (intake?.revealed || rounds.length > 0) && (
 				<details className="workflow-details voting-round-configuration" open>
 					<summary>Voting round configuration <span>{rounds.length} {rounds.length === 1 ? 'round' : 'rounds'} · {hasActiveRound ? 'Voting active' : draftRoundId ? 'Draft ready' : 'Setup'}</span></summary>
 					<section aria-labelledby="voting-round-title">
@@ -1432,6 +1447,15 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					})()}
 				</details>
 			)}
+				{!intake && <aside className="position-roster-panel" aria-labelledby="position-roster-title">
+					<p className="eyebrow">Nomination intake</p>
+					<h3 id="position-roster-title">Names not yet submitted</h3>
+					<p>Submitted names are not shown to the audience before explicit reveal.</p>
+					<div className="position-roster-empty">No candidates yet.</div>
+					<span className="position-opening-count">{openingCount} {openingCount === 1 ? 'opening' : 'openings'}</span>
+				</aside>}
+				</div>
+			</div>
 		</section>
 	);
 }

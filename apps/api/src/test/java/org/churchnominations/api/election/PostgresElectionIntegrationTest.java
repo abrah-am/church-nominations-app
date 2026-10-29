@@ -390,7 +390,7 @@ class PostgresElectionIntegrationTest {
     }
 
     @Test
-    void adminCannotReadNominationNamesBeforeExplicitReveal() throws Exception {
+        void adminCanReadAnonymousNominationNamesBeforeExplicitReveal() throws Exception {
         String admin = "nomination-reveal-admin@example.org";
                 String otherAdmin = "nomination-reveal-other-admin@example.org";
         mockMvc.perform(post("/api/auth/register").contentType(APPLICATION_JSON)
@@ -428,7 +428,8 @@ class PostgresElectionIntegrationTest {
                         .with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentContributorCount").value(1))
-                .andExpect(jsonPath("$.submissions", hasSize(0)))
+                .andExpect(jsonPath("$.submissions[*].name").value(org.hamcrest.Matchers.contains("Private Name")))
+                .andExpect(jsonPath("$.submissions[0].actorId").doesNotExist())
                 .andExpect(jsonPath("$.consolidatedNames").value(org.hamcrest.Matchers.nullValue()));
         mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations/close",
                         electionId, positionId).with(httpBasic(admin, PASSWORD)))
@@ -771,7 +772,7 @@ class PostgresElectionIntegrationTest {
                         electionId, positionId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentContributorCount").value(1))
-                .andExpect(jsonPath("$.submissions", hasSize(0)));
+                .andExpect(jsonPath("$.submissions[*].name").value(containsInAnyOrder("Alice", "Carol")));
         mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
                         .header("X-Nomination-Device-Token", secondDeviceToken)
                         .contentType(APPLICATION_JSON).content("{\"names\":[\"carol\",\"Dana\"]}"))
@@ -780,7 +781,7 @@ class PostgresElectionIntegrationTest {
                         electionId, positionId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentContributorCount").value(2))
-                .andExpect(jsonPath("$.submissions", hasSize(0)));
+                .andExpect(jsonPath("$.submissions[*].name").value(containsInAnyOrder("Alice", "Carol", "carol", "Dana")));
         mockMvc.perform(get("/api/nomination-intakes/{accessToken}", accessToken)
                         .header("X-Nomination-Device-Token", deviceToken))
                 .andExpect(status().isOk())
@@ -833,7 +834,7 @@ class PostgresElectionIntegrationTest {
                         electionId, positionId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentContributorCount").value(2))
-                .andExpect(jsonPath("$.submissions", hasSize(0)));
+                .andExpect(jsonPath("$.submissions[*].name").value(containsInAnyOrder("Carol", "carol", "Dana")));
         mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
                         .header("X-Nomination-Device-Token", deviceToken)
                         .contentType(APPLICATION_JSON).content("{\"names\":[]}"))
@@ -843,7 +844,7 @@ class PostgresElectionIntegrationTest {
                         electionId, positionId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentContributorCount").value(1))
-                .andExpect(jsonPath("$.submissions", hasSize(0)));
+                .andExpect(jsonPath("$.submissions[*].name").value(containsInAnyOrder("carol", "Dana")));
         mockMvc.perform(put("/api/nomination-intakes/{accessToken}/submission", accessToken)
                         .header("X-Nomination-Device-Token", deviceToken)
                         .contentType(APPLICATION_JSON).content("{\"names\":[\"Resubmitted Name\"]}"))
@@ -853,7 +854,8 @@ class PostgresElectionIntegrationTest {
                         electionId, positionId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentContributorCount").value(2))
-                .andExpect(jsonPath("$.submissions", hasSize(0)));
+                .andExpect(jsonPath("$.submissions[*].name").value(
+                        containsInAnyOrder("carol", "Dana", "Resubmitted Name")));
         mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/nominations/close",
                         electionId, positionId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
