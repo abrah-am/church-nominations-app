@@ -41,8 +41,8 @@ async function signIn(email = 'admin@example.com', password = 'secret', selectDe
   fireEvent.change(screen.getByLabelText('Password'), { target: { value: password } });
   fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
   if (selectDemoTerm) {
-    const termButton = await screen.findByRole('button', { name: /Elections 2026/ });
-    fireEvent.click(termButton);
+    const openElectionButtons = await screen.findAllByRole('button', { name: 'Open election' });
+    fireEvent.click(openElectionButtons[0]);
   }
 }
 
@@ -401,7 +401,7 @@ describe('election administration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Register church' }));
 
     expect(await screen.findByRole('heading', { name: 'Administrator Workspace' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Elections 2026/ }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Open election' })[0]);
     expect(await screen.findByRole('heading', { name: 'Department elections' })).toBeInTheDocument();
     expect(screen.queryByText(/Voting is not available yet/)).not.toBeInTheDocument();
     expect(screen.getByText(/Grace Church.*Administrator workspace/)).toBeInTheDocument();
@@ -515,11 +515,16 @@ describe('election administration', () => {
 
     expect(await screen.findByRole('heading', { name: 'Administrator Workspace' })).toBeInTheDocument();
     expect(screen.getByText('Sample terms for this visual prototype. Terms are not stored by the election API.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Elections 2026/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Elections 2027/ })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent(/Grace Church\s*\/\s*Election terms/);
+    vi.stubGlobal('alert', vi.fn());
+    fireEvent.click(screen.getByRole('button', { name: 'Add period' }));
+    expect(window.alert).toHaveBeenCalledWith('Prototype only: add election period');
+    expect(screen.getByText('Elections 2026')).toBeInTheDocument();
+    expect(screen.getByText('Elections 2027')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Annual Boards' })).not.toBeInTheDocument();
     expect(screen.queryByText('Finance')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Elections 2027/ }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Open election' })[1]);
 
     expect(await screen.findByRole('heading', { name: 'Elections 2027' })).toBeInTheDocument();
     expect(screen.getByText(/Live election rows below are shown under this demo term/)).toBeInTheDocument();
