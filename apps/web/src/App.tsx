@@ -23,7 +23,6 @@ import {
   Election,
   ElectionConfiguration,
   ElectionsApiError,
-  deleteElectionPosition,
   getElection,
   listElections,
   updateElection,
@@ -47,19 +46,6 @@ const electionStatusLabels: Record<Election['status'], string> = {
   COMPLETE: 'Complete',
 };
 
-const positionProgressLabels: Record<string, string> = {
-  NOT_STARTED: 'Not started',
-  NOMINATIONS_OPEN: 'Nominations open',
-  NOMINATIONS_CLOSED: 'Nominations closed',
-  CONSOLIDATED: 'Consolidated',
-  ROUND_DRAFT: 'Round configured',
-  ROUND_ACTIVE: 'Voting active',
-  ROUND_CLOSED_UNREVEALED: 'Round closed',
-  RESULTS_REVEALED: 'Results revealed',
-  CANDIDATES_ADVANCED: 'Candidates advanced',
-  COMPLETE: 'Complete',
-};
-
 const inProgressPositionStates = new Set([
   'NOMINATIONS_OPEN',
   'NOMINATIONS_CLOSED',
@@ -71,19 +57,6 @@ const inProgressPositionStates = new Set([
   'CANDIDATES_ADVANCED',
 ]);
 const knownPositionStates = new Set(['NOT_STARTED', ...inProgressPositionStates, 'COMPLETE']);
-
-const positionActionLabels: Record<string, string> = {
-  SET_UP_NOMINATIONS: 'Set up nominations',
-  CLOSE_NOMINATIONS: 'Close nominations',
-  CONSOLIDATE_NOMINATIONS: 'Review and consolidate names',
-  CONFIGURE_FIRST_ROUND: 'Configure first round',
-  START_VOTING: 'Review and start voting',
-  MONITOR_VOTING: 'Monitor voting',
-  REVEAL_RESULTS: 'Reveal results',
-  RECORD_CANDIDATE_DECISIONS: 'Record candidate decisions',
-  CONFIGURE_NEXT_ROUND: 'Configure next round',
-  COMPLETE: 'Position complete',
-};
 
 export { getCandidateRecommendation } from './features/elections/candidateRecommendations';
 
@@ -113,21 +86,15 @@ function AuthenticatedApp() {
   const [selectedPositionIndex, setSelectedPositionIndex] = useState(0);
   const [positionDraftDirty, setPositionDraftDirty] = useState(false);
   const positionDraftDirtyRef = useRef(false);
-  const [pendingPositionIndex, setPendingPositionIndex] = useState<number | null>(null);
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
   const stayOnPositionButton = useRef<HTMLButtonElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const mainRegion = useRef<HTMLElement>(null);
-  const positionSummary = useRef<HTMLDivElement>(null);
-  const focusPositionAfterSwitch = useRef(false);
   const focusMainAfterNavigation = useRef(false);
-  const [deletePositionOpen, setDeletePositionOpen] = useState(false);
-  const [deletePositionConfirmation, setDeletePositionConfirmation] = useState('');
   const [screen, setScreen] = useState<Screen>('list');
   const [pageError, setPageError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isDeletingPosition, setIsDeletingPosition] = useState(false);
   const [workspace, setWorkspace] = useState<Workspace>('elections');
   const [boards, setBoards] = useState<AnnualBoard[]>([]);
   const [selectedBoard, setSelectedBoard] = useState<AnnualBoard | null>(null);
@@ -147,54 +114,32 @@ function AuthenticatedApp() {
     setCollapsedElectionIds(new Set(elections.slice(1).map((election) => election.id)));
   }, [elections]);
 
-  function requestPositionChange(index: number) {
-    if (index === selectedPositionIndex) return;
-    if (positionDraftDirtyRef.current || positionDraftDirty) {
-      previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      setPendingPositionIndex(index);
-      return;
-    }
-    setSelectedPositionIndex(index);
-  }
-
   function requestNavigation(action: () => void) {
     if (!positionDraftDirtyRef.current && !positionDraftDirty) {
       action();
       return;
     }
     previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setPendingNavigation(action);
+    setPendingNavigation(() => action);
   }
 
   function closeDraftDialog() {
-    setPendingPositionIndex(null);
     setPendingNavigation(null);
     previousFocus.current?.focus();
   }
 
   function discardPositionDraftAndSwitch() {
-    if (pendingPositionIndex === null && pendingNavigation === null) return;
+    if (pendingNavigation === null) return;
     positionDraftDirtyRef.current = false;
     setPositionDraftDirty(false);
-    if (pendingPositionIndex !== null) {
-      focusPositionAfterSwitch.current = true;
-      setSelectedPositionIndex(pendingPositionIndex);
-    }
-    if (pendingNavigation !== null) focusMainAfterNavigation.current = true;
-    pendingNavigation?.();
-    setPendingPositionIndex(null);
+    focusMainAfterNavigation.current = true;
+    pendingNavigation();
     setPendingNavigation(null);
   }
 
   useEffect(() => {
-    if (pendingPositionIndex !== null || pendingNavigation !== null) stayOnPositionButton.current?.focus();
-  }, [pendingPositionIndex, pendingNavigation]);
-  useEffect(() => {
-    if (focusPositionAfterSwitch.current) {
-      focusPositionAfterSwitch.current = false;
-      positionSummary.current?.focus();
-    }
-  }, [selectedPositionIndex]);
+    if (pendingNavigation !== null) stayOnPositionButton.current?.focus();
+  }, [pendingNavigation]);
 
   useEffect(() => {
     if (focusMainAfterNavigation.current) {
@@ -400,6 +345,14 @@ function AuthenticatedApp() {
     setScreen('form');
   }
 
+  function editElection(election: Election) {
+    requestNavigation(() => {
+      setSelectedElection(election);
+      setPageError('');
+      setScreen('form');
+    });
+  }
+
   async function saveConfiguration(configuration: ElectionConfiguration) {
     if (!credentials) return;
     setIsSaving(true);
@@ -416,28 +369,6 @@ function AuthenticatedApp() {
       handleRequestError(error);
     } finally {
       setIsSaving(false);
-    }
-  }
-
-  async function deleteSelectedPosition(position: Election['positions'][number]) {
-    if (!credentials || !selectedElection || deletePositionConfirmation !== position.name) return;
-    setIsDeletingPosition(true);
-    setPageError('');
-    try {
-      await deleteElectionPosition(credentials, selectedElection.id, position.id);
-      const [refreshedElections, refreshedElection] = await Promise.all([
-        listElections(credentials),
-        getElection(credentials, selectedElection.id),
-      ]);
-      setElections(refreshedElections);
-      setSelectedElection(refreshedElection);
-      setSelectedPositionIndex((index) => Math.min(index, Math.max(0, refreshedElection.positions.length - 1)));
-      setDeletePositionOpen(false);
-      setDeletePositionConfirmation('');
-    } catch (error) {
-      handleRequestError(error);
-    } finally {
-      setIsDeletingPosition(false);
     }
   }
 
@@ -712,12 +643,14 @@ function AuthenticatedApp() {
                   {elections.map((election) => (
                       <section key={election.id} className="accordion-item election-overview-item">
                         <div className="election-accordion-header" id={`election-heading-${election.id}`}>
-                          <button className="election-row" type="button" aria-label={`${election.departmentName}, ${election.positions.length} ${election.positions.length === 1 ? 'position' : 'positions'}, ${electionStatusLabels[election.status]}`} onClick={() => { const firstPosition = [...election.positions].sort((a, b) => a.sequence - b.sequence)[0]; void openElection(election, firstPosition?.id); }}>
+                          <button className="election-row" type="button" aria-label={`${election.departmentName}, ${election.positions.length} ${election.positions.length === 1 ? 'position' : 'positions'}, ${election.status === 'SETUP' ? 'Edit' : electionStatusLabels[election.status]}`} onClick={() => { const firstPosition = [...election.positions].sort((a, b) => a.sequence - b.sequence)[0]; void openElection(election, firstPosition?.id); }}>
                             <span className="election-row-copy">
                               <strong>{election.departmentName}</strong>
                               <span>{election.positions.length} {election.positions.length === 1 ? 'position' : 'positions'} · {election.positions.reduce((total, position) => total + position.openingCount, 0)} {election.positions.reduce((total, position) => total + position.openingCount, 0) === 1 ? 'opening' : 'openings'}</span>
                             </span>
-                            <span className={`row-status row-status-${election.status.toLowerCase()}`} role="group" aria-label={`Election status: ${electionStatusLabels[election.status]}`}>{electionStatusLabels[election.status]}</span>
+                            {election.status === 'SETUP'
+                              ? <span className="row-status row-status-setup">Edit</span>
+                              : <span className={`row-status row-status-${election.status.toLowerCase()}`} role="group" aria-label={`Election status: ${electionStatusLabels[election.status]}`}>{electionStatusLabels[election.status]}</span>}
                             <span className="row-arrow" aria-hidden="true">→</span>
                           </button>
                           <button className={`election-accordion-toggle${collapsedElectionIds.has(election.id) ? ' collapsed' : ''}`} type="button" aria-label={`${collapsedElectionIds.has(election.id) ? 'Expand' : 'Collapse'} positions`} aria-expanded={!collapsedElectionIds.has(election.id)} aria-controls={`election-panel-${election.id}`} onClick={() => setCollapsedElectionIds((current) => {
@@ -732,8 +665,18 @@ function AuthenticatedApp() {
                       {election.positions.length > 0 && (
                         <ul className="position-overview-list" aria-label={`${election.departmentName} positions`}>
                           {[...election.positions].sort((a, b) => a.sequence - b.sequence).map((position) => {
-                            const statusLabel = positionProgressLabels[position.progressStatus] ?? 'Progress unavailable';
-                            const actionLabel = positionActionLabels[position.nextAction] ?? 'Action unavailable';
+                            const statusLabel = position.progressStatus === 'NOT_STARTED'
+                              ? 'Not started'
+                              : position.progressStatus === 'COMPLETE'
+                                ? 'Complete'
+                                : inProgressPositionStates.has(position.progressStatus)
+                                  ? 'In progress'
+                                  : 'Progress unavailable';
+                            const actionLabel = position.progressStatus === 'NOT_STARTED'
+                              ? 'Start'
+                              : position.progressStatus === 'COMPLETE'
+                                ? 'Review'
+                                : inProgressPositionStates.has(position.progressStatus) ? 'Continue' : 'Action unavailable';
                             const statusClass = position.progressStatus === 'NOT_STARTED'
                               ? 'position-status-setup'
                               : position.progressStatus === 'COMPLETE'
@@ -748,8 +691,8 @@ function AuthenticatedApp() {
                                   <span>{position.openingCount} {position.openingCount === 1 ? 'opening' : 'openings'}{position.roundNumber == null ? '' : ` · Round ${position.roundNumber}`}</span>
                                 </span>
                                 <span className={`position-overview-status ${statusClass}`}>{statusLabel}</span>
-                                <button className="position-overview-action" type="button" aria-label={`${actionLabel}: ${position.name}`} onClick={(event) => { event.stopPropagation(); void openElection(election, position.id); }}>
-                                  Configure Position<span aria-hidden="true"> →</span>
+                                <button className="position-overview-action" type="button" aria-label={`${actionLabel}: ${position.name}`} disabled={actionLabel === 'Action unavailable'} onClick={(event) => { event.stopPropagation(); void openElection(election, position.id); }}>
+                                  {actionLabel}<span aria-hidden="true"> →</span>
                                 </button>
                               </li>
                             );
@@ -766,29 +709,8 @@ function AuthenticatedApp() {
 
           {screen === 'detail' && (
             <section className="detail-section">
-              <div className="detail-actions">
-                <button className="back-button" type="button" onClick={returnToElectionList}>← <span>All elections</span></button>
-                {selectedElection && selectedElection.positions.length > 0 && <button className="secondary-button" type="button" onClick={() => requestNavigation(() => { setPageError(''); setScreen('form'); })}>Configure Position</button>}
-              </div>
               {isLoading || !selectedElection ? <p className="state-message" role="status">Loading election…</p> : (
                 <>
-                  <div className="detail-summary">
-                    <div><span className="summary-label">Department</span><strong>{selectedElection.departmentName}</strong></div>
-                    <div><span className="summary-label">Status</span><span className={`row-status row-status-${selectedElection.status.toLowerCase()}`} role="group" aria-live="polite" aria-label={`Election status: ${electionStatusLabels[selectedElection.status]}`}>
-                      {electionStatusLabels[selectedElection.status]}
-                    </span></div>
-                    <div><span className="summary-label">Configured openings</span><strong>{selectedElection.positions.reduce((total, position) => total + position.openingCount, 0)}</strong></div>
-                  </div>
-                  <div className="overview-statuses detail-position-statuses" role="group" aria-label="Election position status summary">
-                    <span className="overview-status-label">Position progress</span>
-                    <span className="status-count status-count-progress"><strong>{selectedElection.positions.filter((position) => inProgressPositionStates.has(position.progressStatus)).length}</strong> in progress</span>
-                    <span className="status-count"><strong>{selectedElection.positions.filter((position) => position.progressStatus === 'NOT_STARTED').length}</strong> not started</span>
-                    <span className="status-count status-count-complete"><strong>{selectedElection.positions.filter((position) => position.progressStatus === 'COMPLETE').length}</strong> complete</span>
-                    {selectedElection.positions.some((position) => !position.progressStatus || !knownPositionStates.has(position.progressStatus)) && <span className="status-count">{selectedElection.positions.filter((position) => !position.progressStatus || !knownPositionStates.has(position.progressStatus)).length} unavailable</span>}
-                  </div>
-                  <div className="section-heading position-heading">
-                    <div><h2>{selectedElection.positions.length === 0 ? 'No positions configured' : `Position ${selectedPositionIndex + 1} of ${selectedElection.positions.length}`}</h2><p>Manage positions in configured order</p></div>
-                  </div>
                   {(() => {
                     const positions = [...selectedElection.positions].sort((a, b) => a.sequence - b.sequence);
                     const position = positions[selectedPositionIndex];
@@ -798,92 +720,34 @@ function AuthenticatedApp() {
                           <span className="empty-rule" aria-hidden="true" />
                           <h3>This election has no positions</h3>
                           <p>The election remains available. Add a position to continue.</p>
-                          <button className="secondary-button" type="button" onClick={() => requestNavigation(() => { setPageError(''); setScreen('form'); })}>Configure Position</button>
+                          <button className="secondary-button" type="button" onClick={() => editElection(selectedElection)}>Edit election</button>
                         </div>
                       );
                     }
-                    const statusLabel = position.progressStatus
-                      ? positionProgressLabels[position.progressStatus] ?? position.progressStatus.replace(/_/g, ' ').toLowerCase()
-                      : 'Progress unavailable';
-                    const actionLabel = position.nextAction
-                      ? positionActionLabels[position.nextAction] ?? position.nextAction.replace(/_/g, ' ').toLowerCase()
-                      : 'Action unavailable';
                     return (
                       <>
-                        <nav className="position-stepper" aria-label="Election positions">
-                          <ol className="list-group list-group-flush">
-                            {positions.map((item, index) => {
-                              const itemStatus = item.progressStatus
-                                ? positionProgressLabels[item.progressStatus] ?? item.progressStatus.replace(/_/g, ' ').toLowerCase()
-                                : 'Progress unavailable';
-                              const itemAction = item.nextAction
-                                ? positionActionLabels[item.nextAction] ?? item.nextAction.replace(/_/g, ' ').toLowerCase()
-                                : 'Action unavailable';
-                              const current = index === selectedPositionIndex;
-                              return (
-                                <li key={item.id}>
-                                  <button className={`list-group-item list-group-item-action position-stepper-item${current ? ' active' : ''}`} type="button" aria-current={current ? 'step' : undefined} aria-label={`Position ${index + 1} of ${positions.length}: ${item.name}, ${item.openingCount} ${item.openingCount === 1 ? 'opening' : 'openings'}, ${itemStatus}, next action: ${itemAction}${item.roundNumber == null ? '' : `, round ${item.roundNumber}`}${current ? ', current position' : ''}`} onClick={() => requestPositionChange(index)}>
-                                    <span className="step-number">{index + 1}</span>
-                                    <span className="step-copy">
-                                      <strong>{item.name} · {item.openingCount} {item.openingCount === 1 ? 'opening' : 'openings'}</strong>
-                                      <span>{itemStatus}{item.roundNumber == null ? '' : ` · Round ${item.roundNumber}`}</span>
-                                      <span>Next: {itemAction}</span>
-                                    </span>
-                                    <span className={`badge rounded-pill position-status-${item.progressStatus === 'NOT_STARTED' ? 'setup' : item.progressStatus === 'COMPLETE' ? 'complete' : 'progress'}`}>{itemStatus}</span>
-                                  </button>
-                                </li>
-                              );
-                            })}
-                          </ol>
-                        </nav>
-                        <div ref={positionSummary} tabIndex={-1} className="position-detail" aria-live="polite" aria-atomic="true" aria-label={`Current position: ${position.name}, ${position.openingCount} ${position.openingCount === 1 ? 'opening' : 'openings'}, ${statusLabel}, next action: ${actionLabel}${position.roundNumber == null ? '' : `, round ${position.roundNumber}`}`}>
-                          <span className="sequence-number">{position.sequence}</span>
-                          <div className="position-copy"><strong>{position.name}</strong><span>{position.openingCount} {position.openingCount === 1 ? 'opening' : 'openings'}</span></div>
-                          <div className="position-progress"><strong>{statusLabel}{position.roundNumber == null ? '' : ` · Round ${position.roundNumber}`}</strong><span>Next action: {actionLabel}</span></div>
-                        </div>
-                        <div className="position-admin-actions">
-                          <button className="danger-button" type="button" onClick={() => { setDeletePositionConfirmation(''); setDeletePositionOpen(true); }}>Delete position</button>
-                        </div>
-                        <nav className="position-navigation" aria-label="Election position sequence">
-                          <button className="secondary-button" type="button" disabled={selectedPositionIndex === 0} onClick={() => requestPositionChange(selectedPositionIndex - 1)}>← <span>Previous position</span></button>
-                          <button className="secondary-button" type="button" disabled={selectedPositionIndex === positions.length - 1} onClick={() => requestPositionChange(selectedPositionIndex + 1)}><span>Next position</span> →</button>
-                        </nav>
                         <NominationAdminPanel
                           key={`${selectedElection.id}-${position.id}`}
                           credentials={credentials}
                           electionId={selectedElection.id}
                           positionId={position.id}
                           positionName={position.name}
+                          electionName={`${churches[0]?.name ?? 'Church'} · ${selectedElection.departmentName}`}
                           openingCount={position.openingCount}
                           positionProgressStatus={position.progressStatus}
+                          onReturnToElectionList={returnToElectionList}
                           onLifecycleChange={() => { void refreshElectionStatus(selectedElection.id); }}
                           onDraftStateChange={reportPositionDraftState}
                         />
-                        {(pendingPositionIndex !== null || pendingNavigation !== null) && (
+                        {pendingNavigation !== null && (
                           <div className="dialog-backdrop">
                             <section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="position-draft-title" aria-describedby="position-draft-description" onKeyDown={handleDraftDialogKeyDown}>
                               <h3 id="position-draft-title">Unsaved changes</h3>
                               <p id="position-draft-description">This position has unsaved edits. Staying keeps them here; leaving requires discarding them.</p>
                               <div className="form-actions dialog-actions">
                                 <button ref={stayOnPositionButton} className="secondary-button" type="button" onClick={closeDraftDialog}>Stay on this position</button>
-                                <button className="danger-button" type="button" onClick={discardPositionDraftAndSwitch}>{pendingPositionIndex === null ? 'Discard changes and continue' : 'Discard changes and switch'}</button>
+                                <button className="danger-button" type="button" onClick={discardPositionDraftAndSwitch}>Discard changes and continue</button>
                               </div>
-                            </section>
-                          </div>
-                        )}
-                        {deletePositionOpen && (
-                          <div className="dialog-backdrop">
-                            <section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-position-title" aria-describedby="delete-position-description">
-                              <h3 id="delete-position-title">Delete {position.name}?</h3>
-                              <p id="delete-position-description">This permanently deletes this position&apos;s nominations and submissions, ballots, rounds, outcomes, and audit history. This position&apos;s election history will be unrecoverable. Other positions and the parent election will remain.</p>
-                              <form onSubmit={(event) => { event.preventDefault(); void deleteSelectedPosition(position); }}>
-                                <label htmlFor="delete-position-name">Type {position.name} exactly to confirm</label>
-                                <input id="delete-position-name" value={deletePositionConfirmation} onChange={(event) => setDeletePositionConfirmation(event.target.value)} autoComplete="off" autoFocus />
-                                <div className="form-actions dialog-actions">
-                                  <button className="secondary-button" type="button" disabled={isDeletingPosition} onClick={() => { setDeletePositionOpen(false); setDeletePositionConfirmation(''); }}>Cancel</button>
-                                  <button className="danger-button" type="submit" disabled={isDeletingPosition || deletePositionConfirmation !== position.name}>{isDeletingPosition ? 'Deleting…' : 'Permanently delete position'}</button>
-                                </div>
-                              </form>
                             </section>
                           </div>
                         )}
