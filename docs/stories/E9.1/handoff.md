@@ -81,6 +81,13 @@ Product Owner visual acceptance remains pending for this position-workflow slice
 - Refreshed workflow screenshots at 1280px and 390px. No horizontal overflow observed.
 - Full frontend suite (83), production build, and `git diff --check` passed. Lint has zero errors with existing parser compatibility notice and `main.tsx` non-null assertion warning. No commit, merge, or deployment.
 
+## Election Terms Page Follow-up (2026-10-29)
+
+- The term chooser now has a church / **Election terms** breadcrumb, separated term rows, and an explicit **Open election** action. The **Annual Boards** tab is hidden only on the term chooser; it remains available on the election list and other admin screens.
+- Supporting text weight was raised from 450 to 500 and the muted text token darkened from `#5b6862` to `#4b5851`; the prototype's Avenir Next font stack is retained.
+- **Add period** is enabled and uses the prototype's white, bordered secondary style. Clicking it shows the prototype-only notice; it does not persist data or call an API because election periods are not represented by the current API.
+- Focused term chooser test passed, production build passed, and `git diff --check` passed. Full suite has not been rerun after the latest visual-only follow-ups. No commit, merge, or deployment.
+
 ## Sign-In Comparison Follow-up (2026-10-29)
 
 - Matched sign-in eyebrow labels to the prototype green and neutralized Chrome autofill's blue field fill with a white login input surface. Blur password field only in the screenshot harness before capture; runtime keyboard focus styling is unchanged.

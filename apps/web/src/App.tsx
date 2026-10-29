@@ -557,10 +557,10 @@ function AuthenticatedApp() {
             {workspace === 'elections' && screen === 'list' && <button className="primary-button create-button" type="button" onClick={openCreateForm}>＋ <span>Create election</span></button>}
           </div>
 
-          <nav className="workspace-tabs" aria-label="Church workspace">
+          {(workspace === 'boards' || screen !== 'terms') && <nav className="workspace-tabs" aria-label="Church workspace">
             <button type="button" aria-pressed={workspace === 'elections'} onClick={() => requestNavigation(() => { setWorkspace('elections'); setScreen('list'); setPageError(''); })}>Department elections</button>
             <button type="button" aria-pressed={workspace === 'boards'} onClick={() => requestNavigation(() => { void openBoardsWorkspace(); })}>Annual Boards</button>
-          </nav>
+          </nav>}
 
           {workspace === 'boards' && <div className="setup-notice attendance-notice" role="note">
             <span className="notice-mark" aria-hidden="true">i</span>
@@ -590,18 +590,24 @@ function AuthenticatedApp() {
           ) : <>
           {screen === 'terms' && (
             <section className="term-chooser" aria-labelledby="term-chooser-title">
+              <nav className="workspace-breadcrumb" aria-label="Breadcrumb">
+                <span>{churches[0]?.name ?? 'My churches'}</span>
+                <span aria-hidden="true">/</span>
+                <strong>Election terms</strong>
+              </nav>
               <div className="section-heading">
                 <div>
                   <h2 id="term-chooser-title">Choose an election term</h2>
                   <p>Sample terms for this visual prototype. Terms are not stored by the election API.</p>
                 </div>
+                <button className="secondary-button prototype-secondary-button" type="button" onClick={() => window.alert('Prototype only: add election period')}>Add period</button>
               </div>
               <div className="term-options">
                 {demoElectionTerms.map((term) => (
-                  <button className="term-option" type="button" key={term} onClick={() => { setSelectedTerm(term); setScreen('list'); }}>
+                  <article className="term-option" key={term}>
                     <span><strong>{term}</strong><small>Demo term · no backend association</small></span>
-                    <span aria-hidden="true">→</span>
-                  </button>
+                    <button className="primary-button term-open-action" type="button" onClick={() => { setSelectedTerm(term); setScreen('list'); }}>Open election</button>
+                  </article>
                 ))}
               </div>
             </section>
