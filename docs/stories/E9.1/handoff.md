@@ -108,3 +108,20 @@ Product Owner visual acceptance remains pending for this position-workflow slice
 
 - Restored prototype background values exactly: `#f5f6f1` paper, `.55` green wash opacity, and `.035` horizontal rule opacity. Also matched root light color-scheme, 16px font size, 1.5 line-height, and 450 font weight.
 - Refreshed sign-in captures at desktop/mobile; no horizontal overflow. Frontend tests (83), build, and diff check pass; lint has no errors with existing parser compatibility and `main.tsx` warnings.
+
+## NAD Theme PR Handoff (2026-10-29)
+
+- **Approved scope:** Product Owner approved changing only theme colors and font styling to align with NAD brand guidance. Do not change layout, spacing, markup/components, or behavior. The exact decision and constraints are in `requirements.md` under **Product Owner Decision: NAD Theme**.
+- **Implementation:** App theme uses NAD Denim `#003B5C`, Nile `#007681`, Vine `#4A7729`, and selective NAD digital palette accents; electronic UI typography is Noto Sans. Both standalone prototypes load Noto Sans and use matching NAD theme colors. URLs/code retain monospace styling.
+- **Changed files:** `apps/web/src/styles.css`, `apps/web/index.html`, `docs/stories/E9.1/prototype.html`, `docs/stories/E9.1/prototype-full-workflow.html`, `docs/stories/E9.1/requirements.md`, and this handoff.
+- **Validation:** Frontend tests passed (83 tests across 5 files); `npm run build` passed; `npm run lint` had zero errors with the existing TypeScript compatibility notice and `src/main.tsx` non-null assertion warning. Both prototype HTML files and embedded scripts parsed successfully; NAD token and font-link checks passed; `git diff --check` passed. Live browser screenshot verification could not be completed because the browser CDP connection timed out. No layout/component changes were made.
+- **PR state:** Branch `feature/e9.1-nad-theme`, commit `b037439` (`Apply NAD theme to app and prototypes`), pushed to `origin`. PR #19 is open against `main`: https://github.com/abrah-am/church-nominations-app/pull/19. Do not merge or deploy without Product Owner authorization.
+- **Next session:** Check this handoff and current Git status first. Continue only on the approved theme-only scope. E7.1/PD-009 contrast/accessibility target and browser/device matrix remain unresolved; do not claim accessibility conformance. The broader E9.1 implementation plan still has its own approval gates.
+
+## NAD Theme Update (2026-10-29)
+
+- Product Owner approved a theme-only update: preserve all existing layout, spacing, components, and behavior; change only colors and font styling.
+- Updated `apps/web/src/styles.css` to use NAD Denim `#003B5C` as the primary color, Nile `#007681` as the secondary/focus accent, Vine `#4A7729` for completion states, and NAD palette accents for warnings/statuses. Switched shared type styles to Noto Sans.
+- Updated `apps/web/index.html` with Noto Sans stylesheet preconnect/link and the matching `#f3f6f7` browser theme color. No React/component files or layout declarations changed.
+- Frontend tests passed (83 across 5 files), `npm run build` passed, lint had zero errors with the existing TypeScript compatibility notice and `src/main.tsx` non-null assertion warning. Vite served the updated theme metadata. Browser screenshot verification was unavailable because the browser CDP connection timed out. No commit, merge, or deployment.
+- Updated `docs/stories/E9.1/prototype.html` and `prototype-full-workflow.html` to match the NAD theme using CSS-only color/font changes and Noto Sans font loading. Layout, markup, and JavaScript behavior are unchanged. Both HTML files and embedded scripts parsed successfully; browser screenshot comparison remains unverified because the shared browser CDP connection timed out in this session.

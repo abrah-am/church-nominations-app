@@ -9,6 +9,16 @@
 
 The Product Owner approved the UX redesign initiative and the recommended Bootstrap 5 CSS integration with existing React-controlled components on 2026-10-26. This approval authorizes planning/refinement, not implementation, dependency installation, merge, or deployment. Implementation requires approval of the refined implementation plan. The UX assessment recommended retaining a restrained visual identity while improving hierarchy, spacing, typography, and consistency.
 
+## Product Owner Decision: NAD Theme (2026-10-29)
+
+The Product Owner approved updating the application and E9.1 HTML prototypes to use the North American Division (NAD) brand colors and typography. This approval is limited to colors and font styling; preserve all existing layout, spacing, markup, React components, and behavior.
+
+- Use NAD Denim (`#003B5C`) as the primary color and Nile (`#007681`) as the secondary/focus accent.
+- Use Vine (`#4A7729`) for completion/success states, with other NAD digital palette colors used selectively for warnings and status accents.
+- Use Noto Sans for electronic UI text. Keep monospace styling for URLs/code values.
+- Update the app's shared styles and both E9.1 standalone prototype HTML files consistently.
+- Do not infer accessibility conformance from brand adoption; E7.1/PD-009 contrast target and validation requirements remain open.
+
 ## Acceptance Criteria
 
 - Bootstrap 5 CSS is the shared layout and component-style foundation; existing React components remain responsible for application behavior and state.
@@ -58,7 +68,7 @@ Do not treat E9.1 as acceptance of unfinished feature stories. Incorporate share
 
 - Product Owner approval of the Bootstrap 5 CSS approach and overall incremental direction is recorded; no code or dependency work is authorized by that approval alone.
 - E7.1 and PD-009 must establish the accessibility conformance target and test approach, supported browsers/devices/viewports, and touch-target expectation before accessibility sign-off. WCAG 2.2 AA is a proposal only, not an approved requirement.
-- Retaining the current green palette and typography is a proposed design direction; confirm during visual design refinement before implementation.
+- The NAD palette and Noto Sans theme are approved for this theme-only change. The broader E9.1 implementation plan and remaining design/accessibility decisions retain their existing approval gates.
 - Existing frontend tests and current workflow behavior are the regression baseline. Confirm representative flows and viewport matrix in the implementation plan.
 
 ## Risks and Regression Constraints
