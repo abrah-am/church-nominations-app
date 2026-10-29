@@ -1,5 +1,16 @@
 # E9.1 Handoff
 
+## Current Session Handoff (2026-10-29)
+
+- **Story/work scope:** Continue E9.1 page by page. This session addressed only the authenticated election-terms chooser, using the supplied prototype and screenshot annotations. Requested visual corrections were breadcrumb, explicit actions, spacing between election terms, removing Annual Boards from this screen, and darker/heavier supporting text. Keep later page work separate; do not broaden into backend/product behavior without approval.
+- **Implemented and merged:** PR #18, **Update E9.1 election terms page**, from `feature/e9.1-election-terms-page` was merged to `main`. Merge commit: `b9a2fbc`; feature commit: `3976c1e`. The current checkout is on `main` at `b9a2fbc`. At the time this note is being updated, `docs/stories/E9.1/handoff.md` has a local uncommitted change; preserve it and do not assume the worktree is clean.
+- `apps/web/src/App.tsx`: added church / **Election terms** breadcrumb; term rows now have clear spacing and a separate **Open election** button that retains the existing term-selection navigation. **Annual Boards** is hidden only on the term chooser and remains reachable from the election list and other admin screens. **Add period** is enabled and opens the same prototype-only alert as `prototype.html`; no period is saved and no API is called.
+- `apps/web/src/styles.css`: retained the prototype's Avenir Next font stack; raised root regular text weight from 450 to 500 and darkened the shared muted token from `#5b6862` to `#4b5851`. These are global theme values, so their effect is broader than the term chooser and should be considered in future visual comparisons. Term rows use bordered white surfaces with 12px separation; the Add period control uses a white, dark-text, outlined secondary style.
+- `apps/web/src/App.test.tsx`: updated term-selection assertions/helpers for explicit **Open election** buttons; added coverage for breadcrumb label, Annual Boards visibility on the term chooser, term selection, and enabled prototype-only Add period alert.
+- **Functional boundary:** Election terms are demo-only in the current frontend/API; there is no election-period entity or persistence. Prototype `Add period` only displays an alert. If a later request expects actual period creation/filtering/history, first propose and get approval for a separate product/API plan; do not simulate persistence in the UI.
+- **Validation:** focused `shows static demo terms` test passed after the final Add period change; `npm run build` passed; `git diff --check` passed. The full frontend suite was attempted during iteration and exposed stale tests that assumed term rows were buttons and Annual Boards was globally hidden; test helpers were updated and Annual Boards visibility was narrowed to the term chooser. A complete post-final-change suite pass was not confirmed. No new desktop/mobile browser capture was made for this final terms-page slice.
+- **Next session:** read this handoff and `requirements.md`, inspect current Git state first, and ask which page/surface is next. Use the existing prototype as the visual reference, keep the current page slice closed, and prepare an approval plan before any UI request requires new APIs, persistence, or changed election behavior. Do not merge or deploy without explicit authorization.
+
 ## Completed
 
 - Canonical `prototype.html` now combines the complete three-experience workflow from `prototype-full-workflow.html` with the accessible department accordions from commit `9ab071490a2020ae81b97ab2ccfb25f87406dbd1`. The administrator overview, nomination/voting workflow, standalone participant page, and separate read-only presentation remain available in one prototype.
@@ -28,7 +39,7 @@
 
 ## Branch And Validation
 
-- Branch: `feature/e9.1-admin-foundation`; active PR #15, “Implement E9.1 admin UI foundation.” The E9.1 workflow changes and visual evidence are committed separately from the pre-existing `docs/product/backlog.md` change. No merge or deployment was made.
+- The original admin-foundation work was submitted as PR #15. The latest election-terms page slice was submitted on `feature/e9.1-election-terms-page` as PR #18 and is now merged to `main` at `b9a2fbc`; current checkout is clean. No deployment was made.
 - Latest validation: focused active-intake lifecycle, edit/status, and unsaved-draft tests passed; full frontend suite passed (83); `npm run build` and `git diff --check` passed. `npm run lint` had zero errors and the existing TypeScript parser support notice plus `src/main.tsx` non-null assertion warning. Final browser captures at 1280px and 390px reported no horizontal overflow, console errors, or failed requests.
 - Annual Boards browser check at 1280px and 390px confirmed expected desktop/mobile layout, three attendance controls, and no horizontal overflow or browser errors.
 
