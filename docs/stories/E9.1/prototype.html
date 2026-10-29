@@ -5,23 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Static mock prototype of connected administrator, voter, and presentation election experiences.">
   <title>Election Experiences | Mock Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
       color-scheme: light;
-      --ink: #1d2925;
-      --muted: #5b6862;
-      --paper: #f5f6f1;
+      --ink: #1b2b35;
+      --muted: #4b5d65;
+      --paper: #f3f6f7;
       --surface: #fff;
-      --line: #d7ded7;
-      --green: #176849;
-      --green-soft: #e5f2e9;
-      --orange: #9a4f18;
-      --orange-soft: #fff0dd;
-      --blue: #235d86;
-      --blue-soft: #e7f2f8;
-      --focus: #155e9a;
-      --shadow: 0 16px 38px rgba(27, 44, 35, .08);
-      font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+      --line: #d5e0e5;
+      --green: #003b5c;
+      --green-soft: #e5eff2;
+      --orange: #7d2248;
+      --orange-soft: #f7e9ef;
+      --blue: #007681;
+      --blue-soft: #e4f1f1;
+      --focus: #007681;
+      --shadow: 0 16px 38px rgba(0, 59, 92, .08);
+      font-family: "Noto Sans", sans-serif;
       font-size: 16px;
       line-height: 1.5;
       font-weight: 450;
@@ -33,8 +36,8 @@
       margin: 0;
       min-width: 320px;
       background:
-        linear-gradient(130deg, rgba(226, 238, 225, .55), transparent 42%),
-        repeating-linear-gradient(0deg, transparent 0 31px, rgba(38, 82, 57, .035) 31px 32px),
+        linear-gradient(130deg, rgba(0, 118, 129, .08), transparent 42%),
+        repeating-linear-gradient(0deg, transparent 0 31px, rgba(0, 59, 92, .025) 31px 32px),
         var(--paper);
     }
     button, input { font: inherit; }
@@ -285,6 +288,35 @@
       .workflow-access .access-status { grid-column: 1 / -1; }
       .login-card { margin: 18px 0; padding: 20px; }
     }
+    .mock-label { border-color: #e6c46f; color: #624923; }
+    .mock-label::before { background: #d86018; }
+    .notice { background: #fff8e6; color: #624923; }
+    .notice strong { color: #4e3629; }
+    .state-chip { color: #365a24 !important; }
+    .state-chip::before { background: #4a7729; }
+    .status-count { background: #e9eef0; }
+    .access-url { color: #1b2b35 !important; background: #eef4f6; }
+    .access-context { color: #31535b !important; }
+    .department-accordion .department-content, .position-row { border-color: #d5e0e5; }
+    .workflow-access { background: #f3f6f7; }
+    .status-not-started { color: #40545f; background: #e9eef0; }
+    .status-progress { color: #007681; background: #e4f1f1; }
+    .status-filled { color: #365a24; background: #edf3e8; }
+    body[data-view="voter"] { background: #f3f6f7; }
+    body[data-view="voter"] .masthead { background: #e5eff2; }
+    body[data-view="voter"] .mobile-top { background: #f7fafb; }
+    .progress span { background: #dfe8ec; }
+    .status { color: #365a24; }
+    .step-list li { border-left-color: #c3d6dd; }
+    .step-list li::before { background: #d5e0e5; box-shadow: 0 0 0 1px #b7d9dc; }
+    .step-list li.complete { color: #40545f; }
+    .btn-primary:hover:not(:disabled) { background: #002c45; }
+    .btn-secondary:hover:not(:disabled) { background: #f3f6f7; }
+    .callout { color: #31535b; }
+    .success { color: #365a24; }
+    .warning { color: #624923; }
+    .presentation { background: #f7fafb; }
+    .screen-footer { color: #4b5d65; }
   </style>
 </head>
 <body>
