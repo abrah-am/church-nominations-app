@@ -3,11 +3,11 @@
 ## Session Close And Follow-up PR Preparation (2026-10-30)
 
 - **Completed this session:** Position workflow iteration now has distinct top-level **Participant session link** and **Audience presentation** cards, no extra lower presentation card, an empty nomination roster inside the workflow card separated by rules, and a church / election-term / department - position breadcrumb. Session/voting URLs are only displayed when an actual active-round token exists; nomination links remain separately labeled. No API, lifecycle, authorization, privacy, or token behavior changed.
-- **Current branch/state:** `feature/e9.1-nad-theme` tracks `origin/feature/e9.1-nad-theme`. Five files have uncommitted follow-up changes: `apps/web/src/App.tsx`, `apps/web/src/features/nominations/NominationAdminPanel.tsx`, `apps/web/src/styles.css`, `apps/web/src/App.test.tsx`, and this handoff. No new commit has been made.
-- **Prior PR:** PR #20, **Refine selected-term election overview**, is merged. It covers the earlier selected-term work, not the current uncommitted follow-up. The repository default branch is `main`; no `master` base was selected.
+- **Current branch/state:** `feature/e9.1-nad-theme` tracks `origin/feature/e9.1-nad-theme`. The follow-up changes were committed as `36b833b` (`Refine position workflow access layout`) and pushed. The worktree was clean after the push.
+- **PR state:** PR #20, **Refine selected-term election overview**, is merged and covers the earlier selected-term work. Follow-up PR #21, **Refine position workflow access layout**, is open against the repository default branch `main`: https://github.com/abrah-am/church-nominations-app/pull/21. Do not merge or deploy without explicit authorization.
 - **Validation:** Focused workflow/link tests passed (3); frontend production build passed; lint had zero errors with the existing TypeScript parser compatibility notice and `src/main.tsx` non-null assertion warning; `git diff --check` passed. Full frontend suite: 82 passed, 3 failed. The failures are the known Annual Boards navigation expectations on the selected-term screen.
 - **Remaining before UI sign-off:** No new 1280px/390px screenshots were captured because the existing capture script overwrites saved review artifacts. Capture to a separate destination and compare before claiming visual sign-off.
-- **PR next step:** A separate PR is needed for the uncommitted workflow follow-up, targeting `main`. Commit and push are not yet authorized/completed. Obtain Product Owner confirmation before committing and pushing these five changed files, then create the PR. Do not merge or deploy without explicit authorization.
+- **Remaining:** Obtain separate authenticated desktop/mobile screenshot evidence before visual sign-off. The open PR is ready for review, subject to the known test failures and screenshot limitation described above.
 
 ## Position Workflow Access And Breadcrumb Follow-up (2026-10-30)
 
