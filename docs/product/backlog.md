@@ -9,6 +9,7 @@
 | ID | Epic | Story | Priority | Workflow status | Dependencies | Requirements |
 | --- | --- | --- | --- | --- | --- | --- |
 | E9.1 | E9 Bootstrap UI Modernization | Establish Bootstrap 5 design foundation and shared components | P1 (proposed) | Approved for refinement; implementation not started | Product Owner approved Bootstrap CSS approach; E7.1/PD-009 accessibility and device decisions remain open | [requirements](../stories/E9.1/requirements.md) |
+| E9.2 | E9 Bootstrap UI Modernization | Consolidate election access cards into reusable components | P2 (proposed) | Backlog; technical debt deferred to a future implementation session | PR #21 position-workflow layout; E9.1 shared UI conventions | [requirements](../stories/E9.2/requirements.md) |
 | E2.2 | E2 Nomination Workflow Clarity and Recovery | Preserve consolidation drafts on failure and navigation | P1 | Backlog | US-009 | [requirements](../stories/E2.2/requirements.md) |
 | E2.3 | E2 Nomination Workflow Clarity and Recovery | Explain roster lock and provide pre-draft edit path | P1 | Backlog | US-009, E2.2 | [requirements](../stories/E2.3/requirements.md) |
 | E3.1 | E3 Round Setup and Candidate Roster | Clarify roster source and valid selection count | P1 | Backlog | US-009, US-010; prior decisions | [requirements](../stories/E3.1/requirements.md) |

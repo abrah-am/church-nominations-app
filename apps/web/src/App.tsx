@@ -731,7 +731,9 @@ function AuthenticatedApp() {
                           electionId={selectedElection.id}
                           positionId={position.id}
                           positionName={position.name}
-                          electionName={`${churches[0]?.name ?? 'Church'} · ${selectedElection.departmentName}`}
+                          churchName={churches[0]?.name ?? 'Church'}
+                          electionTerm={selectedTerm ?? 'Election term'}
+                          departmentName={selectedElection.departmentName}
                           openingCount={position.openingCount}
                           positionProgressStatus={position.progressStatus}
                           onReturnToElectionList={returnToElectionList}

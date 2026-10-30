@@ -458,7 +458,7 @@ describe('election administration', () => {
     expect(fetchMock.mock.calls[2][0]).toBe('http://localhost:8080/api/elections');
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
 
-    expect(await screen.findByRole('navigation', { name: 'Election workflow breadcrumb' })).toHaveTextContent(/Grace Church · Finance.*Director/);
+    expect(await screen.findByRole('navigation', { name: 'Election workflow breadcrumb' })).toHaveTextContent(/Grace Church\s*\/\s*Elections 2026\s*\/\s*Finance\s*-\s*Director/);
     expect(screen.getByRole('heading', { name: 'Director' })).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Election positions' })).not.toBeInTheDocument();
     expect(screen.queryByText('Next action: Set up nominations')).not.toBeInTheDocument();
@@ -483,12 +483,12 @@ describe('election administration', () => {
     expect(within(workflowTask).getByRole('heading', { name: 'Open nomination intake' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit election' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Manage nominations' })).not.toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).toHaveTextContent(/All elections.*Grace Church · Finance.*Director/);
-    expect(screen.getByRole('region', { name: 'Current election access shortcuts' })).toHaveTextContent('Nomination link not created');
-    expect(screen.getByRole('button', { name: 'Copy nomination link' })).toBeDisabled();
-    expect(within(screen.getByRole('region', { name: 'Current election access shortcuts' })).queryByRole('button', { name: 'Presentation' })).not.toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Audience presentation' })).toHaveTextContent('Presentation display is off');
-    expect(within(screen.getByRole('region', { name: 'Audience presentation' })).getByRole('button', { name: 'Presentation' })).toBeDisabled();
+    expect(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).toHaveTextContent(/Grace Church\s*\/\s*Elections 2026\s*\/\s*Finance\s*-\s*Director/);
+    const accessCards = screen.getByRole('region', { name: 'Election access' });
+    expect(within(accessCards).getByRole('heading', { name: 'Participant session link' })).toBeInTheDocument();
+    expect(within(accessCards).getByRole('heading', { name: 'Audience presentation' })).toBeInTheDocument();
+    expect(within(accessCards).getByText(/A participant session link is not available until its phase opens/)).toBeInTheDocument();
+    expect(within(accessCards).getByRole('button', { name: 'Presentation' })).toBeDisabled();
     expect(screen.getByText('Not open')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open nomination intake' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Maximum names per visitor')).not.toBeInTheDocument();
@@ -502,6 +502,35 @@ describe('election administration', () => {
     ]);
     expect(within(progress).getByRole('listitem', { current: 'step' })).toHaveTextContent('Collect and review nominations');
     expect(within(progress).getByText('1 of 4')).toBeInTheDocument();
+    expect(within(progress).getAllByRole('listitem')[0]).toHaveClass('is-current');
+    expect(within(progress).getAllByRole('listitem')[1]).toHaveClass('is-upcoming');
+    const intakeAction = screen.getByRole('region', { name: 'Nomination intake' });
+    expect(intakeAction).toContainElement(screen.getByRole('button', { name: 'Open nomination intake' }));
+    expect(progress.contains(accessCards)).toBe(false);
+    const workflowCard = document.querySelector('.workflow-stage-group');
+    expect(workflowCard?.contains(screen.getByRole('complementary', { name: 'Names not yet submitted' }))).toBe(true);
+    expect(within(accessCards).getAllByRole('article')).toHaveLength(2);
+    expect(within(accessCards).getByRole('article', { name: 'Participant session link' })).toBeInTheDocument();
+    expect(document.querySelector('.workflow-presentation-control')).toBeNull();
+  });
+
+  it('does not repeat the active voting state in a separate status badge', async () => {
+    const activeElection = {
+      ...election,
+      positions: [{ ...election.positions[0], progressStatus: 'ROUND_ACTIVE' }],
+    };
+    const fetchMock = signedInFetch([church], [election]);
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fetchMock.mockResolvedValueOnce(response(activeElection));
+    fireEvent.click(await screen.findByRole('button', { name: 'Start nominations: Director' }));
+
+    const workflow = await screen.findByRole('region', { name: 'Position workflow progress' });
+    expect(within(workflow).getByRole('heading', { name: 'Monitor voting' })).toBeInTheDocument();
+    expect(within(workflow).queryByText('Voting open')).not.toBeInTheDocument();
+    expect(within(workflow).getByRole('listitem', { current: 'step' })).toHaveTextContent('Voting rounds');
   });
 
   it('shows static demo terms and keeps all API elections visible under the selected term', async () => {
@@ -709,16 +738,16 @@ describe('election administration', () => {
     fireEvent.change(nameLimit, { target: { value: '4' } });
     await waitFor(() => expect(nameLimit).toHaveValue(4));
     fireEvent.blur(nameLimit);
-    await waitFor(() => expect(screen.getByRole('button', { name: /All elections/ })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Grace Church' })).toBeInTheDocument());
 
-    fireEvent.click(within(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).getByRole('button', { name: /All elections/ }));
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).getByRole('button', { name: 'Grace Church' }));
     expect(await screen.findByRole('dialog', { name: 'Unsaved changes' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Director' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Stay on this position' }));
     expect(screen.queryByRole('dialog', { name: 'Unsaved changes' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Director' })).toBeInTheDocument();
 
-    fireEvent.click(within(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).getByRole('button', { name: /All elections/ }));
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).getByRole('button', { name: 'Grace Church' }));
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes and continue' }));
     expect(await screen.findByRole('heading', { name: 'Elections 2026' })).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false);
@@ -783,7 +812,7 @@ describe('election administration', () => {
 
     expect(await screen.findByRole('heading', { name: 'Nomination intake is open' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copy nomination link' })).toBeEnabled();
-    fireEvent.click(within(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).getByRole('button', { name: /All elections/ }));
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).getByRole('button', { name: 'Grace Church' }));
     expect(await screen.findByRole('heading', { name: 'Elections 2026' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Position status summary' })).not.toBeInTheDocument();
     const refreshCalls = fetchMock.mock.calls.slice(-2);
@@ -809,7 +838,7 @@ describe('election administration', () => {
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
     await screen.findByRole('navigation', { name: 'Election workflow breadcrumb' });
-    fireEvent.click(within(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).getByRole('button', { name: /All elections/ }));
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).getByRole('button', { name: 'Grace Church' }));
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
     expect(await screen.findByRole('navigation', { name: 'Election workflow breadcrumb' })).toHaveTextContent('Finance');
 
@@ -1167,8 +1196,8 @@ describe('election administration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create intake' }));
 
     expect(await screen.findByRole('heading', { name: 'Nomination intake is open' })).toBeInTheDocument();
-    expect(screen.getByText('Nomination link ready')).toBeInTheDocument();
-    expect(screen.getByText('Anyone with this position-specific link can submit or revise names while intake is open. The presentation becomes available after nominations are revealed.')).toBeInTheDocument();
+    expect(screen.getByText('Nomination link', { selector: 'strong' })).toBeInTheDocument();
+    expect(screen.getByText('Anyone with this position-specific link can submit or revise names while intake is open.')).toBeInTheDocument();
     expect(screen.queryByLabelText('Public nomination link')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copy nomination link' })).toBeEnabled();
     expect(screen.queryByText('Sam Lee')).not.toBeInTheDocument();
@@ -1180,10 +1209,11 @@ describe('election administration', () => {
     expect(activeStage).not.toBeNull();
     expect(activeStage?.querySelector('.guided-workflow')).toBeInTheDocument();
     expect(activeStage?.querySelector('.intake-collection-view')).toBeInTheDocument();
-    expect(activeStage?.querySelector('.workflow-presentation-control')).toBeInTheDocument();
+    expect(activeStage?.querySelector('.workflow-presentation-control')).toBeNull();
+    expect(screen.getByRole('article', { name: 'Audience presentation' })).toBeInTheDocument();
     expect(screen.queryByRole('complementary', { name: 'Names not yet submitted' })).not.toBeInTheDocument();
-    expect(within(screen.getByRole('region', { name: 'Current election access shortcuts' })).queryByRole('button', { name: 'Presentation' })).not.toBeInTheDocument();
-    expect(within(screen.getByRole('region', { name: 'Audience presentation' })).getByRole('button', { name: 'Presentation' })).toBeDisabled();
+    expect(screen.queryByRole('region', { name: 'Current election access shortcuts' })).not.toBeInTheDocument();
+    expect(within(screen.getByRole('article', { name: 'Audience presentation' })).getByRole('button', { name: 'Presentation' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Copy nomination link' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not copy the link. Select and copy the share URL instead.');
     expect(screen.getByRole('heading', { name: 'Nomination intake is open' })).toBeInTheDocument();
@@ -1920,7 +1950,7 @@ describe('election administration', () => {
     expect(screen.queryByText('Morgan Diaz')).not.toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Submissions updated: 2 current profile submissions.');
 
-    fireEvent.click(within(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).getByRole('button', { name: /All elections/ }));
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).getByRole('button', { name: 'Grace Church' }));
     await waitFor(() => expect(streamRequest[1].signal.aborted).toBe(true));
   });
 
