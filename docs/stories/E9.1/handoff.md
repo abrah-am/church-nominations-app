@@ -8,6 +8,7 @@
 - **Validation:** Focused workflow/link tests passed (3); frontend production build passed; lint had zero errors with the existing TypeScript parser compatibility notice and `src/main.tsx` non-null assertion warning; `git diff --check` passed. Full frontend suite: 82 passed, 3 failed. The failures are the known Annual Boards navigation expectations on the selected-term screen.
 - **Remaining before UI sign-off:** No new 1280px/390px screenshots were captured because the existing capture script overwrites saved review artifacts. Capture to a separate destination and compare before claiming visual sign-off.
 - **Remaining:** Obtain separate authenticated desktop/mobile screenshot evidence before visual sign-off. The open PR is ready for review, subject to the known test failures and screenshot limitation described above.
+- **Follow-up technical debt:** E9.2, [Consolidate Election Access Cards into Reusable Components](../E9.2/requirements.md), is indexed in the product backlog for a future session. It covers shared presentation structure for the static selected-term demo cards and capability-aware position-workflow cards; it explicitly does not refactor or change behavior in this PR.
 
 ## Position Workflow Access And Breadcrumb Follow-up (2026-10-30)
 
