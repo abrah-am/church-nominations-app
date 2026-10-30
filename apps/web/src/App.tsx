@@ -546,7 +546,12 @@ function AuthenticatedApp() {
         />
       ) : (
         <>
-          <div className="workspace-heading">
+          {workspace === 'elections' && screen === 'list' && selectedTerm && <nav className="workspace-breadcrumb selected-term-breadcrumb" aria-label="Selected election term breadcrumb">
+            <button type="button" onClick={() => { setSelectedTerm(null); setScreen('terms'); setPageError(''); }}>{churches[0]?.name ?? 'My churches'}</button>
+            <span aria-hidden="true">/</span>
+            <strong>{selectedTerm}</strong>
+          </nav>}
+          <div className={`workspace-heading${workspace === 'elections' && screen === 'list' && selectedTerm ? ' selected-term-heading' : ''}`}>
             <div>
               <p className="eyebrow">{workspace === 'boards' ? 'Church governance' : 'Election administration'}</p>
               <h1>{workspace === 'boards'
@@ -554,10 +559,10 @@ function AuthenticatedApp() {
                 : screen === 'terms' ? 'Administrator Workspace' : screen === 'detail' && selectedElection ? selectedElection.departmentName : screen === 'form' ? (isEditing ? 'Edit setup' : 'New election') : screen === 'list' && selectedTerm ? selectedTerm : churches[0]?.name ?? 'My churches'}</h1>
               <p className="intro workspace-account">{churches[0]?.name ? `${churches[0].name} · ` : ''}Administrator workspace{typeof account?.email === 'string' ? ` · ${account.email}` : ''}</p>
             </div>
-            {workspace === 'elections' && screen === 'list' && <button className="primary-button create-button" type="button" onClick={openCreateForm}>＋ <span>Create election</span></button>}
+            {workspace === 'elections' && screen === 'list' && <button className={`${selectedTerm ? 'secondary-button prototype-secondary-button' : 'primary-button'} create-button`} type="button" onClick={openCreateForm}>{selectedTerm ? null : '＋ '}<span>{selectedTerm ? 'Configure Positions' : 'Create election'}</span></button>}
           </div>
 
-          {(workspace === 'boards' || screen !== 'terms') && <nav className="workspace-tabs" aria-label="Church workspace">
+          {(workspace === 'boards' || (screen !== 'terms' && !selectedTerm)) && <nav className="workspace-tabs" aria-label="Church workspace">
             <button type="button" aria-pressed={workspace === 'elections'} onClick={() => requestNavigation(() => { setWorkspace('elections'); setScreen('list'); setPageError(''); })}>Department elections</button>
             <button type="button" aria-pressed={workspace === 'boards'} onClick={() => requestNavigation(() => { void openBoardsWorkspace(); })}>Annual Boards</button>
           </nav>}
@@ -614,29 +619,28 @@ function AuthenticatedApp() {
           )}
 
           {screen === 'list' && (
-            <section className="election-section" aria-labelledby="election-list-title">
+            <section className={`election-section${selectedTerm ? ' selected-term-overview' : ''}`} aria-label={selectedTerm ? 'Election overview' : undefined} aria-labelledby={selectedTerm ? undefined : 'election-list-title'}>
               {selectedTerm && <div className="term-context">
-                <button className="back-button" type="button" onClick={() => { setSelectedTerm(null); setScreen('terms'); }}>← <span>All terms</span></button>
                 <span className="demo-badge">SAMPLE TERM</span>
                 <p>Live election rows below are shown under this demo term for visual presentation only. The API does not associate elections with terms.</p>
               </div>}
               <section className="demo-link-panels" aria-label="Sample links, display only">
-                <div className="demo-link-panel"><h3>Sample voting session link</h3><span className="demo-badge">DEMO LINK · NOT ACTIVE</span><code>sample://voting-session/example</code></div>
-                <div className="demo-link-panel"><h3>Sample presentation link</h3><span className="demo-badge">DEMO LINK · NOT ACTIVE</span><code>sample://presentation/example</code></div>
+                <div className="demo-link-panel"><h3>Participant session link</h3><p>One session link for the authorized current phase. Anyone with the link may be able to access it.</p><code>sample://voting-session/example</code><span className="demo-badge">DEMO LINK · NOT ACTIVE</span></div>
+                <div className="demo-link-panel"><h3>Audience presentation</h3><p>The separate display is read-only. Presentation controls stay in this authenticated admin workspace.</p><span className="demo-link-state">Presentation display is on</span><span className="demo-badge">DEMO LINK · NOT ACTIVE</span><code>sample://presentation/example</code></div>
               </section>
-              <div className="section-heading">
+              {!selectedTerm && <div className="section-heading">
                 <div>
                   <h2 id="election-list-title">Department elections</h2>
                   <p>{elections.length} {elections.length === 1 ? 'election' : 'elections'}</p>
                 </div>
-              </div>
-              <div className="overview-statuses" role="group" aria-label="Position status summary">
+              </div>}
+              {!selectedTerm && <div className="overview-statuses" role="group" aria-label="Position status summary">
                 <span className="overview-status-label">Position progress</span>
                 <span className="status-count status-count-progress"><strong>{electionSummary.positionInProgress}</strong> in progress</span>
                 <span className="status-count"><strong>{electionSummary.positionNotStarted}</strong> not started</span>
                 <span className="status-count status-count-complete"><strong>{electionSummary.positionComplete}</strong> complete</span>
                 {electionSummary.positionUnavailable > 0 && <span className="status-count">{electionSummary.positionUnavailable} unavailable</span>}
-              </div>
+              </div>}
               {isLoading ? <p className="state-message" role="status">Loading elections…</p> : elections.length === 0 ? (
                 <div className="empty-state">
                   <span className="empty-rule" aria-hidden="true" />
@@ -649,16 +653,20 @@ function AuthenticatedApp() {
                   {elections.map((election) => (
                       <section key={election.id} className="accordion-item election-overview-item">
                         <div className="election-accordion-header" id={`election-heading-${election.id}`}>
-                          <button className="election-row" type="button" aria-label={`${election.departmentName}, ${election.positions.length} ${election.positions.length === 1 ? 'position' : 'positions'}, ${election.status === 'SETUP' ? 'Edit' : electionStatusLabels[election.status]}`} onClick={() => { const firstPosition = [...election.positions].sort((a, b) => a.sequence - b.sequence)[0]; void openElection(election, firstPosition?.id); }}>
+                          <button className="election-row" type="button" aria-label={`${election.departmentName}, ${election.positions.length} ${election.positions.length === 1 ? 'position' : 'positions'}, ${election.status === 'SETUP' || (selectedTerm && election.status === 'IN_PROGRESS') ? 'Edit' : electionStatusLabels[election.status]}`} onClick={() => { const firstPosition = [...election.positions].sort((a, b) => a.sequence - b.sequence)[0]; void openElection(election, firstPosition?.id); }}>
                             <span className="election-row-copy">
                               <strong>{election.departmentName}</strong>
                               <span>{election.positions.length} {election.positions.length === 1 ? 'position' : 'positions'} · {election.positions.reduce((total, position) => total + position.openingCount, 0)} {election.positions.reduce((total, position) => total + position.openingCount, 0) === 1 ? 'opening' : 'openings'}</span>
                             </span>
-                            {election.status === 'SETUP'
-                              ? <span className="row-status row-status-setup">Edit</span>
+                            {election.status === 'SETUP' || (selectedTerm && election.status === 'IN_PROGRESS')
+                              ? selectedTerm ? null : <span className="row-status row-status-setup">Edit</span>
                               : <span className={`row-status row-status-${election.status.toLowerCase()}`} role="group" aria-label={`Election status: ${electionStatusLabels[election.status]}`}>{electionStatusLabels[election.status]}</span>}
-                            <span className="row-arrow" aria-hidden="true">→</span>
+                            {!selectedTerm && <span className="row-arrow" aria-hidden="true">→</span>}
                           </button>
+                          {selectedTerm && (election.status === 'SETUP' || election.status === 'IN_PROGRESS') && <>
+                            <span className="row-status row-status-setup selected-term-election-edit">Edit</span>
+                            <span className="row-arrow selected-term-election-arrow" aria-hidden="true">→</span>
+                          </>}
                           <button className={`election-accordion-toggle${collapsedElectionIds.has(election.id) ? ' collapsed' : ''}`} type="button" aria-label={`${collapsedElectionIds.has(election.id) ? 'Expand' : 'Collapse'} positions`} aria-expanded={!collapsedElectionIds.has(election.id)} aria-controls={`election-panel-${election.id}`} onClick={() => setCollapsedElectionIds((current) => {
                             const next = new Set(current);
                             if (next.has(election.id)) next.delete(election.id); else next.add(election.id);
@@ -671,34 +679,19 @@ function AuthenticatedApp() {
                       {election.positions.length > 0 && (
                         <ul className="position-overview-list" aria-label={`${election.departmentName} positions`}>
                           {[...election.positions].sort((a, b) => a.sequence - b.sequence).map((position) => {
-                            const statusLabel = position.progressStatus === 'NOT_STARTED'
-                              ? 'Not started'
-                              : position.progressStatus === 'COMPLETE'
-                                ? 'Complete'
-                                : inProgressPositionStates.has(position.progressStatus)
-                                  ? 'In progress'
-                                  : 'Progress unavailable';
                             const actionLabel = position.progressStatus === 'NOT_STARTED'
-                              ? 'Start'
+                              ? 'Start nominations'
                               : position.progressStatus === 'COMPLETE'
-                                ? 'Review'
-                                : inProgressPositionStates.has(position.progressStatus) ? 'Continue' : 'Action unavailable';
-                            const statusClass = position.progressStatus === 'NOT_STARTED'
-                              ? 'position-status-setup'
-                              : position.progressStatus === 'COMPLETE'
-                                ? 'position-status-complete'
-                                : inProgressPositionStates.has(position.progressStatus)
-                                  ? 'position-status-progress'
-                                  : 'position-status-unavailable';
+                                ? 'Review results'
+                                : inProgressPositionStates.has(position.progressStatus) ? 'Continue election' : 'Action unavailable';
                             return (
                               <li className="position-overview-row" key={position.id}>
                                 <span className="position-overview-copy">
                                   <strong>{position.name}</strong>
                                   <span>{position.openingCount} {position.openingCount === 1 ? 'opening' : 'openings'}{position.roundNumber == null ? '' : ` · Round ${position.roundNumber}`}</span>
                                 </span>
-                                <span className={`position-overview-status ${statusClass}`}>{statusLabel}</span>
-                                <button className="position-overview-action" type="button" aria-label={`${actionLabel}: ${position.name}`} disabled={actionLabel === 'Action unavailable'} onClick={(event) => { event.stopPropagation(); void openElection(election, position.id); }}>
-                                  {actionLabel}<span aria-hidden="true"> →</span>
+                                <button className={`position-overview-action${selectedTerm && actionLabel === 'Continue election' ? ' position-overview-action-primary' : ''}`} type="button" aria-label={`${actionLabel}: ${position.name}`} disabled={actionLabel === 'Action unavailable'} onClick={(event) => { event.stopPropagation(); void openElection(election, position.id); }}>
+                                  {actionLabel}
                                 </button>
                               </li>
                             );
