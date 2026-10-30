@@ -44,7 +44,9 @@ export type NominationAdminPanelProps = {
 	electionId: string;
 	positionId: string;
 	positionName: string;
-	electionName: string;
+	churchName: string;
+	electionTerm: string;
+	departmentName: string;
 	openingCount: number;
 	positionProgressStatus: string;
 	onReturnToElectionList: () => void;
@@ -69,7 +71,7 @@ function normalizeNominationIntake(intake: NominationIntake): NominationIntake {
 	};
 }
 
-export default function NominationAdminPanel({ credentials, electionId, positionId, positionName, electionName, openingCount, positionProgressStatus, onReturnToElectionList, onLifecycleChange, onDraftStateChange }: NominationAdminPanelProps) {
+export default function NominationAdminPanel({ credentials, electionId, positionId, positionName, churchName, electionTerm, departmentName, openingCount, positionProgressStatus, onReturnToElectionList, onLifecycleChange, onDraftStateChange }: NominationAdminPanelProps) {
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [intakeDetailsOpen, setIntakeDetailsOpen] = useState(true);
 	const [intake, setIntake] = useState<NominationIntake | null>(null);
@@ -986,25 +988,47 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	return (
 		<section className="nomination-admin" aria-labelledby="nomination-admin-title">
 			<nav className="position-workflow-breadcrumb" aria-label="Election workflow breadcrumb">
-				<button className="back-button" type="button" onClick={onReturnToElectionList}>← <span>All elections</span></button>
-				<span className="position-breadcrumb-crumb"><span aria-hidden="true">/&nbsp;</span>{electionName}</span>
-				<strong className="position-breadcrumb-crumb" aria-current="page"><span aria-hidden="true">/&nbsp;</span>{positionName}</strong>
+				<button className="back-button" type="button" onClick={onReturnToElectionList}>{churchName}</button>
+				<span aria-hidden="true">/</span><span>{electionTerm}</span>
+				<span aria-hidden="true">/</span><span>{departmentName}</span>
+				<span aria-hidden="true">-</span><strong aria-current="page">{positionName}</strong>
 			</nav>
-			{intake?.status !== 'CLOSED' && <section className="workflow-access" aria-label="Current election access shortcuts">
-				<div><strong>Current position access</strong><p>{electionName} · {positionName}</p></div>
-				<span className="row-status">{intake?.accessToken ? 'Nomination link ready' : 'Nomination link not created'}</span>
-				<button className="secondary-button" type="button" disabled={!intake?.accessToken} onClick={copyShareUrl}>{copied ? 'Copied' : 'Copy nomination link'}</button>
-				<p className="workflow-access-note">{intake?.accessToken ? 'Anyone with this position-specific link can submit or revise names while intake is open.' : 'Open nomination intake to create its position-specific link.'} The presentation becomes available after nominations are revealed.</p>
-			</section>}
-			<div className={`workflow-stage-group${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}`}>
+			<section className="workflow-access-cards" aria-label="Election access">
+				<article className="workflow-access-card" aria-labelledby="participant-access-title">
+					<h3 id="participant-access-title">Participant session link</h3>
+					<p>One session link for the authorized current phase. Anyone with the link may be able to access it.</p>
+					{activeRound?.accessToken ? <>
+						<code>{`${window.location.origin}/vote/${encodeURIComponent(activeRound.accessToken)}`}</code>
+						<button className="secondary-button prototype-secondary-button" type="button" onClick={() => { void copyVotingLink(activeRound); }}>{copiedRoundId === activeRound.id ? 'Copied session link' : 'Copy session link'}</button>
+					</> : <p className="workflow-access-state">{intake?.accessToken ? 'The nomination link is available below. A voting session link is available when a round opens.' : 'A participant session link is not available until its phase opens.'}</p>}
+					{intake?.accessToken && <div className="workflow-nomination-link">
+						<strong>Nomination link</strong>
+						<p>Anyone with this position-specific link can submit or revise names while intake is open.</p>
+						<code>{`${window.location.origin}/nominate/${encodeURIComponent(intake.accessToken)}`}</code>
+						<button className="secondary-button prototype-secondary-button" type="button" onClick={copyShareUrl}>{copied ? 'Copied nomination link' : 'Copy nomination link'}</button>
+					</div>}
+				</article>
+				<article className="workflow-access-card" aria-labelledby="presentation-access-title">
+					<h3 id="presentation-access-title">Audience presentation</h3>
+					<p>The separate display is read-only. Presentation controls stay in this authenticated admin workspace.</p>
+					<p className="workflow-access-state">Presentation display is {presentationVisible ? 'on' : 'off'}</p>
+					{presentationPath && <code>{`${window.location.origin}${presentationPath}`}</code>}
+					<div className="workflow-access-actions">
+						<button className="secondary-button prototype-secondary-button" type="button" disabled={!intake?.revealed || presentationBusy} onClick={() => { if (presentationPath) window.open(presentationPath, '_blank', 'noopener,noreferrer'); else void openPresentation(); }}>{presentationPath ? 'Open presentation' : 'Presentation'}</button>
+						{presentationVisible && <button className="secondary-button prototype-secondary-button" type="button" disabled={presentationBusy} onClick={() => { void controlPresentation('hide'); }}>Hide display</button>}
+						{presentationPath && <button className="secondary-button prototype-secondary-button" type="button" disabled={presentationBusy} onClick={() => { void controlPresentation('end'); }}>End presentation</button>}
+					</div>
+					{presentationError && <p className="error-message" role="alert">{presentationError}</p>}
+				</article>
+			</section>
+			<div className={`workflow-stage-group${!intake ? ' is-intake-setup' : ''}${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}`}>
 			<section className="guided-workflow" aria-label="Position workflow progress">
 				<div className="guided-workflow-task" aria-live="polite" aria-atomic="true">
 					<p className="eyebrow">Position workflow</p>
 					<h2 className="workflow-position-name" id="nomination-admin-title">{positionName}</h2>
 					<p className="workflow-task-kicker">Current task</p>
-					<div className="workflow-task-heading-row"><h3>{intake?.status === 'OPEN' ? 'Nomination intake is open' : currentWorkflowTask.title}</h3><span className={`row-status ${workflowStatus === 'Not open' || (intake?.status === 'CLOSED' && !intake.revealed) ? 'closed-status' : ''}`}>{workflowStatus}</span></div>
+					<div className="workflow-task-heading-row"><h3>{intake?.status === 'OPEN' ? 'Nomination intake is open' : currentWorkflowTask.title}</h3>{workflowStatus !== 'Voting open' && <span className={`row-status ${workflowStatus === 'Not open' || (intake?.status === 'CLOSED' && !intake.revealed) ? 'closed-status' : ''}`}>{workflowStatus}</span>}</div>
 					<p>{currentWorkflowTask.description}</p>
-					{!isExpanded && !intake && <div className="workflow-stage-action"><button className="primary-button" type="button" onClick={() => { void loadIntake(); }}>Open nomination intake</button></div>}
 					<span className="sr-only">Workflow step {currentWorkflowTask.stage + 1} of {workflowSteps.length}.</span>
 				</div>
 				<div className="guided-workflow-progress">
@@ -1014,7 +1038,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					</div>
 					<ol className="workflow-step-list">
 						{workflowSteps.map((step, index) => (
-							<li className={index < currentWorkflowTask.stage ? 'is-complete' : index === currentWorkflowTask.stage ? 'is-current' : ''} aria-current={index === currentWorkflowTask.stage ? 'step' : undefined} key={step}>
+							<li className={index < currentWorkflowTask.stage ? 'is-complete' : index === currentWorkflowTask.stage ? 'is-current' : 'is-upcoming'} aria-current={index === currentWorkflowTask.stage ? 'step' : undefined} key={step}>
 								<span className="workflow-step-marker" aria-hidden="true">{index < currentWorkflowTask.stage ? '✓' : index + 1}</span>
 								<span>{step}</span>
 								<span className="sr-only">{index < currentWorkflowTask.stage ? 'Complete' : index === currentWorkflowTask.stage ? 'Current step' : 'Upcoming'}</span>
@@ -1023,6 +1047,18 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					</ol>
 				</div>
 			</section>
+			{!isExpanded && !intake && <section className="workflow-intake-action" aria-labelledby="workflow-intake-title">
+				<h3 id="workflow-intake-title">Nomination intake</h3>
+				<p>People submit proposed names for {positionName}. Intake uses a position-specific link.</p>
+				<button className="primary-button" type="button" onClick={() => { void loadIntake(); }}>Open nomination intake</button>
+			</section>}
+			{!intake && <aside className="position-roster-panel" aria-labelledby="position-roster-title">
+				<p className="eyebrow">Nomination intake</p>
+				<h3 id="position-roster-title">Names not yet submitted</h3>
+				<p>Submitted names are not shown to the audience before explicit reveal.</p>
+				<div className="position-roster-empty">No candidates yet.</div>
+				<span className="position-opening-count">{openingCount} {openingCount === 1 ? 'opening' : 'openings'}</span>
+			</aside>}
 			{isExpanded && !isLoading && intake?.status === 'CLOSED' && (
 				<section className="closed-review-summary" aria-label="Closed nomination review">
 					<p ref={closedStatusRef} tabIndex={-1} className="closed-review-message" role="status" aria-live="polite" aria-atomic="true">
@@ -1054,17 +1090,8 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					<div className="form-actions"><button ref={closeTriggerRef} className="secondary-button" type="button" disabled={isLoading} onClick={() => setCloseDialogOpen(true)}>Close nominations</button></div>
 				</section>
 			)}
-			<section className="workflow-presentation-control" aria-labelledby="workflow-presentation-label">
-				<div><p className="eyebrow" id="workflow-presentation-label">Audience presentation</p><h3 id="workflow-presentation-title">Presentation display is {presentationVisible ? 'on' : 'off'}</h3><p>This read-only display is separate from the position workflow and session link.</p></div>
-				<div className="workflow-presentation-actions">
-					<button className="secondary-button" type="button" disabled={!intake?.revealed || presentationBusy} onClick={() => { if (presentationPath) window.open(presentationPath, '_blank', 'noopener,noreferrer'); else void openPresentation(); }}>{presentationPath ? 'Open presentation' : 'Presentation'}</button>
-					{presentationVisible && <button className="secondary-button" type="button" disabled={presentationBusy} onClick={() => { void controlPresentation('hide'); }}>Hide presentation</button>}
-					{presentationPath && <button className="secondary-button" type="button" disabled={presentationBusy} onClick={() => { void controlPresentation('end'); }}>End presentation</button>}
-				</div>
-				{presentationError && <p className="error-message workflow-presentation-error" role="alert">{presentationError}</p>}
-			</section>
 			</div>
-			<div className={`position-workflow-grid${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}`}>
+			<div className={`position-workflow-grid${!intake ? ' is-intake-setup' : ''}${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}`}>
 				<div className="position-workflow-main">
 			{isExpanded && isLoading && <p className="state-message" role="status">Loading nomination intake…</p>}
 			{error && <p className="error-message" role="alert">{error}</p>}
@@ -1447,13 +1474,6 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					})()}
 				</details>
 			)}
-				{!intake && <aside className="position-roster-panel" aria-labelledby="position-roster-title">
-					<p className="eyebrow">Nomination intake</p>
-					<h3 id="position-roster-title">Names not yet submitted</h3>
-					<p>Submitted names are not shown to the audience before explicit reveal.</p>
-					<div className="position-roster-empty">No candidates yet.</div>
-					<span className="position-opening-count">{openingCount} {openingCount === 1 ? 'opening' : 'openings'}</span>
-				</aside>}
 				</div>
 			</div>
 		</section>

@@ -1,5 +1,32 @@
 # E9.1 Handoff
 
+## Session Close And Follow-up PR Preparation (2026-10-30)
+
+- **Completed this session:** Position workflow iteration now has distinct top-level **Participant session link** and **Audience presentation** cards, no extra lower presentation card, an empty nomination roster inside the workflow card separated by rules, and a church / election-term / department - position breadcrumb. Session/voting URLs are only displayed when an actual active-round token exists; nomination links remain separately labeled. No API, lifecycle, authorization, privacy, or token behavior changed.
+- **Current branch/state:** `feature/e9.1-nad-theme` tracks `origin/feature/e9.1-nad-theme`. Five files have uncommitted follow-up changes: `apps/web/src/App.tsx`, `apps/web/src/features/nominations/NominationAdminPanel.tsx`, `apps/web/src/styles.css`, `apps/web/src/App.test.tsx`, and this handoff. No new commit has been made.
+- **Prior PR:** PR #20, **Refine selected-term election overview**, is merged. It covers the earlier selected-term work, not the current uncommitted follow-up. The repository default branch is `main`; no `master` base was selected.
+- **Validation:** Focused workflow/link tests passed (3); frontend production build passed; lint had zero errors with the existing TypeScript parser compatibility notice and `src/main.tsx` non-null assertion warning; `git diff --check` passed. Full frontend suite: 82 passed, 3 failed. The failures are the known Annual Boards navigation expectations on the selected-term screen.
+- **Remaining before UI sign-off:** No new 1280px/390px screenshots were captured because the existing capture script overwrites saved review artifacts. Capture to a separate destination and compare before claiming visual sign-off.
+- **PR next step:** A separate PR is needed for the uncommitted workflow follow-up, targeting `main`. Commit and push are not yet authorized/completed. Obtain Product Owner confirmation before committing and pushing these five changed files, then create the PR. Do not merge or deploy without explicit authorization.
+
+## Position Workflow Access And Breadcrumb Follow-up (2026-10-30)
+
+- **Scope:** Follow-up to the position-workflow visual correction, based on the Product Owner's clarification. UI-only; no API, election lifecycle, privacy, authorization, or link-token behavior changed.
+- **Implemented:** The top access area now contains two separate cards: **Participant session link** and **Audience presentation**. A voting session URL is shown only when an actual active-round token exists; otherwise the card explains that session access becomes available when its phase opens. A real nomination URL, when available, is separately labeled and described within the participant card. Presentation state, open/hide/end controls, and a real path when available live in the top Audience presentation card. Removed the extra presentation-controls card below the workflow. The new-election empty roster now sits inside the workflow card, separated from the progress and nomination action by rules. Breadcrumb now reads church / selected election term / department - position; its church crumb retains the return-to-election-list action.
+- **Changed files:** `apps/web/src/App.tsx`, `apps/web/src/features/nominations/NominationAdminPanel.tsx`, `apps/web/src/styles.css`, `apps/web/src/App.test.tsx`, and this handoff.
+- **Validation:** Focused workflow/link tests passed (3). Full frontend suite: 82 passed, 3 failed; failures are the known Annual Boards navigation expectations on the selected-term screen. Frontend production build passed. Lint had zero errors with the existing TypeScript parser compatibility notice and `src/main.tsx` non-null assertion warning. `git diff --check` passed.
+- **Visual evidence:** No new screenshots were written. Existing capture script overwrites saved review screenshots; capture to a separate destination before desktop/mobile sign-off.
+- **Git state:** Work remains uncommitted on `feature/e9.1-nad-theme`; no commit, merge, or deployment.
+
+## Position Workflow Visual Follow-up (2026-10-30)
+
+- **Scope:** Updated the new-position workflow screen against the Product Owner's supplied screenshot. Changes are presentation-only; election lifecycle, API calls, access gating, privacy behavior, and link generation are unchanged.
+- **Implemented:** The progress sequence now has explicit current/completed/upcoming styles; the redundant `Voting open` badge is omitted while the task/stepper continue to identify active voting. The **Open nomination intake** action now belongs to its own nomination-intake section beneath the workflow card. **Audience presentation** is a separate bordered card, outside the workflow group. The empty **Names not yet submitted** roster is full-width below it. The position-access copy control uses the outlined terms-screen button style and remains disabled until its real intake token exists.
+- **Changed files:** `apps/web/src/features/nominations/NominationAdminPanel.tsx`, `apps/web/src/styles.css`, `apps/web/src/App.test.tsx`, and this handoff.
+- **Validation:** Focused workflow tests passed (2). Full frontend suite: 82 passed, 3 failed; the failures are the previously documented Annual Boards navigation expectations on the selected-term screen. Frontend production build passed. Lint had zero errors with the existing TypeScript parser compatibility notice and `src/main.tsx` non-null assertion warning. `git diff --check` passed.
+- **Visual evidence:** No new screenshots were written. The existing capture harness overwrites the saved review screenshots; preserve those artifacts. Re-capture at 1280px and 390px to a separate destination before visual sign-off.
+- **Git state:** Work remains uncommitted on `feature/e9.1-nad-theme`; no commit, merge, or deployment. Preserve unrelated work and do not merge/deploy without explicit authorization.
+
 ## Selected Election Term Overview Final Handoff (2026-10-30)
 
 - **Scope:** Product Owner approved visual and copy changes to the authenticated selected-term election overview, based on the annotated screenshot and E9.1 prototype. No API, election lifecycle, or position-navigation behavior was changed.
