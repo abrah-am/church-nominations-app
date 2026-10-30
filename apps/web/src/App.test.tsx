@@ -169,7 +169,7 @@ describe('voting round navigation', () => {
 
     render(<App />);
     await signIn();
-    fireEvent.click(await screen.findByRole('button', { name: 'Continue: Treasurer' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue election: Treasurer' }));
     await screen.findByRole('heading', { name: 'Treasurer' });
     fireEvent.click(screen.getByRole('button', { name: 'Open nomination intake' }));
 
@@ -234,7 +234,7 @@ describe('voting round navigation', () => {
 
     render(<App />);
     await signIn();
-    fireEvent.click(await screen.findByRole('button', { name: 'Continue: Treasurer' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue election: Treasurer' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
     await screen.findByRole('button', { name: 'Reset round' });
 
@@ -289,7 +289,7 @@ describe('voting round navigation', () => {
 
     render(<App />);
     await signIn();
-    fireEvent.click(await screen.findByRole('button', { name: 'Continue: Treasurer' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue election: Treasurer' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
 
     expect(await screen.findByText('Unavailable')).toBeInTheDocument();
@@ -314,7 +314,7 @@ describe('voting round navigation', () => {
 
     render(<App />);
     await signIn();
-    fireEvent.click(await screen.findByRole('button', { name: 'Continue: Treasurer' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue election: Treasurer' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
 
     expect(await screen.findByText('0')).toBeInTheDocument();
@@ -402,7 +402,7 @@ describe('election administration', () => {
 
     expect(await screen.findByRole('heading', { name: 'Administrator Workspace' })).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: 'Open election' })[0]);
-    expect(await screen.findByRole('heading', { name: 'Department elections' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Elections 2026' })).toBeInTheDocument();
     expect(screen.queryByText(/Voting is not available yet/)).not.toBeInTheDocument();
     expect(screen.getByText(/Grace Church.*Administrator workspace/)).toBeInTheDocument();
     expect(fetchMock.mock.calls[2][0]).toBe('http://localhost:8080/api/churches');
@@ -442,12 +442,10 @@ describe('election administration', () => {
 
     render(<App />);
     await signIn();
-    await screen.findByRole('heading', { name: 'Department elections' });
+    await screen.findByRole('heading', { name: 'Elections 2026' });
 
-    expect(screen.getByRole('group', { name: 'Position status summary' })).toHaveTextContent('1 not started');
-    expect(screen.getByRole('group', { name: 'Position status summary' })).toHaveTextContent('1 in progress');
-    expect(screen.getByRole('list', { name: 'Finance positions' })).toHaveTextContent('Director1 openingNot startedStart');
-    expect(screen.getByRole('list', { name: 'Finance positions' })).toHaveTextContent('Treasurer2 openingsIn progressContinue');
+    expect(screen.getByRole('list', { name: 'Finance positions' })).toHaveTextContent('Director1 openingStart nominations');
+    expect(screen.getByRole('list', { name: 'Finance positions' })).toHaveTextContent('Treasurer2 openingsContinue election');
 
     const meRequest = fetchMock.mock.calls[0];
     expect(meRequest[0]).toBe('http://localhost:8080/api/auth/me');
@@ -475,7 +473,7 @@ describe('election administration', () => {
 
     render(<App />);
     await signIn();
-    fireEvent.click(await screen.findByRole('button', { name: 'Start: Director' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Start nominations: Director' }));
 
     expect(await screen.findByRole('heading', { name: 'Director' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Open nomination intake' })).toBeInTheDocument();
@@ -527,12 +525,43 @@ describe('election administration', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Open election' })[1]);
 
     expect(await screen.findByRole('heading', { name: 'Elections 2027' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Selected election term breadcrumb' })).toHaveTextContent(/Grace Church\s*\/\s*Elections 2027/);
+    expect(screen.queryByRole('navigation', { name: 'Church workspace' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Configure Positions' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Position status summary' })).not.toBeInTheDocument();
     expect(screen.getByText(/Live election rows below are shown under this demo term/)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Department elections' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Finance.*2 positions.*Edit/ })).toBeInTheDocument();
-    expect(screen.getByText('Sample voting session link')).toBeInTheDocument();
-    expect(screen.getByText('Sample presentation link')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Participant session link' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Audience presentation' })).toBeInTheDocument();
     expect(screen.getAllByText('DEMO LINK · NOT ACTIVE')).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Grace Church' }));
+    expect(await screen.findByRole('heading', { name: 'Administrator Workspace' })).toBeInTheDocument();
     expect(fetchMock.mock.calls.filter(([url]) => url === 'http://localhost:8080/api/elections')).toHaveLength(1);
+  });
+
+  it('uses prototype labels and primary continue action for a selected-term election in progress', async () => {
+    const activeElection = {
+      ...election,
+      status: 'IN_PROGRESS' as const,
+      positions: [{ ...election.positions[0], progressStatus: 'ROUND_ACTIVE' }],
+    };
+    const fetchMock = signedInFetch([church], [activeElection]);
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+
+    const electionHeader = screen.getByRole('button', { name: /Finance, 1 position, Edit/ });
+    expect(electionHeader).toBeInTheDocument();
+    const editStatus = screen.getByText('Edit', { selector: '.selected-term-election-edit' });
+    expect(editStatus.parentElement).toHaveClass('election-accordion-header');
+    expect(electionHeader).not.toContainElement(editStatus);
+    expect(editStatus.nextElementSibling).toHaveClass('selected-term-election-arrow');
+    const positionList = screen.getByRole('list', { name: 'Finance positions' });
+    expect(positionList).toHaveTextContent('Treasurer2 openingsContinue election');
+    expect(within(positionList).queryByText('In progress')).not.toBeInTheDocument();
+    expect(within(positionList).getByRole('button', { name: 'Continue election: Treasurer' })).toHaveClass('position-overview-action-primary');
   });
 
   it('collapses and expands position groups with the Bootstrap accordion control', async () => {
@@ -560,7 +589,7 @@ describe('election administration', () => {
 
     render(<App />);
     await signIn();
-    fireEvent.click(await screen.findByRole('button', { name: 'Continue: Treasurer' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue election: Treasurer' }));
 
     expect(await screen.findByRole('navigation', { name: 'Election workflow breadcrumb' })).toHaveTextContent('Treasurer');
     expect(screen.getByRole('heading', { name: 'Treasurer' })).toBeInTheDocument();
@@ -573,7 +602,7 @@ describe('election administration', () => {
     await signIn();
 
     expect(await screen.findByRole('heading', { name: 'No elections configured' })).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'Position status summary' })).toHaveTextContent('0 in progress');
+    expect(screen.queryByRole('group', { name: 'Position status summary' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create first election' })).toBeInTheDocument();
   });
 
@@ -587,10 +616,9 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
 
-    const positionSummary = await screen.findByRole('group', { name: 'Position status summary' });
-    expect(positionSummary).toHaveTextContent('0 in progress');
-    expect(positionSummary).toHaveTextContent('1 unavailable');
-    expect(screen.getByRole('list', { name: 'Finance positions' })).toHaveTextContent('Progress unavailable');
+    const positionList = await screen.findByRole('list', { name: 'Finance positions' });
+    expect(positionList).toHaveTextContent('Action unavailable');
+    expect(positionList.querySelector('.position-overview-status')).toBeNull();
   });
 
   it('reports election list loading and request errors without discarding the dashboard shell', async () => {
@@ -635,20 +663,20 @@ describe('election administration', () => {
   });
 
   it.each([
-    ['NOT_STARTED', 'Not started', 'SET_UP_NOMINATIONS', 'Set up nominations'],
-    ['NOMINATIONS_OPEN', 'In progress', 'CLOSE_NOMINATIONS', 'Close nominations'],
-    ['NOMINATIONS_CLOSED', 'In progress', 'CONSOLIDATE_NOMINATIONS', 'Review and consolidate names'],
-    ['CONSOLIDATED', 'In progress', 'CONFIGURE_FIRST_ROUND', 'Configure first round'],
-    ['ROUND_DRAFT', 'In progress', 'START_VOTING', 'Review and start voting'],
-    ['ROUND_ACTIVE', 'In progress', 'MONITOR_VOTING', 'Monitor voting'],
-    ['ROUND_CLOSED_UNREVEALED', 'In progress', 'REVEAL_RESULTS', 'Reveal results'],
-    ['RESULTS_REVEALED', 'In progress', 'RECORD_CANDIDATE_DECISIONS', 'Record candidate decisions'],
-    ['CANDIDATES_ADVANCED', 'In progress', 'CONFIGURE_NEXT_ROUND', 'Configure next round'],
-    ['COMPLETE', 'Complete', 'COMPLETE', 'Position complete'],
-  ])('shows %s status and its workflow entry action', async (progressStatus, _statusLabel, nextAction) => {
+    ['NOT_STARTED', 'Start nominations'],
+    ['NOMINATIONS_OPEN', 'Continue election'],
+    ['NOMINATIONS_CLOSED', 'Continue election'],
+    ['CONSOLIDATED', 'Continue election'],
+    ['ROUND_DRAFT', 'Continue election'],
+    ['ROUND_ACTIVE', 'Continue election'],
+    ['ROUND_CLOSED_UNREVEALED', 'Continue election'],
+    ['RESULTS_REVEALED', 'Continue election'],
+    ['CANDIDATES_ADVANCED', 'Continue election'],
+    ['COMPLETE', 'Review results'],
+  ])('shows %s with its workflow entry action', async (progressStatus, expectedAction) => {
     const progressElection = {
       ...election,
-      positions: [{ ...election.positions[1], openingCount: 2, progressStatus, nextAction, roundNumber: progressStatus.startsWith('ROUND_') || progressStatus === 'RESULTS_REVEALED' || progressStatus === 'CANDIDATES_ADVANCED' ? 2 : null }],
+      positions: [{ ...election.positions[1], openingCount: 2, progressStatus, roundNumber: progressStatus.startsWith('ROUND_') || progressStatus === 'RESULTS_REVEALED' || progressStatus === 'CANDIDATES_ADVANCED' ? 2 : null }],
     };
     const fetchMock = signedInFetch([church], [progressElection]);
     fetchMock.mockResolvedValueOnce(response(progressElection));
@@ -657,10 +685,11 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
     const row = screen.getByRole('listitem');
-    const expectedStatus = progressStatus === 'NOT_STARTED' ? 'Not started' : progressStatus === 'COMPLETE' ? 'Complete' : 'In progress';
-    expect(within(row).getByText(expectedStatus)).toBeInTheDocument();
-    expect(within(row).getByRole('button', { name: `${progressStatus === 'NOT_STARTED' ? 'Start' : progressStatus === 'COMPLETE' ? 'Review' : 'Continue'}: Director` })).toBeInTheDocument();
-    expect(within(row).getByRole('button', { name: `${progressStatus === 'NOT_STARTED' ? 'Start' : progressStatus === 'COMPLETE' ? 'Review' : 'Continue'}: Director` })).toHaveTextContent(progressStatus === 'NOT_STARTED' ? 'Start' : progressStatus === 'COMPLETE' ? 'Review' : 'Continue');
+    expect(within(row).queryByText(/^(Not started|In progress|Complete)$/)).not.toBeInTheDocument();
+    const actionButton = within(row).getByRole('button', { name: `${expectedAction}: Director` });
+    expect(actionButton).toBeInTheDocument();
+    expect(actionButton).toHaveTextContent(expectedAction);
+    expect(actionButton).not.toHaveTextContent('→');
   });
 
   it('requires an explicit discard before returning to the election list with an unsaved intake setup draft', async () => {
@@ -691,7 +720,7 @@ describe('election administration', () => {
 
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).getByRole('button', { name: /All elections/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes and continue' }));
-    expect(await screen.findByRole('heading', { name: 'Department elections' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Elections 2026' })).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false);
   });
 
@@ -711,7 +740,11 @@ describe('election administration', () => {
 
     if (status === 'SETUP') {
       const electionRow = await screen.findByRole('button', { name: /Finance, 2 positions, Edit/ });
-      expect(electionRow).toHaveTextContent('Edit');
+      expect(electionRow).not.toHaveTextContent('Edit');
+      expect(screen.getByText('Edit', { selector: '.selected-term-election-edit' })).toBeInTheDocument();
+    } else if (status === 'IN_PROGRESS') {
+      expect(await screen.findByRole('button', { name: /Operations, 2 positions, Edit/ })).not.toHaveTextContent('Edit');
+      expect(screen.getByText('Edit', { selector: '.selected-term-election-edit' })).toBeInTheDocument();
     } else {
       expect(await screen.findByRole('group', { name: `Election status: ${label}` })).toHaveTextContent(label);
     }
@@ -744,15 +777,15 @@ describe('election administration', () => {
 
     render(<App />);
     await signIn();
-    fireEvent.click(await screen.findByRole('button', { name: 'Start: Director' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Start nominations: Director' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Create intake' }));
 
     expect(await screen.findByRole('heading', { name: 'Nomination intake is open' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copy nomination link' })).toBeEnabled();
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).getByRole('button', { name: /All elections/ }));
-    expect(await screen.findByRole('heading', { name: 'Department elections' })).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'Position status summary' })).toHaveTextContent('1 in progress');
+    expect(await screen.findByRole('heading', { name: 'Elections 2026' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Position status summary' })).not.toBeInTheDocument();
     const refreshCalls = fetchMock.mock.calls.slice(-2);
     expect(refreshCalls[0]?.[0]).toBe('http://localhost:8080/api/elections');
     expect(refreshCalls[1]?.[0]).toBe('http://localhost:8080/api/elections/election-1');
@@ -838,7 +871,7 @@ describe('election administration', () => {
 
     render(<App />);
     await signIn();
-    await screen.findByRole('heading', { name: 'Department elections' });
+    await screen.findByRole('heading', { name: 'Elections 2026' });
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls.some(([url]) => url === 'http://localhost:8080/api/boards')).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: 'Annual Boards' }));
@@ -872,7 +905,7 @@ describe('election administration', () => {
 
     render(<App />);
     await signIn();
-    await screen.findByRole('heading', { name: 'Department elections' });
+    await screen.findByRole('heading', { name: 'Elections 2026' });
     fireEvent.click(screen.getByRole('button', { name: 'Annual Boards' }));
     fireEvent.click(await screen.findByRole('button', { name: /2026 Annual Board/ }));
     await screen.findByRole('heading', { name: 'Board roster' });
@@ -914,7 +947,7 @@ describe('election administration', () => {
 
     render(<App />);
     await signIn();
-    await screen.findByRole('heading', { name: 'Department elections' });
+    await screen.findByRole('heading', { name: 'Elections 2026' });
     fireEvent.click(screen.getByRole('button', { name: 'Annual Boards' }));
     fireEvent.click(await screen.findByRole('button', { name: /2026 Annual Board/ }));
     const attendee = await screen.findByRole('checkbox', { name: 'Jordan Lee' });
@@ -943,7 +976,7 @@ describe('election administration', () => {
 
     render(<App />);
     await signIn();
-    fireEvent.click(await screen.findByRole('button', { name: 'Start: Director' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Start nominations: Director' }));
     expect(await screen.findByRole('heading', { name: 'Director' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit election' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Manage nominations' })).not.toBeInTheDocument();
@@ -971,7 +1004,7 @@ describe('election administration', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('The requested election could not be found.');
-    expect(screen.getByRole('heading', { name: 'Department elections' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Elections 2026' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
 
     expect(screen.getByRole('heading', { name: 'Sign in to your church' })).toBeInTheDocument();
@@ -1807,7 +1840,7 @@ describe('election administration', () => {
 
     render(<App />);
     await signIn();
-    fireEvent.click(await screen.findByRole('button', { name: 'Start: Director' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Start nominations: Director' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
 
     expect(screen.getByRole('status')).toHaveTextContent('Loading nomination intake');
@@ -1833,7 +1866,7 @@ describe('election administration', () => {
 
     render(<App />);
     await signIn();
-    fireEvent.click(await screen.findByRole('button', { name: 'Start: Director' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Start nominations: Director' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Network unavailable');
@@ -1863,7 +1896,7 @@ describe('election administration', () => {
 
     render(<App />);
     await signIn();
-    fireEvent.click(await screen.findByRole('button', { name: 'Start: Director' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Start nominations: Director' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
     expect(await screen.findByRole('heading', { name: 'Nomination intake is open' })).toBeInTheDocument();
     expect(screen.queryByText('Riley Chen')).not.toBeInTheDocument();
