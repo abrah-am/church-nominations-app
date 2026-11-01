@@ -12,6 +12,7 @@
 | E9.2 | E9 Bootstrap UI Modernization | Consolidate election access cards into reusable components | P2 (proposed) | Backlog; technical debt deferred to a future implementation session | PR #21 position-workflow layout; E9.1 shared UI conventions | [requirements](../stories/E9.2/requirements.md) |
 | E2.2 | E2 Nomination Workflow Clarity and Recovery | Preserve consolidation drafts on failure and navigation | P1 | Backlog | US-009 | [requirements](../stories/E2.2/requirements.md) |
 | E2.3 | E2 Nomination Workflow Clarity and Recovery | Explain roster lock and provide pre-draft edit path | P1 | Backlog | US-009, E2.2 | [requirements](../stories/E2.3/requirements.md) |
+| E2.5 | E2 Nomination Workflow Clarity and Recovery | Restore current position workflow state on revisit | P1 (proposed) | Proposed; Product Owner approval required before implementation | US-008, E2.1 | [requirements](../stories/E2.5/requirements.md) |
 | E3.1 | E3 Round Setup and Candidate Roster | Clarify roster source and valid selection count | P1 | Backlog | US-009, US-010; prior decisions | [requirements](../stories/E3.1/requirements.md) |
 | E3.2 | E3 Round Setup and Candidate Roster | Preview next-round roster from saved decisions | P1 | Backlog | US-012, E5.2 | [requirements](../stories/E3.2/requirements.md) |
 | E3.4 | E3 Round Setup and Candidate Roster | Make candidate rosters easy to review | P1 | Backlog | Round roster data; E7 target | [requirements](../stories/E3.4/requirements.md) |
