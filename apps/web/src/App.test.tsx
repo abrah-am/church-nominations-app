@@ -312,7 +312,7 @@ describe('voting round navigation', () => {
     const presentationCard = screen.getByRole('article', { name: 'Audience presentation' });
     expect(within(presentationCard).getByRole('button', { name: 'Broadcast list' })).toBeDisabled();
     expect(within(presentationCard).getByText('Available after intake closes and you reveal the list.')).toBeInTheDocument();
-    expect(within(presentationCard).getByRole('status')).toHaveTextContent('No list broadcast yet.');
+    expect(within(presentationCard).getByText('No list broadcast yet.')).toBeInTheDocument();
     expect(screen.queryByText('Submitted by')).not.toBeInTheDocument();
     expect(screen.queryByText(/^0$/)).not.toBeInTheDocument();
   });
@@ -585,7 +585,8 @@ describe('election administration', () => {
     expect(within(accessCards).getByRole('heading', { name: 'Participant session link' })).toBeInTheDocument();
     expect(within(accessCards).getByRole('heading', { name: 'Audience presentation' })).toBeInTheDocument();
     expect(within(accessCards).getByText(/A participant session link is not available until its phase opens/)).toBeInTheDocument();
-    expect(within(accessCards).getByRole('button', { name: 'Presentation' })).toBeDisabled();
+    expect(within(accessCards).getByRole('switch', { name: 'Show audience presentation' })).toBeDisabled();
+    expect(within(accessCards).getByRole('button', { name: 'Open presentation' })).toBeDisabled();
     expect(screen.getByText('Not open')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create intake' })).toBeInTheDocument();
     expect(screen.getByLabelText('Maximum names per visitor')).toBeInTheDocument();
@@ -662,7 +663,13 @@ describe('election administration', () => {
     expect(document.getElementById('election-panel-election-1')).not.toHaveClass('show');
     expect(screen.getByRole('heading', { name: 'Participant session link' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Audience presentation' })).toBeInTheDocument();
-    expect(screen.getAllByText('DEMO LINK · NOT ACTIVE')).toHaveLength(2);
+    expect(screen.queryByText('DEMO LINK · NOT ACTIVE')).not.toBeInTheDocument();
+    const sampleAccess = screen.getByRole('region', { name: 'Sample links, display only' });
+    expect(within(sampleAccess).getByRole('button', { name: 'Copy session link' })).toBeDisabled();
+    expect(within(sampleAccess).getByRole('switch', { name: 'Show audience presentation' })).toBeChecked();
+    expect(within(sampleAccess).getByRole('button', { name: 'Open presentation' })).toBeDisabled();
+    fireEvent.click(within(sampleAccess).getByRole('switch', { name: 'Show audience presentation' }));
+    expect(within(sampleAccess).getByText('Presentation display is off')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Grace Church' }));
     expect(await screen.findByRole('heading', { name: 'Administrator Workspace' })).toBeInTheDocument();
     expect(fetchMock.mock.calls.filter(([url]) => url === 'http://localhost:8080/api/elections')).toHaveLength(1);
@@ -1281,6 +1288,7 @@ describe('election administration', () => {
       if (requestPath.endsWith('/nominations/presentation') && requestMethod === 'POST') {
         return response({ accessToken: 'presentation-token', viewerPath: '/api/nomination-presentations/presentation-token', visible: true });
       }
+      if (requestPath.endsWith('/nominations/presentation/hide') && requestMethod === 'POST') return response(null);
       if (requestPath.endsWith('/positions/position-1/rounds') && requestMethod === 'GET') return response([]);
       if (requestPath.endsWith('/nominations/shared-list')) {
         intakeState = savedSharedList;
@@ -1328,11 +1336,11 @@ describe('election administration', () => {
     const presentationCard = screen.getByRole('article', { name: 'Audience presentation' });
     expect(within(presentationCard).getByRole('button', { name: 'Broadcast list' })).toBeDisabled();
     expect(within(presentationCard).getByText('Available after intake closes and you reveal the list.')).toBeInTheDocument();
-    expect(within(presentationCard).getByRole('status')).toHaveTextContent('No list broadcast yet.');
+    expect(within(presentationCard).getByText('No list broadcast yet.')).toBeInTheDocument();
     expect(screen.queryByRole('complementary', { name: 'Names not yet submitted' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Current election access shortcuts' })).not.toBeInTheDocument();
     expect(within(intakeView).queryByRole('button', { name: 'Broadcast list' })).not.toBeInTheDocument();
-    expect(within(presentationCard).getByRole('button', { name: 'Presentation' })).toBeDisabled();
+    expect(within(presentationCard).getByRole('button', { name: 'Open presentation' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Copy nomination link' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not copy the link. Select and copy the share URL instead.');
     expect(screen.getByRole('heading', { name: 'Nomination intake is open' })).toBeInTheDocument();
@@ -1397,6 +1405,13 @@ describe('election administration', () => {
     expect(revealRequest?.[1].method).toBe('POST');
     expect(presentationRequest?.[1].method).toBe('POST');
     expect(viewerLocation.assign).toHaveBeenCalledWith('/nomination-presentation/presentation-token');
+    const revealedPresentationCard = screen.getByRole('article', { name: 'Audience presentation' });
+    const presentationSwitch = within(revealedPresentationCard).getByRole('switch', { name: 'Show audience presentation' });
+    expect(presentationSwitch).toBeChecked();
+    fireEvent.click(presentationSwitch);
+    expect(await within(revealedPresentationCard).findByText('Presentation display is off')).toBeInTheDocument();
+    const hidePresentationRequest = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/nominations/presentation/hide'));
+    expect(hidePresentationRequest?.[1].method).toBe('POST');
     expect(sharedListRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations/shared-list');
     expect(sharedListRequest?.[1]).toMatchObject({
       method: 'PUT',
