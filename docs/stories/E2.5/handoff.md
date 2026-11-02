@@ -3,7 +3,7 @@
 ## Current Status (2026-11-01)
 
 - **Story:** [Restore Current Position Workflow State on Revisit](requirements.md)
-- **Workflow:** Product Owner accepted E2.5 on 2026-11-01 and requested story closeout. Implementation, focused QA, and review are complete locally. The story is accepted but not marked Done because merge authorization/evidence is still pending. Deployment is not authorized.
+- **Workflow:** Product Owner accepted E2.5 on 2026-11-01 and requested story closeout. Implementation, focused QA, and review are complete. PR [#23](https://github.com/abrah-am/church-nominations-app/pull/23) is open against `main` and includes all worktree changes at commit `6e9b18e`. The story is accepted but not marked Done because merge authorization/evidence is still pending. Deployment is not authorized.
 - **Backlog:** Indexed in `docs/product/backlog.md` as P1, Product Owner accepted, locally complete, with merge authorization pending; dependencies are US-008 and E2.1.
 - **Implementation:** Position panels load current intake automatically on mount, show loading/error/retry feedback without presenting unknown state as empty setup, and restore open or closed intake data from the authenticated API. Open intake shows profile count, allowed-name limit, and alphabetized read-only names; the Audience presentation access card remains visible for all intake states and owns the Broadcast list action/status when intake is open. The visible gate explanation says broadcast is available only after intake closes and the list is revealed. The redundant count explanation and per-update sentence have been removed; the metrics region remains a polite live region. Broadcast is disabled during open intake to preserve the approved close-and-explicit-reveal audience gate. Closed intake retains editable name rows with Save/Remove controls. Revealed nominations remain on the nominations progress step until a round draft exists. A 404 remains the no-intake state and exposes setup without creating an intake.
 
@@ -43,12 +43,12 @@ The position panel already has a separate mount-time load for voting rounds/resu
 
 ## Next Session / Exact Next Action
 
-1. If merge is desired, obtain the Product Owner's separate explicit merge authorization. Do not merge based on story acceptance alone.
-2. Before any authorized merge, inspect the current full diff and isolate E2.5 files; the worktree includes unrelated user changes and prototype moves.
+1. Review PR #23 and its CI/review feedback.
+2. Obtain the Product Owner's separate explicit merge authorization before merging; story acceptance alone is not merge authorization.
 3. Keep the three annual-board test failures separate from E2.5 unless the owner explicitly expands scope. Deployment requires separate authorization.
 
 ## Worktree At Handoff
 
-- Branch: `main`, tracking `origin/main`; no branch or commit was created.
+- Branch: `feature/e2.5-position-workflow-restore`, tracking `origin/feature/e2.5-position-workflow-restore`; PR #23 targets `main`; commit `6e9b18e`.
 - Current worktree contains changes across `apps/web/src/App.tsx`, `apps/web/src/styles.css`, E2.5/E6.9/E9.1 documentation, prototype files moved/deleted under `docs/stories/E9.1/` with new files under `docs/prototype/`, plus E2.5 code and closeout reports. Some changes predate this story. Preserve them; do not stage, revert, merge, or deploy as a group without explicit review/authorization.
 - E2.5 implementation and closeout files: `apps/web/src/features/nominations/NominationAdminPanel.tsx`, `apps/web/src/App.test.tsx`, `docs/stories/E2.5/requirements.md`, `docs/stories/E2.5/implementation-plan.md`, `docs/stories/E2.5/qa-report.md`, `docs/stories/E2.5/review.md`, `docs/stories/E2.5/handoff.md`, `docs/stories/E6.9/requirements.md`, and `docs/product/backlog.md`.
