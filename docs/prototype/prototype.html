@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="../../apps/web/node_modules/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     :root {
       color-scheme: light;
@@ -80,11 +81,13 @@
     .status-count { padding: 7px 10px; border-radius: 4px; background: #edf2ec; font-size: .82rem; font-weight: 700; }
     .status-count strong { margin-right: 4px; font-size: .95rem; }
     .access-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 18px 0 24px; }
-    .access-tool { min-width: 0; padding: 15px 16px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+    .access-tool { display: flex; min-width: 0; min-height: 291px; flex-direction: column; align-items: flex-start; padding: 15px 16px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
     .access-tool h3 { margin: 0 0 5px; }
     .access-tool p { margin: 0; color: var(--muted); font-size: .86rem; }
     .access-tool .action-row { margin-top: 12px; }
-    .access-url { overflow-wrap: anywhere; padding: 7px 9px; margin-top: 9px !important; color: #334940 !important; background: #f3f6f2; border-radius: 3px; font: .78rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .workflow-presentation-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .workflow-presentation-actions .form-check { margin: 0; }
+    .access-url { display: block; overflow-wrap: anywhere; padding: 7px 9px; margin-top: 9px !important; color: #334940 !important; background: #f3f6f2; border-radius: 3px; font: .78rem ui-monospace, SFMono-Regular, Menlo, monospace; }
     .access-context { display: block; margin-top: 7px !important; color: #345b44 !important; font-weight: 680; }
     .department-list { display: grid; gap: 10px; margin-top: 12px; }
     .department-accordion { overflow: hidden; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
@@ -96,10 +99,6 @@
     .department-accordion .department-content { padding: 0 14px 8px; border-top: 1px solid #e5e9e4; }
     .department-accordion .position-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
     .department-accordion .position-action { grid-column: 1 / -1; width: 100%; }
-    .workflow-access { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 12px 14px; margin-bottom: 16px; border: 1px solid var(--line); border-radius: 4px; background: #f9fbf8; }
-    .workflow-access p { margin: 3px 0 0; color: var(--muted); font-size: .82rem; }
-    .workflow-access strong { font-size: .9rem; }
-    .workflow-access .btn { min-height: 38px; padding: 7px 10px; font-size: .84rem; }
     .department { margin-top: 20px; border-top: 1px solid var(--line); }
     .department-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 15px 0 8px; }
     .department-heading h3 { margin: 0; font-size: 1.08rem; }
@@ -284,8 +283,6 @@
       .position-row .position-action { grid-column: 1 / -1; width: 100%; }
       .access-tools { grid-template-columns: minmax(0, 1fr); }
       .department-accordion .position-row { grid-template-columns: minmax(0, 1fr) auto; }
-      .workflow-access { grid-template-columns: minmax(0, 1fr) minmax(0, auto); }
-      .workflow-access .access-status { grid-column: 1 / -1; }
       .login-card { margin: 18px 0; padding: 20px; }
     }
     .mock-label { border-color: #e6c46f; color: #624923; }
@@ -298,7 +295,6 @@
     .access-url { color: #1b2b35 !important; background: #eef4f6; }
     .access-context { color: #31535b !important; }
     .department-accordion .department-content, .position-row { border-color: #d5e0e5; }
-    .workflow-access { background: #f3f6f7; }
     .status-not-started { color: #40545f; background: #e9eef0; }
     .status-progress { color: #007681; background: #e4f1f1; }
     .status-filled { color: #365a24; background: #edf3e8; }
@@ -404,17 +400,22 @@
             <article class="access-tool">
               <h3>Participant session link</h3>
               <p>One session link for the authorized current phase. Anyone with the link may be able to access it.</p>
-              <p class="access-url" id="participant-url">http://127.0.0.1:8765/?view=voter</p>
-              <div class="action-row"><button class="btn btn-secondary" id="copy-participant-link" type="button">Copy session link</button></div>
+              <code class="access-url">sample://voting-session/example</code>
+              <div class="action-row"><button class="btn btn-secondary" type="button" disabled title="Demo link not active">Copy session link</button></div>
+              <span class="mock-label">DEMO LINK · NOT ACTIVE</span>
             </article>
             <article class="access-tool">
               <h3>Audience presentation</h3>
               <p>The separate display is read-only. Presentation controls stay in this authenticated admin workspace.</p>
               <span class="access-context" id="election-presentation-status">Presentation display is on</span>
-              <div class="action-row">
-                <button class="btn btn-primary" id="open-election-presentation" type="button">Open presentation</button>
-                <button class="btn btn-secondary" id="toggle-election-presentation" type="button">Hide display</button>
+              <div class="action-row workflow-presentation-actions">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" id="toggle-election-presentation" type="checkbox" role="switch" checked>
+                  <label class="form-check-label" for="toggle-election-presentation">Show audience presentation</label>
+                </div>
+                <button class="btn btn-primary" type="button" disabled title="Demo link not active">Open presentation</button>
               </div>
+              <span class="mock-label">DEMO LINK · NOT ACTIVE</span>
             </article>
           </section>
           <div class="department-list">
@@ -439,11 +440,25 @@
       </div>
       <div id="election-flow" class="election-flow">
       <div class="breadcrumb"><button type="button" id="back-to-period">Grace Community Church / 2026 Elections / Administration / Director</button></div>
-      <section class="workflow-access" aria-label="Current election access shortcuts">
-        <div><strong>Current session access</strong><p>Grace Community Church · 2026 Elections · Director</p></div>
-        <span class="status access-status">Session link · current phase</span>
-        <button class="btn btn-secondary" id="copy-workflow-link" type="button">Copy link</button>
-        <button class="btn btn-primary" id="open-workflow-presentation" type="button">Presentation</button>
+      <section class="access-tools" aria-label="Election access">
+        <article class="access-tool" aria-labelledby="workflow-participant-title">
+          <h3 id="workflow-participant-title">Participant session link</h3>
+          <p>One session link for the authorized current phase. Anyone with the link may be able to access it.</p>
+          <code class="access-url" id="participant-workflow-url">http://127.0.0.1:8765/?view=voter</code>
+          <div class="action-row"><button class="btn btn-secondary" id="copy-workflow-link" type="button">Copy session link</button></div>
+        </article>
+        <article class="access-tool" aria-labelledby="workflow-presentation-title">
+          <h3 id="workflow-presentation-title">Audience presentation</h3>
+          <p>The separate display is read-only. Presentation controls stay in this authenticated admin workspace.</p>
+          <span class="access-context" id="workflow-presentation-status">Presentation display is on</span>
+          <div class="action-row workflow-presentation-actions">
+            <div class="form-check form-switch">
+              <input class="form-check-input" id="toggle-workflow-presentation" type="checkbox" role="switch" checked>
+              <label class="form-check-label" for="toggle-workflow-presentation">Show audience presentation</label>
+            </div>
+            <button class="btn btn-primary" id="open-workflow-presentation" type="button">Open presentation</button>
+          </div>
+        </article>
       </section>
       <div class="admin-grid">
         <section class="panel panel-pad" aria-labelledby="admin-task-title">
@@ -494,13 +509,6 @@
             <h3>Round setup</h3>
             <p class="subtle">Select exactly <strong id="selection-count">2</strong> candidates per ballot.</p>
             <div class="action-row"><button class="btn btn-primary" id="open-voting">Open voting</button></div>
-          </div>
-          <div class="task">
-            <h3>Audience presentation</h3>
-            <p class="subtle" id="presentation-control-status">Presentation display is on. This mock control does not affect the voter session link.</p>
-            <div class="action-row">
-              <button class="btn btn-secondary" id="toggle-presentation" aria-pressed="true">Hide presentation</button>
-            </div>
           </div>
           <div class="task" id="admin-active" hidden>
             <h3>Voting is active</h3>
@@ -754,13 +762,12 @@
         if (!presentationWindow) window.alert("Allow pop-ups to open the presentation window.");
       }
       function syncPresentationControls() {
-        const label = state.presentationVisible ? "Hide display" : "Show display";
-        [$("toggle-election-presentation"), $("toggle-presentation")].filter(Boolean).forEach((button) => {
-          button.textContent = label;
-          button.setAttribute("aria-pressed", String(state.presentationVisible));
+        [$("toggle-election-presentation"), $("toggle-workflow-presentation")].filter(Boolean).forEach((toggle) => {
+          toggle.checked = state.presentationVisible;
         });
-        const status = $("election-presentation-status");
-        if (status) status.textContent = `Presentation display is ${state.presentationVisible ? "on" : "off"}`;
+        [$("election-presentation-status"), $("workflow-presentation-status")].filter(Boolean).forEach((status) => {
+          status.textContent = `Presentation display is ${state.presentationVisible ? "on" : "off"}`;
+        });
       }
       async function copyParticipantLink() {
         try {
@@ -770,12 +777,10 @@
           window.prompt("Copy the participant session link:", participantSessionUrl);
         }
       }
-      $("copy-participant-link").addEventListener("click", copyParticipantLink);
       $("copy-workflow-link").addEventListener("click", copyParticipantLink);
-      $("open-election-presentation").addEventListener("click", openPresentationWindow);
       $("open-workflow-presentation").addEventListener("click", openPresentationWindow);
-      $("toggle-election-presentation").addEventListener("click", () => { state.presentationVisible = !state.presentationVisible; update(); });
-      $("toggle-presentation").addEventListener("click", () => { state.presentationVisible = !state.presentationVisible; update(); });
+      $("toggle-election-presentation").addEventListener("change", (event) => { state.presentationVisible = event.currentTarget.checked; update(); });
+      $("toggle-workflow-presentation").addEventListener("change", (event) => { state.presentationVisible = event.currentTarget.checked; update(); });
 
       function results() {
         if (state.round === 1) return roundOne;
@@ -1126,9 +1131,6 @@
           const li = listItem(state.winner, "Elected");
           $("presentation-list").replaceChildren(li);
         }
-        $("toggle-presentation").textContent = visible ? "Hide presentation" : "Show presentation";
-        $("toggle-presentation").setAttribute("aria-pressed", String(visible));
-        $("presentation-control-status").textContent = `Presentation display is ${visible ? "on" : "off"}. This control does not affect the voter session link or election state.`;
       }
 
       $("open-intake").addEventListener("click", () => {
