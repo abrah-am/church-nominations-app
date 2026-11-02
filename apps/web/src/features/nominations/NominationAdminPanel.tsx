@@ -38,6 +38,8 @@ import {
 	startVotingRound,
 } from '../../api/voting';
 import { getCandidateRecommendation } from '../elections/candidateRecommendations';
+import { AudiencePresentationCard } from '../../components/AudiencePresentationCard';
+import { ParticipantSessionLinkCard } from '../../components/ParticipantSessionLinkCard';
 
 export type NominationAdminPanelProps = {
 	credentials: string;
@@ -717,6 +719,24 @@ export default function NominationAdminPanel({ credentials, electionId, position
 		}
 	}
 
+	async function setPresentationVisibility(visible: boolean) {
+		if (visible) {
+			setPresentationBusy(true);
+			setPresentationError('');
+			try {
+				const session = await showNominationPresentation(credentials, electionId, positionId);
+				setPresentationPath(`/nomination-presentation/${encodeURIComponent(session.accessToken)}`);
+				setPresentationVisible(session.visible);
+			} catch (requestError) {
+				setPresentationError(requestError instanceof Error ? requestError.message : 'Could not show the presentation.');
+			} finally {
+				setPresentationBusy(false);
+			}
+			return;
+		}
+		await controlPresentation('hide');
+	}
+
 	async function saveRoundConfiguration(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		if (!hasSavedSnapshot) return;
@@ -997,36 +1017,40 @@ export default function NominationAdminPanel({ credentials, electionId, position
 				<span aria-hidden="true">/</span><span>{departmentName}</span>
 				<span aria-hidden="true">-</span><strong aria-current="page">{positionName}</strong>
 			</nav>
-			<section className="workflow-access-cards" aria-label="Election access">
-				<article className="workflow-access-card" aria-labelledby="participant-access-title">
-					<h3 id="participant-access-title">Participant session link</h3>
-					<p>One session link for the authorized current phase. Anyone with the link may be able to access it.</p>
-					{activeRound?.accessToken ? <>
-						<code>{`${window.location.origin}/vote/${encodeURIComponent(activeRound.accessToken)}`}</code>
-						<button className="secondary-button prototype-secondary-button" type="button" onClick={() => { void copyVotingLink(activeRound); }}>{copiedRoundId === activeRound.id ? 'Copied session link' : 'Copy session link'}</button>
-					</> : intake?.status === 'OPEN' && intake.accessToken ? <>
-						<p className="workflow-access-state">Anyone with this position-specific link can submit or revise names while intake is open.</p>
-						<code>{`${window.location.origin}/nominate/${encodeURIComponent(intake.accessToken)}`}</code>
-						<button className="secondary-button prototype-secondary-button" type="button" onClick={copyShareUrl}>{copied ? 'Copied nomination link' : 'Copy nomination link'}</button>
-					</> : <p className="workflow-access-state">A participant session link is not available until its phase opens.</p>}
-				</article>
-				<article className="workflow-access-card" aria-labelledby="presentation-access-title">
-					<h3 id="presentation-access-title">Audience presentation</h3>
-					<p>The separate display is read-only. Presentation controls stay in this authenticated admin workspace.</p>
-					<p className="workflow-access-state">Presentation display is {presentationVisible ? 'on' : 'off'}</p>
-					{presentationPath && <code>{`${window.location.origin}${presentationPath}`}</code>}
+			<section className="access-card-group access-card-group--workflow" aria-label="Election access">
+				<ParticipantSessionLinkCard
+					description="One session link for the authorized current phase. Anyone with the link may be able to access it."
+					url={activeRound?.accessToken
+						? `${window.location.origin}/vote/${encodeURIComponent(activeRound.accessToken)}`
+						: intake?.status === 'OPEN' && intake.accessToken
+							? `${window.location.origin}/nominate/${encodeURIComponent(intake.accessToken)}`
+							: undefined}
+					actionLabel={activeRound?.accessToken ? (copiedRoundId === activeRound.id ? 'Copied session link' : 'Copy session link') : intake?.status === 'OPEN' && intake.accessToken ? (copied ? 'Copied nomination link' : 'Copy nomination link') : undefined}
+					actionDisabled={!activeRound?.accessToken && !(intake?.status === 'OPEN' && intake.accessToken)}
+					actionTitle={!activeRound?.accessToken && !(intake?.status === 'OPEN' && intake.accessToken) ? 'Available when a session phase opens' : undefined}
+					onAction={activeRound?.accessToken ? () => { void copyVotingLink(activeRound); } : intake?.status === 'OPEN' && intake.accessToken ? copyShareUrl : undefined}
+					className="access-card--workflow"
+				>
+					{!activeRound?.accessToken && intake?.status === 'OPEN' && intake.accessToken && <p className="workflow-access-state">Anyone with this position-specific link can submit or revise names while intake is open.</p>}
+					{!activeRound?.accessToken && !(intake?.status === 'OPEN' && intake.accessToken) && <p className="workflow-access-state">A participant session link is not available until its phase opens.</p>}
+				</ParticipantSessionLinkCard>
+				<AudiencePresentationCard
+					description="The separate display is read-only. Presentation controls stay in this authenticated admin workspace."
+					visible={presentationVisible}
+					onVisibilityChange={(visible) => { void setPresentationVisibility(visible); }}
+					switchDisabled={!intake?.revealed || presentationBusy}
+					openDisabled={!intake?.revealed || presentationBusy}
+					onOpen={() => { if (presentationPath) window.open(presentationPath, '_blank', 'noopener,noreferrer'); else void openPresentation(); }}
+					className="access-card--workflow"
+					afterControls={presentationPath && <button className="secondary-button prototype-secondary-button" type="button" disabled={presentationBusy} onClick={() => { void controlPresentation('end'); }}>End presentation</button>}
+				>
 					{intake?.status === 'OPEN' && <>
 						<button className="primary-button" type="button" disabled title="Names are shared with the audience only after intake closes and you reveal the list.">Broadcast list</button>
 						<p className="form-note">Available after intake closes and you reveal the list.</p>
 						<p className="intake-broadcast-status" role="status">No list broadcast yet.</p>
 					</>}
-					<div className="workflow-access-actions">
-						<button className="secondary-button prototype-secondary-button" type="button" disabled={!intake?.revealed || presentationBusy} onClick={() => { if (presentationPath) window.open(presentationPath, '_blank', 'noopener,noreferrer'); else void openPresentation(); }}>{presentationPath ? 'Open presentation' : 'Presentation'}</button>
-						{presentationVisible && <button className="secondary-button prototype-secondary-button" type="button" disabled={presentationBusy} onClick={() => { void controlPresentation('hide'); }}>Hide display</button>}
-						{presentationPath && <button className="secondary-button prototype-secondary-button" type="button" disabled={presentationBusy} onClick={() => { void controlPresentation('end'); }}>End presentation</button>}
-					</div>
 					{presentationError && <p className="error-message" role="alert">{presentationError}</p>}
-				</article>
+				</AudiencePresentationCard>
 			</section>
 			<div className={`workflow-stage-group${!intake ? ' is-intake-setup' : ''}${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}`}>
 			<section className="guided-workflow" aria-label="Position workflow progress">
