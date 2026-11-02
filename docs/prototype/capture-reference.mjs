@@ -39,8 +39,6 @@ export default async function run(page) {
       nominationSubmitted: true,
       participantNominationSubmitted: true,
       nominees: ['Taylor Reed', 'Casey Lin', 'Emerson Brooks', 'Nia Carter', 'Alex Morgan'],
-      broadcastNominees: [],
-      broadcastReady: false,
     });
     localStorage.setItem(key, JSON.stringify(state));
     window.dispatchEvent(new StorageEvent('storage', { key, newValue: JSON.stringify(state) }));
@@ -56,9 +54,8 @@ export default async function run(page) {
   await page.locator('#confirm-nominations').click();
   await page.locator('#admin-intake-confirmed:not([hidden])').waitFor();
   captured.push(...await capture('P06-list-confirmed'));
-  await page.locator('#reveal-nominations').click();
-  await page.locator('#admin-intake-revealed:not([hidden])').waitFor();
-  captured.push(...await capture('P07-nominations-revealed'));
+  await page.locator('#toggle-workflow-presentation').check();
+  captured.push(...await capture('P07-nominations-shared'));
   await page.locator('#prepare-round').click();
   await page.locator('#admin-progress:not([hidden])').waitFor();
   captured.push(...await capture('P08-round-draft'));

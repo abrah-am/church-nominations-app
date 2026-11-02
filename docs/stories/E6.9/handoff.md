@@ -46,3 +46,12 @@ Current branch is `feature/story-e6.9-live-nomination-presentation`. The working
 ## Exact Next Action
 
 Push only the E6.9 changes after final full-suite validation. Keep the branch unmerged and undeployed until separately authorized. E9.1 planning documents are untracked and must remain excluded from the E6.9 commit/push.
+
+## Product Owner Follow-up (2026-11-02)
+
+- The Product Owner requested clearer stage titles: **Nomination Intake** and **Nomination Intake Consolidation**; they also requested replacing the separate nomination reveal button with the existing Audience presentation Show control. This direction is recorded in proposed E6.13 and supersedes the nomination-specific reveal gate in this story once implemented.
+- Follow-up decision: the open-intake room presentation can be enabled for live names, but participants do not see names until intake closes. At closure, participants receive the consolidated list if the room was already on; otherwise post-close Show publishes it. Hide retracts from both viewer surfaces.
+- Follow-up decision: elected people are visible on both session viewer surfaces. Decline/replacement details are recorded under PD-018 and need E6.6/E6.7 refinement.
+- The separate voting-round **Reveal results** control remains required and unchanged.
+- Automatically hiding/clearing the presentation when a poll starts is separately tracked in proposed E4.7.
+- These are requirements/backlog updates only. No application code, tests, push, merge, or deployment were performed for this follow-up. E6.13 requires API/participant-view contract review before implementation.

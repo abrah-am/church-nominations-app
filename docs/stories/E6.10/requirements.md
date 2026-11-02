@@ -21,6 +21,8 @@
 
 ## Product Owner Decisions (2026-10-23)
 
+- **Product Owner update (2026-11-02; PD-017/PD-018):** During open intake, enabled presentation may show names to the room only. If presentation is on at closure, participant publication occurs at closure; otherwise post-close Show publishes to both. Hide after closure retracts nomination content from both viewers. Successful poll start hides/clears presentation. Elected outcomes appear on both current-session viewer surfaces. Poll results still require explicit reveal after close.
+
 - Keep the authenticated admin workspace, participant session link, and presentation as separate capabilities. The participant link is the voter surface while a poll is active and becomes a viewer surface after closure. The separate presentation tab is also a viewer surface. Neither viewer surface grants admin mutations or presentation controls.
 - Replace position-scoped nomination and poll-scoped voting links with one stable, unexpired bearer participant link for an election session. It resolves only that session's server-authorized current phase. The administrator can revoke it; it becomes unavailable when the session ends. The link never resolves another session, historical poll/report, admin data, or presentation controls.
 - Use one generic unavailable response for no active phase, ended, expired, revoked, or unauthorized session links. Do not disclose whether another session, poll, ballot, or historical result exists.

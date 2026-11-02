@@ -34,6 +34,23 @@ For the POC, the system enforces one board per church per year and requires at l
 - The committee presentation is a separate read-only view opened by an authenticated admin action, optionally in a new tab. Show/hide/end is controlled independently from participant-link phase resolution. It displays the same approved aggregate snapshot; hiding or changing context clears displayed content, and reopening a poll clears current results.
 - Neither surface exposes participation status, voter identity, individual ballots, recommendations, candidate decisions, or history. Historical report audience and retention remain undecided under E6.4/E8.2 and PD-006/PD-012.
 
+## Nomination presentation update (Product Owner decision, 2026-11-02)
+
+- The open collection stage is titled **Nomination Intake**; the post-close editable review stage is titled **Nomination Intake Consolidation**.
+- The Audience presentation is off by default. During open intake, turning it on shows incoming names and confirmed changes on the room presentation only; the participant session link does not show open-intake names.
+- At intake closure, if the presentation was already on, it stays on, transitions to the submitted list and confirmed consolidation changes, and publishes the closed list to participants. If it was off, the participant remains neutral until the admin turns on the presentation after closure. There is no separate nomination **Reveal results** button.
+- After closure, Show publishes the server-confirmed consolidated list and subsequent confirmed edits to both viewers. Hide clears and revokes the current nomination list from both viewer surfaces. Ending the presentation revokes its presentation capability.
+- An active poll supersedes nomination content in participant phase resolution. Starting a poll hides and clears the presentation; see proposed follow-up E4.7. Voting-result reveal after close remains explicit and unchanged.
+- Once an opening is filled, show the elected person or people on both the presentation and participant session view; this is current-session outcome content, not historical report access.
+- This update revises the 2026-10-23 nomination publication gate only. It does not expose open-intake names, ballot data, participation status, or live totals. E6.13 tracks the UI/API follow-up; endpoint authorization, snapshot/SSE semantics, and cache invalidation require review before implementation.
+
+## Declined Elected Candidate Update (Product Owner Decision, 2026-11-02)
+
+- If an elected candidate declines, the administrator may invite the highest-vote eligible, non-declined candidate from the final round or choose a fresh poll.
+- If the direct successor is tied at the highest eligible final-round vote count, use a tie-break poll among the tied candidates rather than selecting arbitrarily.
+- For a fresh replacement poll, the administrator selects an eligible, non-declined subset from the final-round roster and records that choice. The poll uses fresh totals and the ordinary round lifecycle.
+- E6.6/E6.7 requirements need refinement for acceptance/decline recording, ranking, eligibility, committee authority, and audit details before implementation.
+
 ## Core workflow
 
 ### Session participant link and committee presentation policy (Product Owner decision, 2026-10-23)

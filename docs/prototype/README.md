@@ -16,11 +16,17 @@ Screenshots are stored under [`screenshots/`](screenshots/). Each captured state
 | P05 | Closed intake review with editable rows | [PNG](screenshots/P05-intake-closed-review-desktop.png) | [PNG](screenshots/P05-intake-closed-review-mobile.png) |
 | P05b | Name edited, before save | [PNG](screenshots/P05b-review-name-edited-desktop.png) | [PNG](screenshots/P05b-review-name-edited-mobile.png) |
 | P06 | Consolidated list saved | [PNG](screenshots/P06-list-confirmed-desktop.png) | [PNG](screenshots/P06-list-confirmed-mobile.png) |
-| P07 | Nominations revealed | [PNG](screenshots/P07-nominations-revealed-desktop.png) | [PNG](screenshots/P07-nominations-revealed-mobile.png) |
+| P07 (legacy) | Nominations revealed; superseded by P12 | [PNG](screenshots/P07-nominations-revealed-desktop.png) | [PNG](screenshots/P07-nominations-revealed-mobile.png) |
 | P08 | Round 1 draft | [PNG](screenshots/P08-round-draft-desktop.png) | [PNG](screenshots/P08-round-draft-mobile.png) |
 | P09 | Voting active | [PNG](screenshots/P09-voting-active-desktop.png) | [PNG](screenshots/P09-voting-active-mobile.png) |
+| P10 | Live open intake, room presentation on | [PNG](screenshots/P10-intake-live-desktop.png) | [PNG](screenshots/P10-intake-live-mobile.png) |
+| P11 | Closed consolidation, not yet published | [PNG](screenshots/P11-consolidation-private-desktop.png) | [PNG](screenshots/P11-consolidation-private-mobile.png) |
+| P12 | Consolidated list published | [PNG](screenshots/P12-consolidation-published-desktop.png) | [PNG](screenshots/P12-consolidation-published-mobile.png) |
+| P13 | Audience presentation with live intake names | [PNG](screenshots/P13-presentation-live-intake-desktop.png) | [PNG](screenshots/P13-presentation-live-intake-mobile.png) |
+| P14 | Participant session with published list | [PNG](screenshots/P14-participant-published-list-desktop.png) | [PNG](screenshots/P14-participant-published-list-mobile.png) |
+| P15 | Voting active, presentation hidden | [PNG](screenshots/P15-voting-active-hidden-display-desktop.png) | [PNG](screenshots/P15-voting-active-hidden-display-mobile.png) |
 
-Use [capture-reference.mjs](capture-reference.mjs) to refresh these 22 images. It drives the canonical prototype's admin UI and voter form through the available mock state transitions in one browser page. Ballot, results, and presentation routes are not included in this capture set yet. The prototypes are mock UI only, not references for server behavior or authorization.
+The original P01-P09 capture set is preserved. Use [capture-reference.mjs](capture-reference.mjs) for those original workflow captures and [capture-updated-flow.mjs](capture-updated-flow.mjs) to generate the revised P10-P15 states. Together the documented sets contain 34 desktop/mobile screenshots. The prototype uses browser-local mock state and can simulate same-origin tab updates; it does not demonstrate server behavior or authorization.
 
 ## Change Workflow
 
@@ -28,8 +34,9 @@ Treat this prototype as a maintained product artifact, not an ad hoc scratch fil
 
 ## Nomination State Reference
 
-- **Open intake:** show the current profile count and configured name limit. Submitted names, editable fields, Save, and Remove are not shown.
-- **Closed intake:** show the submitted names as editable inputs. A changed value enables its Save action; Remove is available on each row.
+- **Open intake:** show the current profile count and configured name limit. Submitted names are visible to admins. The audience presentation is off by default; when enabled, it shows incoming names live on the room display only. The participant session link does not show open-intake names.
+- **Nomination Intake Consolidation:** after closure, show the full submitted list as editable inputs. A changed value enables its Save action; Remove is available on each row. Duplicate names remain until explicitly removed.
+- **Publication:** if the room presentation was on when intake closes, it remains on and the consolidated list is also released to participants. Otherwise, participants stay neutral until the admin turns the presentation on. Hiding after closure clears both viewer surfaces. An active poll hides the presentation; closed poll results still require explicit reveal.
 - **Workflow progress:** nomination remains the current step until a round draft exists. Configuring a draft advances the current step to voting rounds.
 
 These are UI reference behaviors. Product rules and production API state remain defined by the linked story requirements and API contracts.

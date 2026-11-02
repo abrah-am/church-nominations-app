@@ -38,5 +38,12 @@ E6.9 requirements and implementation plan were revised on 2026-10-23: closed nom
 
 ## Validation
 
-- `git diff --check`: pending for this handoff edit.
+- `git diff --check`: passed for the 2026-11-02 documentation update.
 - No application tests apply; no application code changed.
+
+## Product Owner Follow-up (2026-11-02)
+
+- Revised nomination publication and visibility behavior is recorded in PD-017 and tracked for implementation in E6.13: live open-intake names are room-only, closure can publish to participants if the room was already shown, post-close Show publishes to both, and Hide retracts from both. Successful poll-start hide/clear behavior remains tracked in E4.7.
+- PD-018 records that elected outcomes appear on both current-session viewer surfaces and specifies the chosen direct-successor/fresh-poll paths after decline; E6.6/E6.7 still require requirements refinement.
+- Voting aggregate results remain explicitly revealed after close; this direction does not change result confidentiality.
+- API authorization, participant session resolution, and cache/stream semantics must be reviewed before implementation. This follow-up changed documentation only; no application tests were run.
