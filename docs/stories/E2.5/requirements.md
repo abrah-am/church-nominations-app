@@ -2,7 +2,7 @@
 
 - **Epic:** E2 Nomination Workflow Clarity and Recovery
 - **Priority:** P1 (proposed)
-- **Workflow status:** Proposed; Product Owner approval required before implementation
+- **Workflow status:** Accepted by Product Owner 2026-11-01; implementation and local QA/review complete. Merge remains pending separate explicit authorization; do not mark Done until merge evidence is recorded.
 - **User story:** As an election administrator, I want a position workflow to restore its current server state when I reopen it so I can continue managing nominations and voting without repeating setup actions or seeing stale workflow guidance.
 
 ## Problem and Root Cause
@@ -14,13 +14,13 @@ The election list refreshes election metadata on return, but the reopened positi
 ## Acceptance Criteria
 
 - On opening or revisiting a position, the admin view loads the current position workflow state from the API without requiring a misleading setup action first.
-- If nomination intake is open, display the current open-intake view, configured name limit, current profile-submission count, and every currently submitted name returned by the admin API.
+- If nomination intake is open, display the configured name limit, current profile-submission count, and every currently submitted name returned by the authenticated admin API as a plain-text, alphabetized list. Do not show name inputs, Save/Remove controls, or audience broadcast controls during open intake. The audience presentation remains neutral until closure and explicit reveal.
 - If intake is closed, restore the current closed/review/consolidation state and saved list according to the existing reveal and privacy rules.
 - If no intake exists, show the existing create-intake task and setup action; do not create an intake as a side effect of loading.
 - Reflect current round lifecycle and decision state on revisit using the existing authoritative round and result endpoints.
 - Show a clear loading state while current workflow state is being fetched, and a recoverable error/retry state if loading fails. Do not silently present an empty/setup state when the current state is unknown.
 - Preserve current behavior for leaving the position, unsaved-draft confirmation, manual refresh, and election-list navigation.
-- Keep submitter/device identity private. Show only anonymous proposed names, never infer names from the profile count, and do not expose ballot totals during an active voting round.
+- Keep submitter/device identity private. Show only anonymous proposed names, never infer names from the profile count, and do not expose ballot totals during an active voting round. Name editing/removal is available only in the closed-intake review state.
 - Add regression tests for leaving and reopening a position after submissions exist, including the displayed profile count and names, plus no-intake, closed-intake, loading, and API-error states as applicable.
 
 ## Scope
@@ -49,3 +49,10 @@ The election list refreshes election metadata on return, but the reopened positi
 - Component tests: no intake remains in setup; closed intake restores review/consolidation; loading and failed requests do not masquerade as an empty intake.
 - API contract/integration check: current authorized intake response includes all current open submissions and no submitter/device identifiers.
 - Verify active-round totals remain hidden and existing unsaved-draft navigation guard remains intact.
+
+## Acceptance Record
+
+- **Accepted by Product Owner:** 2026-11-01. The Product Owner confirmed the final open-intake workflow and authorized story closeout.
+- **Implementation:** Complete locally. Open-intake names remain read-only; Audience presentation is always visible and owns the broadcast action/status; broadcast remains gated on intake closure and explicit reveal.
+- **QA and review:** See [qa-report.md](qa-report.md) and [review.md](review.md). Focused tests and build pass. The full frontend suite has three known annual-board workspace failures unrelated to this story.
+- **Merge/deployment:** Neither authorized nor performed. Merge authorization is a remaining closure prerequisite for marking the story Done under the repository workflow.

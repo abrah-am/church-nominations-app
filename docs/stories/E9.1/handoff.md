@@ -1,5 +1,43 @@
 # E9.1 Handoff
 
+## Closure Handoff (2026-11-01)
+
+- **Disposition:** Product Owner requested closure. E9.1 is closed as a partially delivered modernization umbrella; this is not a claim that every original acceptance criterion is complete. Detailed closure boundary: [requirements](requirements.md#product-owner-closure-decision-2026-11-01).
+- **Merged delivery:** PR #18 selected-term election overview, PR #19 approved NAD theme, and PR #21 position-workflow access/breadcrumb updates are recorded merged on `main`. Bootstrap CSS is loaded by `apps/web/src/main.tsx`; the NAD theme uses Noto Sans and approved NAD tokens. Page-specific workflow, term chooser, annual-board responsive, and prototype slices are documented below and in `visual-review/report.md`.
+- **Prototype source of truth:** Reusable HTML prototypes, the P01-P09 tagged desktop/mobile screenshot set (including P04/P05 sub-states), README, and capture harness live in [`docs/prototype/`](../../prototype/). Prototype changes should be made through their own approved story. Existing capture coverage does not include ballot-submitted, results, or presentation states.
+- **Deferred scope:** The original E9.1 acceptance list includes shared primitives and broader Bootstrap migration not demonstrated as complete by the available records. Defer feature-specific visual changes to their owner stories and reusable access-card extraction to E9.2. E7.1/PD-009 accessibility target, supported devices/viewports, and validation policy remain open. Do not claim accessibility conformance or that all E9.1 acceptance criteria passed.
+- **Current repository state:** Branch `main`, at `300cd6d` (`Merge pull request #22 from abraham/docs/e2.5-position-state-handoff`) during this closure pass. Preserve the pre-existing uncommitted changes in `apps/web/src/App.tsx`, `apps/web/src/App.test.tsx`, `apps/web/src/features/nominations/NominationAdminPanel.tsx`, `apps/web/src/styles.css`, and the E2.5 handoff/plan. The prototype folder relocation appears as deleted old paths plus untracked `docs/prototype/` until staged; do not revert or stage unrelated work as part of this handoff.
+- **Validation snapshot:** On 2026-11-01, the E2.5 follow-up frontend suite reported 84 passed / 3 failed of 87; the failures are annual-board tests unable to find the Annual Boards control and are documented outside E9.1 scope. Frontend build passed. Lint had no errors and retained the `main.tsx` non-null assertion warning. Prototype scripts parsed, 22 screenshots were confirmed, and `git diff --check` passed. These checks are a session snapshot, not validation of all E9.1 acceptance criteria.
+- **No merge/deploy:** This closure updates documentation only. No commit, merge, or deployment is performed or authorized here.
+
+### Next Session
+
+1. Read the active story's requirements and handoff, then inspect current branch/worktree before any edit.
+2. Do not resume the superseded E9.1 implementation plan. Work on remaining feature UI under its owning story or E9.2 after approval.
+3. If accessibility or responsive sign-off is requested, first resolve E7.1/PD-009 target and matrix; keep conformance claims gated by evidence.
+4. Preserve all unrelated working-tree changes and require separate authorization for merge/deployment.
+
+## Selected-Term Department Accordions (2026-11-01)
+
+- **Change:** Selecting an election term now collapses all department/election position accordions by default. The general election list retains its existing default behavior; users can still expand and collapse departments manually.
+- **Validation:** Selected-term entry and accordion interaction tests passed (2). `git diff --check` pending.
+
+## Open Intake Names Follow-up (2026-10-30)
+
+- **Issue:** The open-intake view displayed the empty state while showing a nonzero profile submission count.
+- **Finding:** The UI already renders the anonymous `submissions` returned by the admin intake endpoint and sorts them alphabetically. The backend admin projection also includes current open-intake names. The frontend streaming test fixture incorrectly paired a nonzero count with an empty `submissions` array, masking the intended display behavior.
+- **Implemented:** Corrected the stream fixture to include one current name, then assert names are visible on initial load and that a live update adds and alphabetizes another name. No production API or UI behavior change was needed; counts alone cannot be used to reconstruct names.
+- **Validation:** Focused frontend tests passed (3). `PostgresElectionIntegrationTest.adminCanReadAnonymousNominationNamesBeforeExplicitReveal` passed, confirming the API returns submitted names anonymously before closure. `git diff --check` pending.
+- **Runtime verification:** Replaced the stale API process from 2026-10-26 with a fresh process on 2026-10-30. Port 8080 is responding; the unauthenticated admin endpoint correctly returned 401. Reload the authenticated election page and reopen the intake to fetch a fresh snapshot. Do not infer names from the profile count.
+
+## Participant Link Card Follow-up (2026-10-30)
+
+- **Scope:** Corrected the participant access card after nomination intake creation. Presentation-only; link token, API, lifecycle, and access behavior are unchanged.
+- **Implemented:** The participant card now replaces its unavailable-state message with the nomination link and copy action while intake is open. It no longer renders a second nested nomination-link section, so the card contains one current-phase URL.
+- **Changed files:** `apps/web/src/features/nominations/NominationAdminPanel.tsx`, `apps/web/src/App.test.tsx`, and this handoff.
+- **Validation:** Focused intake-creation and intake-start status tests passed. `git diff --check` pending.
+- **Git state:** Preserve the existing uncommitted E9.1 changes on `feature/e9.1-nad-theme`; no commit, merge, or deployment.
+
 ## Session Close And Follow-up PR Preparation (2026-10-30)
 
 - **Completed this session:** Position workflow iteration now has distinct top-level **Participant session link** and **Audience presentation** cards, no extra lower presentation card, an empty nomination roster inside the workflow card separated by rules, and a church / election-term / department - position breadcrumb. Session/voting URLs are only displayed when an actual active-round token exists; nomination links remain separately labeled. No API, lifecycle, authorization, privacy, or token behavior changed.
@@ -65,7 +103,8 @@
 
 ## Completed
 
-- Canonical `prototype.html` now combines the complete three-experience workflow from `prototype-full-workflow.html` with the accessible department accordions from commit `9ab071490a2020ae81b97ab2ccfb25f87406dbd1`. The administrator overview, nomination/voting workflow, standalone participant page, and separate read-only presentation remain available in one prototype.
+- Canonical `docs/prototype/prototype.html` combines the three-experience workflow with accessible department accordions; `docs/prototype/prototype-full-workflow.html` is retained as the earlier workflow-only mock. Both source files, screenshot references, and the capture harness now live under the project-level `docs/prototype/` folder.
+- Tagged prototype captures P01-P09 plus P04/P05 sub-states are in `docs/prototype/screenshots/`, with 1280x800 desktop and 390x844 mobile variants (22 images total). The tag-to-file map and state rules are in `docs/prototype/README.md`. The harness uses installed system Chrome through Patchright because the bundled Playwright Chromium cache is missing. Ballot, results, and presentation routes are not captured by this set yet.
 - Prototype verification: admin navigation reached the election overview and nomination intake; voter and presentation routes rendered independently. Embedded JavaScript syntax is valid; all 130 IDs are unique and the required workflow/view controls are present. Cross-window localStorage sync is not available from `file://`; use a same-origin HTTP server for synchronized mock workflows.
 - Voter link now keeps the nomination form and submit button visible before intake opens, with fields/button disabled and a clear prerequisite message; opening intake enables submission. Verified both states over same-origin HTTP.
 - Full prototype voter path verified over same-origin HTTP: submit a nomination list, close intake, confirm/reveal the consolidated list, prepare and open round 1, select exactly two candidates, and submit the ballot. The ballot action is intentionally hidden until voting opens and disabled until the configured two candidates are selected; successful submission changes it to “Replace ballot” and announces confirmation.
@@ -165,7 +204,7 @@ Product Owner visual acceptance remains pending for this position-workflow slice
 
 - **Approved scope:** Product Owner approved changing only theme colors and font styling to align with NAD brand guidance. Do not change layout, spacing, markup/components, or behavior. The exact decision and constraints are in `requirements.md` under **Product Owner Decision: NAD Theme**.
 - **Implementation:** App theme uses NAD Denim `#003B5C`, Nile `#007681`, Vine `#4A7729`, and selective NAD digital palette accents; electronic UI typography is Noto Sans. Both standalone prototypes load Noto Sans and use matching NAD theme colors. URLs/code retain monospace styling.
-- **Changed files:** `apps/web/src/styles.css`, `apps/web/index.html`, `docs/stories/E9.1/prototype.html`, `docs/stories/E9.1/prototype-full-workflow.html`, `docs/stories/E9.1/requirements.md`, and this handoff.
+- **Changed files:** `apps/web/src/styles.css`, `apps/web/index.html`, `docs/prototype/prototype.html`, `docs/prototype/prototype-full-workflow.html`, `docs/stories/E9.1/requirements.md`, and this handoff.
 - **Validation:** Frontend tests passed (83 tests across 5 files); `npm run build` passed; `npm run lint` had zero errors with the existing TypeScript compatibility notice and `src/main.tsx` non-null assertion warning. Both prototype HTML files and embedded scripts parsed successfully; NAD token and font-link checks passed; `git diff --check` passed. Live browser screenshot verification could not be completed because the browser CDP connection timed out. No layout/component changes were made.
 - **PR state:** Branch `feature/e9.1-nad-theme`, commit `b037439` (`Apply NAD theme to app and prototypes`), pushed to `origin`. PR #19 is open against `main`: https://github.com/abrah-am/church-nominations-app/pull/19. Do not merge or deploy without Product Owner authorization.
 - **Next session:** Check this handoff and current Git status first. Continue only on the approved theme-only scope. E7.1/PD-009 contrast/accessibility target and browser/device matrix remain unresolved; do not claim accessibility conformance. The broader E9.1 implementation plan still has its own approval gates.
@@ -176,4 +215,4 @@ Product Owner visual acceptance remains pending for this position-workflow slice
 - Updated `apps/web/src/styles.css` to use NAD Denim `#003B5C` as the primary color, Nile `#007681` as the secondary/focus accent, Vine `#4A7729` for completion states, and NAD palette accents for warnings/statuses. Switched shared type styles to Noto Sans.
 - Updated `apps/web/index.html` with Noto Sans stylesheet preconnect/link and the matching `#f3f6f7` browser theme color. No React/component files or layout declarations changed.
 - Frontend tests passed (83 across 5 files), `npm run build` passed, lint had zero errors with the existing TypeScript compatibility notice and `src/main.tsx` non-null assertion warning. Vite served the updated theme metadata. Browser screenshot verification was unavailable because the browser CDP connection timed out. No commit, merge, or deployment.
-- Updated `docs/stories/E9.1/prototype.html` and `prototype-full-workflow.html` to match the NAD theme using CSS-only color/font changes and Noto Sans font loading. Layout, markup, and JavaScript behavior are unchanged. Both HTML files and embedded scripts parsed successfully; browser screenshot comparison remains unverified because the shared browser CDP connection timed out in this session.
+- Updated `docs/prototype/prototype.html` and `docs/prototype/prototype-full-workflow.html` to match the NAD theme using CSS-only color/font changes and Noto Sans font loading. Layout, markup, and JavaScript behavior are unchanged. Both HTML files and embedded scripts parsed successfully; browser screenshot comparison remains unverified because the shared browser CDP connection timed out in this session.

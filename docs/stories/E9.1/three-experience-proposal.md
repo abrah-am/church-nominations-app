@@ -257,4 +257,4 @@ Suggested dependency sequence: resolve/bound E7.1/PD-009 and theme decisions →
 
 ## Companion Prototype
 
-Open [prototype.html](prototype.html) for the mock scenario. It uses representative mock data and simulated controls; it is not connected to the API and does not implement production access controls. Its final elected-candidate presentation is explicitly pending the policy decision above.
+Open [prototype.html](../prototype/prototype.html) for the mock scenario. Tagged desktop/mobile state screenshots and the capture harness are in [docs/prototype/](../prototype/). It uses representative mock data and simulated controls; it is not connected to the API and does not implement production access controls. Its final elected-candidate presentation is explicitly pending the policy decision above.

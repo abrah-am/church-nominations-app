@@ -273,14 +273,23 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .position-workflow-grid.is-intake-open { grid-template-columns: minmax(0, 1fr); }
 .position-workflow-main, .position-roster-panel { min-width: 0; }
 .intake-collection-view { margin: 0; padding: 14px 0 18px; border-top: 1px solid var(--line); animation: appear 220ms ease-out both; }
+.intake-open-title { margin: 0 0 2px; font-size: .94rem; font-weight: 700; }
 .intake-collection-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; }
 .intake-collection-heading .eyebrow { margin-bottom: 5px; }
 .intake-collection-heading h3 { font-family: var(--font-display); font-size: 1rem; }
 .intake-collection-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 0; padding: 0 0 12px; border-bottom: 1px solid var(--line); }
-.intake-collection-metrics > div { display: grid; gap: 4px; min-width: 0; }
-.intake-collection-metrics strong { font-family: var(--font-display); font-size: 1.15rem; overflow-wrap: anywhere; }
+.intake-collection-metrics > div { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+.intake-collection-metrics strong { font-family: var(--font-display); font-size: 1.35rem; line-height: 1; overflow-wrap: anywhere; }
 .intake-collection-metrics span { color: var(--muted); font-size: .78rem; line-height: 1.4; }
 .intake-collection-view > .form-note { margin-top: 9px; }
+.intake-open-name-list { margin-top: 12px; }
+.intake-open-name-list li { min-height: 36px; padding: 8px 2px; font-size: .9rem; font-weight: 650; }
+.intake-open-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.intake-open-actions .primary-button:disabled { border-color: #9eb4bf; background: #9eb4bf; color: #fff; opacity: 1; }
+.intake-broadcast-status { margin: 8px 0 0; color: var(--muted); font-size: .75rem; }
+.intake-presentation-controls { display: grid; justify-items: start; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.intake-presentation-controls h3 { margin: 0; font-size: .9rem; }
+.intake-presentation-controls p { margin: 0; color: var(--muted); font-size: .84rem; line-height: 1.45; }
 .intake-collection-view .form-actions { justify-content: flex-start; margin-top: 12px; padding: 12px 0 0; }
 .workflow-task-heading-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; }
 .workflow-task-heading-row h3 { min-width: 0; }
@@ -316,9 +325,9 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .workflow-step-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; margin: 0; padding: 0; list-style: none; }
 .workflow-step-list li { display: flex; min-height: 30px; min-width: 0; align-items: center; gap: 9px; color: var(--muted); font-size: .88rem; line-height: 1.4; }
 .workflow-step-list li > span:last-child { overflow-wrap: anywhere; }
-.workflow-step-marker { display: grid; width: 22px; height: 22px; flex: 0 0 22px; place-items: center; border: 1px solid #b7d9dc; border-radius: 50%; background: #fff; color: #40545f; font-size: .68rem; font-weight: 750; }
+.workflow-step-marker { display: grid; width: 22px; height: 22px; flex: 0 0 22px; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: #fff; color: var(--muted); font-size: .68rem; font-weight: 750; }
 .workflow-step-list li.is-current { padding: 3px 7px; border-radius: 4px; background: #e5eff2; color: var(--ink); font-weight: 750; }
-.workflow-step-list li.is-current .workflow-step-marker, .workflow-step-list li.is-complete .workflow-step-marker { border-color: var(--blue); background: var(--blue); color: #fff; }
+.workflow-step-list li.is-current .workflow-step-marker, .workflow-step-list li.is-complete .workflow-step-marker { border-color: var(--green); background: var(--green); color: #fff; }
 .workflow-step-list li.is-complete { color: #40545f; }
 .workflow-step-list li.is-upcoming .workflow-step-marker { background: #eef4f5; color: #50636a; }
 .presentation-admin-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 14px; }
