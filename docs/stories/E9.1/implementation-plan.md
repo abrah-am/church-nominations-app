@@ -2,7 +2,7 @@
 
 ## Status and Gate
 
-Proposed plan for Product Owner review. The Product Owner approved the overall Bootstrap CSS direction on 2026-10-26. This plan is not yet approved for implementation. Do not install dependencies or change application code until this plan is approved and E7.1-dependent accessibility/device criteria are resolved or explicitly bounded for the first slice.
+**Superseded by Product Owner closure decision (2026-11-01).** This broad phased plan was never approved for implementation as a whole. E9.1 is closed as a partially delivered umbrella; remaining work is deferred to owning feature/accessibility stories or E9.2. Retained below as historical planning context. Do not use it as authorization to perform the remaining phases.
 
 ## Principles
 

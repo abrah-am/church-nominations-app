@@ -611,7 +611,7 @@ function AuthenticatedApp() {
                 {demoElectionTerms.map((term) => (
                   <article className="term-option" key={term}>
                     <span><strong>{term}</strong><small>Demo term · no backend association</small></span>
-                    <button className="primary-button term-open-action" type="button" onClick={() => { setSelectedTerm(term); setScreen('list'); }}>Open election</button>
+                    <button className="primary-button term-open-action" type="button" onClick={() => { setSelectedTerm(term); setCollapsedElectionIds(new Set(elections.map((election) => election.id))); setScreen('list'); }}>Open election</button>
                   </article>
                 ))}
               </div>

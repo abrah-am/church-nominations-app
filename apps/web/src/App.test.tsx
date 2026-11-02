@@ -53,6 +53,11 @@ function signedInFetch(churches: unknown[], elections: unknown[]) {
     .mockResolvedValueOnce(response(elections));
 }
 
+async function waitForPositionHydration() {
+	await screen.findByRole('region', { name: 'Election access' });
+  await waitFor(() => expect(screen.queryByText('Loading nomination intake…')).not.toBeInTheDocument());
+}
+
 describe('candidate decision recommendations', () => {
   it('recommends election for a strict-majority candidate in a single-opening position', () => {
     expect(getCandidateRecommendation(9, 9, 1, 0, 1, false, 6)).toContain('Suggested: Elect.');
@@ -171,7 +176,7 @@ describe('voting round navigation', () => {
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: 'Continue election: Treasurer' }));
     await screen.findByRole('heading', { name: 'Treasurer' });
-    fireEvent.click(screen.getByRole('button', { name: 'Open nomination intake' }));
+    await waitForPositionHydration();
 
     const roundList = await screen.findByRole('list', { name: 'Voting rounds' });
     const details = Array.from(roundList.querySelectorAll('.round-details'));
@@ -235,7 +240,7 @@ describe('voting round navigation', () => {
     render(<App />);
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: 'Continue election: Treasurer' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
+    await waitForPositionHydration();
     await screen.findByRole('button', { name: 'Reset round' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Reopen voting' }));
@@ -290,14 +295,24 @@ describe('voting round navigation', () => {
     render(<App />);
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: 'Continue election: Treasurer' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
+    await waitForPositionHydration();
 
     expect(await screen.findByText('Unavailable')).toBeInTheDocument();
     expect(screen.getByText('The connected API did not provide this count. Restart or update the API, then reload nominations.')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Nomination intake is open' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Open nomination intake' })).toBeInTheDocument();
-    const submittedNames = screen.getByRole('list', { name: 'Submitted names' });
-    expect(Array.from(submittedNames.querySelectorAll('li')).map((item) => item.textContent)).toEqual(['Avery Chen', 'avery chen', 'Jordan Lee']);
+    expect(screen.getByRole('heading', { name: 'Collect nominations' })).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Open nomination intake' })).getByRole('heading', { name: 'Nomination intake is open' })).toBeInTheDocument();
+    const openIntakeView = screen.getByRole('region', { name: 'Open nomination intake' });
+    const openNames = within(openIntakeView).getByRole('list', { name: 'Submitted nomination names' });
+    expect(Array.from(openNames.querySelectorAll('li')).map((item) => item.textContent?.trim())).toEqual([
+      'Avery Chen', 'avery chen', 'Jordan Lee',
+    ]);
+    expect(within(openNames).queryByRole('textbox')).not.toBeInTheDocument();
+    expect(within(openNames).queryByRole('button', { name: /Remove/ })).not.toBeInTheDocument();
+    expect(within(openIntakeView).getByRole('button', { name: 'Close nomination intake' })).toBeEnabled();
+    const presentationCard = screen.getByRole('article', { name: 'Audience presentation' });
+    expect(within(presentationCard).getByRole('button', { name: 'Broadcast list' })).toBeDisabled();
+    expect(within(presentationCard).getByText('Available after intake closes and you reveal the list.')).toBeInTheDocument();
+    expect(within(presentationCard).getByRole('status')).toHaveTextContent('No list broadcast yet.');
     expect(screen.queryByText('Submitted by')).not.toBeInTheDocument();
     expect(screen.queryByText(/^0$/)).not.toBeInTheDocument();
   });
@@ -315,15 +330,96 @@ describe('voting round navigation', () => {
     render(<App />);
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: 'Continue election: Treasurer' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
+    await waitForPositionHydration();
 
     expect(await screen.findByText('0')).toBeInTheDocument();
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
-    expect(within(screen.getByRole('region', { name: 'Open nomination intake' })).getByText('No names have been submitted yet.')).toBeInTheDocument();
+    expect(screen.queryByText('No names have been submitted yet.')).not.toBeInTheDocument();
+  });
+
+  it('keeps nomination progress current after reveal until the first voting round is drafted', async () => {
+    const revealedIntake = {
+      id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'CLOSED', listCreated: true, revealed: true,
+      currentContributorCount: 2, sharedListRevision: 0, submissions: [],
+      consolidatedNames: ['Riley Chen', 'Morgan Diaz'],
+      sharedList: [
+        { id: 'name-1', name: 'Riley Chen', sequence: 1, active: true },
+        { id: 'name-2', name: 'Morgan Diaz', sequence: 2, active: true },
+      ],
+    };
+    const fetchMock = signedInFetch([church], [election]);
+    fetchMock
+      .mockResolvedValueOnce(response(election))
+      .mockResolvedValueOnce(response(revealedIntake))
+      .mockResolvedValueOnce(response([]));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue election: Treasurer' }));
+
+    expect(await screen.findByRole('heading', { name: 'Prepare voting' })).toBeInTheDocument();
+    const workflow = screen.getByRole('region', { name: 'Position workflow progress' });
+    expect(within(workflow).getByRole('listitem', { current: 'step' })).toHaveTextContent('Collect and review nominations');
+    expect(within(workflow).getByText('1 of 4')).toBeInTheDocument();
   });
 });
 
 describe('election administration', () => {
+  it('restores current intake names and profile count after leaving and reopening a position', async () => {
+    const activeElection = {
+      ...election,
+      positions: election.positions.map((position) => ({
+        ...position,
+        progressStatus: position.id === 'position-1' ? 'NOMINATIONS_OPEN' : position.progressStatus,
+      })),
+    };
+    const openIntake = {
+      id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'OPEN', revealed: false,
+      currentContributorCount: 2, sharedListRevision: 0,
+      submissions: [
+        { id: 'submission-1', name: 'Riley Chen' },
+        { id: 'submission-2', name: 'Morgan Diaz' },
+      ], consolidatedNames: null, sharedList: [],
+    };
+    const fetchMock = signedInFetch([church], [activeElection]);
+    fetchMock.mockImplementation((input) => {
+      const requestUrl = String(input);
+      if (requestUrl.endsWith('/api/elections')) return Promise.resolve(response([activeElection]));
+      if (requestUrl.endsWith('/api/elections/election-1')) return Promise.resolve(response(activeElection));
+      if (requestUrl.endsWith('/positions/position-1/nominations')) return Promise.resolve(response(openIntake));
+      if (requestUrl.endsWith('/positions/position-1/nominations/stream')) return Promise.resolve(response({}, 404));
+      return Promise.resolve(response({}, 404));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue election: Director' }));
+    await waitForPositionHydration();
+    expect(within(screen.getByRole('region', { name: 'Position workflow progress' })).getByRole('listitem', { current: 'step' })).toHaveTextContent('Collect and review nominations');
+    const firstOpenList = screen.getByRole('list', { name: 'Submitted nomination names' });
+    expect(Array.from(firstOpenList.querySelectorAll('li')).map((item) => item.textContent?.trim())).toEqual(['Morgan Diaz', 'Riley Chen']);
+    expect(within(firstOpenList).queryByRole('textbox')).not.toBeInTheDocument();
+    expect(within(firstOpenList).queryByRole('button', { name: /Remove/ })).not.toBeInTheDocument();
+    const presentationCard = screen.getByRole('article', { name: 'Audience presentation' });
+    expect(within(presentationCard).getByRole('button', { name: 'Broadcast list' })).toBeDisabled();
+    expect(screen.getByRole('region', { name: 'Election access' })).toContainElement(presentationCard);
+
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).getByRole('button', { name: 'Grace Church' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue election: Director' }));
+
+    expect(await screen.findByRole('region', { name: 'Open nomination intake' })).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Position workflow progress' })).getByRole('listitem', { current: 'step' })).toHaveTextContent('Collect and review nominations');
+    const reopenedOpenList = screen.getByRole('list', { name: 'Submitted nomination names' });
+    expect(Array.from(reopenedOpenList.querySelectorAll('li')).map((item) => item.textContent?.trim())).toEqual(['Morgan Diaz', 'Riley Chen']);
+    expect(within(reopenedOpenList).queryByRole('textbox')).not.toBeInTheDocument();
+    expect(within(reopenedOpenList).queryByRole('button', { name: /Remove/ })).not.toBeInTheDocument();
+    expect(within(screen.getByRole('article', { name: 'Audience presentation' })).getByRole('button', { name: 'Broadcast list' })).toBeDisabled();
+    expect(within(screen.getByRole('region', { name: 'Open nomination intake' }).querySelector('.intake-collection-metrics') as HTMLElement).getByText('2')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open nomination intake' })).not.toBeInTheDocument();
+  });
+
   it('registers an account without authenticating or requesting election data', async () => {
     const fetchMock = vi.fn().mockResolvedValue(response(account, 201));
     vi.stubGlobal('fetch', fetchMock);
@@ -466,9 +562,9 @@ describe('election administration', () => {
     expect(fetchMock.mock.calls[3][0]).toBe('http://localhost:8080/api/elections/election-1');
   });
 
-  it('shows the guided position workflow with the current task before intake setup', async () => {
+  it('shows direct nomination setup after the current intake is confirmed absent', async () => {
     const fetchMock = signedInFetch([church], [election]);
-    fetchMock.mockResolvedValueOnce(response(election));
+    fetchMock.mockResolvedValueOnce(response(election)).mockResolvedValueOnce(response({}, 404));
     vi.stubGlobal('fetch', fetchMock);
 
     render(<App />);
@@ -476,11 +572,12 @@ describe('election administration', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Start nominations: Director' }));
 
     expect(await screen.findByRole('heading', { name: 'Director' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Open nomination intake' })).toBeInTheDocument();
+    await waitForPositionHydration();
+    expect(screen.getByRole('heading', { name: 'Nomination intake' })).toBeInTheDocument();
     const workflowTask = screen.getByRole('region', { name: 'Position workflow progress' });
     expect(within(workflowTask).getByText('Position workflow')).toBeInTheDocument();
     expect(within(workflowTask).getByRole('heading', { name: 'Director' })).toBeInTheDocument();
-    expect(within(workflowTask).getByRole('heading', { name: 'Open nomination intake' })).toBeInTheDocument();
+    expect(within(workflowTask).getByRole('heading', { name: 'Set up nomination intake' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit election' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Manage nominations' })).not.toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).toHaveTextContent(/Grace Church\s*\/\s*Elections 2026\s*\/\s*Finance\s*-\s*Director/);
@@ -490,8 +587,8 @@ describe('election administration', () => {
     expect(within(accessCards).getByText(/A participant session link is not available until its phase opens/)).toBeInTheDocument();
     expect(within(accessCards).getByRole('button', { name: 'Presentation' })).toBeDisabled();
     expect(screen.getByText('Not open')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Open nomination intake' })).toBeInTheDocument();
-    expect(screen.queryByLabelText('Maximum names per visitor')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create intake' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Maximum names per visitor')).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Election positions' })).not.toBeInTheDocument();
     const progress = screen.getByRole('region', { name: 'Position workflow progress' });
     expect(within(progress).getAllByRole('listitem').map((step) => step.querySelector('span:nth-child(2)')?.textContent)).toEqual([
@@ -504,8 +601,7 @@ describe('election administration', () => {
     expect(within(progress).getByText('1 of 4')).toBeInTheDocument();
     expect(within(progress).getAllByRole('listitem')[0]).toHaveClass('is-current');
     expect(within(progress).getAllByRole('listitem')[1]).toHaveClass('is-upcoming');
-    const intakeAction = screen.getByRole('region', { name: 'Nomination intake' });
-    expect(intakeAction).toContainElement(screen.getByRole('button', { name: 'Open nomination intake' }));
+    expect(document.querySelector('.intake-create')).toContainElement(screen.getByRole('button', { name: 'Create intake' }));
     expect(progress.contains(accessCards)).toBe(false);
     const workflowCard = document.querySelector('.workflow-stage-group');
     expect(workflowCard?.contains(screen.getByRole('complementary', { name: 'Names not yet submitted' }))).toBe(true);
@@ -525,6 +621,7 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
     fetchMock.mockResolvedValueOnce(response(activeElection));
+    fetchMock.mockResolvedValueOnce(response({}, 404));
     fireEvent.click(await screen.findByRole('button', { name: 'Start nominations: Director' }));
 
     const workflow = await screen.findByRole('region', { name: 'Position workflow progress' });
@@ -561,6 +658,8 @@ describe('election administration', () => {
     expect(screen.getByText(/Live election rows below are shown under this demo term/)).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Department elections' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Finance.*2 positions.*Edit/ })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Expand positions' })).toHaveLength(1);
+    expect(document.getElementById('election-panel-election-1')).not.toHaveClass('show');
     expect(screen.getByRole('heading', { name: 'Participant session link' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Audience presentation' })).toBeInTheDocument();
     expect(screen.getAllByText('DEMO LINK · NOT ACTIVE')).toHaveLength(2);
@@ -599,12 +698,15 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
 
-    const accordionToggle = screen.getByRole('button', { name: 'Collapse positions' });
+    const accordionToggle = screen.getByRole('button', { name: 'Expand positions' });
     const accordionPanel = document.getElementById('election-panel-election-1');
-    expect(accordionToggle).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('list', { name: 'Finance positions' })).toBeInTheDocument();
-    fireEvent.click(accordionToggle);
     expect(accordionToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(accordionPanel).not.toHaveClass('show');
+    fireEvent.click(accordionToggle);
+    expect(screen.getByRole('button', { name: 'Collapse positions' })).toHaveAttribute('aria-expanded', 'true');
+    expect(accordionPanel).toHaveClass('show');
+    fireEvent.click(accordionToggle);
+    expect(screen.getByRole('button', { name: 'Expand positions' })).toHaveAttribute('aria-expanded', 'false');
     expect(accordionPanel).not.toHaveClass('show');
     fireEvent.click(screen.getByRole('button', { name: 'Expand positions' }));
     expect(screen.getByRole('button', { name: 'Collapse positions' })).toHaveAttribute('aria-expanded', 'true');
@@ -733,8 +835,11 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
+    await waitForPositionHydration();
     const nameLimit = await screen.findByLabelText('Maximum names per visitor');
+    const workflowCard = document.querySelector('.workflow-stage-group');
+    expect(workflowCard).toContainElement(nameLimit.closest('form'));
+    expect(document.querySelector('.position-workflow-main')).not.toContainElement(nameLimit.closest('form'));
     fireEvent.change(nameLimit, { target: { value: '4' } });
     await waitFor(() => expect(nameLimit).toHaveValue(4));
     fireEvent.blur(nameLimit);
@@ -807,10 +912,10 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: 'Start nominations: Director' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
+    await waitForPositionHydration();
     fireEvent.click(await screen.findByRole('button', { name: 'Create intake' }));
 
-    expect(await screen.findByRole('heading', { name: 'Nomination intake is open' })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Open nomination intake' })).toContainElement(await screen.findByRole('heading', { name: 'Nomination intake is open' }));
     expect(screen.getByRole('button', { name: 'Copy nomination link' })).toBeEnabled();
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).getByRole('button', { name: 'Grace Church' }));
     expect(await screen.findByRole('heading', { name: 'Elections 2026' })).toBeInTheDocument();
@@ -827,11 +932,17 @@ describe('election administration', () => {
       resolveStaleStatus = resolve;
     });
     const fetchMock = signedInFetch([church], [election]);
-    fetchMock
-      .mockResolvedValueOnce(response(election))
-      .mockResolvedValueOnce(response([progressedElection]))
-      .mockReturnValueOnce(staleStatusResponse)
-      .mockResolvedValueOnce(response(election));
+    let electionRequestCount = 0;
+    fetchMock.mockImplementation((input) => {
+      const requestUrl = String(input);
+      if (requestUrl.endsWith('/api/elections')) return Promise.resolve(response([progressedElection]));
+      if (requestUrl.endsWith('/api/elections/election-1')) {
+        electionRequestCount += 1;
+        return electionRequestCount === 2 ? staleStatusResponse : Promise.resolve(response(election));
+      }
+      if (requestUrl.endsWith('/positions/position-1/nominations')) return Promise.resolve(response({}, 404));
+      return Promise.resolve(response({}, 404));
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<App />);
@@ -1191,29 +1302,37 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
+    await waitForPositionHydration();
     fireEvent.change(await screen.findByLabelText('Maximum names per visitor'), { target: { value: '3' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create intake' }));
 
-    expect(await screen.findByRole('heading', { name: 'Nomination intake is open' })).toBeInTheDocument();
-    expect(screen.getByText('Nomination link', { selector: 'strong' })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Open nomination intake' })).toContainElement(await screen.findByRole('heading', { name: 'Nomination intake is open' }));
+    const participantCard = screen.getByRole('article', { name: 'Participant session link' });
+    expect(participantCard.querySelectorAll('code')).toHaveLength(1);
+    expect(participantCard.querySelector('code')).toHaveTextContent('/nominate/share-token');
+    expect(within(participantCard).queryByText('Nomination link', { selector: 'strong' })).not.toBeInTheDocument();
     expect(screen.getByText('Anyone with this position-specific link can submit or revise names while intake is open.')).toBeInTheDocument();
     expect(screen.queryByLabelText('Public nomination link')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copy nomination link' })).toBeEnabled();
     expect(screen.queryByText('Sam Lee')).not.toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Submitted names' })).not.toBeInTheDocument();
     expect(screen.getByText('profile submissions')).toBeInTheDocument();
-    expect(screen.getByText('Browser profiles with at least one current name submission. This is not a verified count of people.')).toBeInTheDocument();
+    expect(screen.getByText('profile submissions')).toBeInTheDocument();
     expect(screen.getByText('names allowed per profile')).toBeInTheDocument();
+    const intakeView = screen.getByRole('region', { name: 'Open nomination intake' });
     const activeStage = document.querySelector('.workflow-stage-group.is-intake-open');
     expect(activeStage).not.toBeNull();
     expect(activeStage?.querySelector('.guided-workflow')).toBeInTheDocument();
     expect(activeStage?.querySelector('.intake-collection-view')).toBeInTheDocument();
     expect(activeStage?.querySelector('.workflow-presentation-control')).toBeNull();
-    expect(screen.getByRole('article', { name: 'Audience presentation' })).toBeInTheDocument();
+    const presentationCard = screen.getByRole('article', { name: 'Audience presentation' });
+    expect(within(presentationCard).getByRole('button', { name: 'Broadcast list' })).toBeDisabled();
+    expect(within(presentationCard).getByText('Available after intake closes and you reveal the list.')).toBeInTheDocument();
+    expect(within(presentationCard).getByRole('status')).toHaveTextContent('No list broadcast yet.');
     expect(screen.queryByRole('complementary', { name: 'Names not yet submitted' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Current election access shortcuts' })).not.toBeInTheDocument();
-    expect(within(screen.getByRole('article', { name: 'Audience presentation' })).getByRole('button', { name: 'Presentation' })).toBeDisabled();
+    expect(within(intakeView).queryByRole('button', { name: 'Broadcast list' })).not.toBeInTheDocument();
+    expect(within(presentationCard).getByRole('button', { name: 'Presentation' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Copy nomination link' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not copy the link. Select and copy the share URL instead.');
     expect(screen.getByRole('heading', { name: 'Nomination intake is open' })).toBeInTheDocument();
@@ -1228,7 +1347,7 @@ describe('election administration', () => {
     expect(createCall[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ nameLimit: 3 }) });
     expect(createCall[1].headers).toMatchObject({ Authorization: `Basic ${btoa('admin@example.com:secret')}` });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close nominations' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close nomination intake' }));
     expect(screen.getByRole('dialog', { name: 'Close nominations?' })).toHaveTextContent('Submitted names will be available to admins; the presentation stays hidden until you reveal the list.');
     expect(screen.getByRole('button', { name: 'Keep intake open' })).toHaveFocus();
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Close nominations?' })).getByRole('button', { name: 'Close nominations' }));
@@ -1504,7 +1623,7 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
+    await waitForPositionHydration();
 
     const activeList = await screen.findByRole('list', { name: 'Shared nomination list' });
     expect(within(activeList).getByLabelText('Correct Riley Chen')).toHaveValue('Riley Chen');
@@ -1570,7 +1689,7 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
+    await waitForPositionHydration();
     const activeRow = within(await screen.findByRole('list', { name: 'Shared nomination list' }))
       .getByLabelText('Correct Riley Chen').closest('li');
     fireEvent.click(within(activeRow as HTMLElement).getByRole('button', { name: 'Remove Riley Chen' }));
@@ -1628,7 +1747,7 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
+    await waitForPositionHydration();
 
     const restoreButton = await screen.findByRole('button', { name: 'Restore Riley Chen' });
     await waitFor(() => expect(restoreButton).toBeEnabled());
@@ -1663,7 +1782,7 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
+    await waitForPositionHydration();
     const removeButton = within(await screen.findByRole('list', { name: 'Shared nomination list' }))
       .getByRole('button', { name: 'Remove Riley Chen' });
     removeButton.focus();
@@ -1740,7 +1859,7 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
+    await waitForPositionHydration();
     const activeList = await screen.findByRole('list', { name: 'Shared nomination list' });
     const morganRow = within(activeList).getByLabelText('Correct Morgan Diaz').closest('li');
     fireEvent.click(within(morganRow as HTMLElement).getByRole('button', { name: 'Remove Morgan Diaz' }));
@@ -1783,7 +1902,7 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
+    await waitForPositionHydration();
     fireEvent.click(await screen.findByRole('button', { name: 'Reveal results' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('The browser blocked the presentation tab. Allow pop-ups, then reveal the list again.');
@@ -1826,7 +1945,7 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
+    await waitForPositionHydration();
     const roundDetails = (await screen.findByRole('list', { name: 'Voting rounds' })).querySelector('details');
     fireEvent.click(roundDetails?.querySelector('summary') as HTMLElement);
 
@@ -1853,7 +1972,7 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
+    await waitForPositionHydration();
 
     expect(await screen.findByText('Nominations are closed. Review the shared list; the presentation remains hidden until you reveal it.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reveal results' })).toBeInTheDocument();
@@ -1871,8 +1990,8 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: 'Start nominations: Director' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
 
+    expect(await screen.findByRole('region', { name: 'Election access' })).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Loading nomination intake');
     await act(async () => {
       resolveIntake(response({
@@ -1880,8 +1999,14 @@ describe('election administration', () => {
         currentContributorCount: 0, sharedListRevision: 0, submissions: [], consolidatedNames: null, sharedList: [],
       }));
     });
-    expect(await screen.findByRole('heading', { name: 'Nomination intake is open' })).toBeInTheDocument();
-    expect(within(screen.getByRole('region', { name: 'Open nomination intake' })).getByText('No names have been submitted yet.')).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Open nomination intake' })).toContainElement(await screen.findByRole('heading', { name: 'Nomination intake is open' }));
+    const intakeView = screen.getByRole('region', { name: 'Open nomination intake' });
+    expect(intakeView.querySelector('.intake-collection-metrics')).toHaveTextContent('0');
+    expect(intakeView.querySelector('.intake-collection-metrics')).toHaveTextContent('profile submissions');
+    expect(intakeView.querySelector('.intake-collection-metrics')).toHaveTextContent('3');
+    expect(intakeView.querySelector('.intake-collection-metrics')).toHaveTextContent('names allowed per profile');
+    expect(screen.queryByRole('list', { name: 'Submitted names' })).not.toBeInTheDocument();
+    expect(within(screen.getByRole('article', { name: 'Audience presentation' })).getByRole('button', { name: 'Broadcast list' })).toBeDisabled();
   });
 
   it('shows an admin intake load error with retry instead of offering to create another intake', async () => {
@@ -1897,19 +2022,20 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: 'Start nominations: Director' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
+    await waitForPositionHydration();
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Network unavailable');
     expect(screen.queryByRole('button', { name: 'Create intake' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry loading nominations' }));
-    expect(await screen.findByRole('heading', { name: 'Nomination intake is open' })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Open nomination intake' })).toContainElement(await screen.findByRole('heading', { name: 'Nomination intake is open' }));
     expect(screen.queryByRole('button', { name: 'Create intake' })).not.toBeInTheDocument();
   });
 
   it('streams authenticated intake snapshots across chunks and aborts when leaving the workflow', async () => {
     const openIntake = {
       id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'OPEN', revealed: false,
-      currentContributorCount: 1, sharedListRevision: 0, submissions: [], consolidatedNames: null, sharedList: [],
+      currentContributorCount: 1, sharedListRevision: 0,
+      submissions: [{ id: 'submission-1', name: 'Riley Chen' }], consolidatedNames: null, sharedList: [],
     };
     let streamController!: ReadableStreamDefaultController<Uint8Array>;
     const streamResponse = {
@@ -1927,9 +2053,13 @@ describe('election administration', () => {
     render(<App />);
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: 'Start nominations: Director' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open nomination intake' }));
-    expect(await screen.findByRole('heading', { name: 'Nomination intake is open' })).toBeInTheDocument();
-    expect(screen.queryByText('Riley Chen')).not.toBeInTheDocument();
+    await waitForPositionHydration();
+    expect(await screen.findByRole('region', { name: 'Open nomination intake' })).toContainElement(await screen.findByRole('heading', { name: 'Nomination intake is open' }));
+    expect(screen.queryByRole('list', { name: 'Submitted names' })).not.toBeInTheDocument();
+    const streamedOpenNames = screen.getByRole('list', { name: 'Submitted nomination names' });
+    expect(streamedOpenNames).toHaveTextContent('Riley Chen');
+    expect(within(streamedOpenNames).queryByRole('textbox')).not.toBeInTheDocument();
+    expect(within(streamedOpenNames).queryByRole('button', { name: /Remove/ })).not.toBeInTheDocument();
 
     const streamRequest = fetchMock.mock.calls[5];
     expect(streamRequest[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/nominations/stream');
@@ -1940,15 +2070,26 @@ describe('election administration', () => {
     });
     expect(streamRequest[1].signal).toBeInstanceOf(AbortSignal);
 
-    const updatedSnapshot = { ...openIntake, currentContributorCount: 2 };
+    const updatedSnapshot = {
+      ...openIntake,
+      currentContributorCount: 2,
+      submissions: [
+        { id: 'submission-1', name: 'Riley Chen' },
+        { id: 'submission-2', name: 'Morgan Diaz' },
+      ],
+    };
     const event = `event: intake\r\ndata: ${JSON.stringify(updatedSnapshot)}\r\n\r\n`;
     await act(async () => {
       streamController.enqueue(new TextEncoder().encode(event.slice(0, 17)));
       streamController.enqueue(new TextEncoder().encode(event.slice(17, 53)));
       streamController.enqueue(new TextEncoder().encode(event.slice(53)));
     });
-    expect(screen.queryByText('Morgan Diaz')).not.toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('Submissions updated: 2 current profile submissions.');
+    const updatedOpenNames = screen.getByRole('list', { name: 'Submitted nomination names' });
+    expect(Array.from(updatedOpenNames.querySelectorAll('li')).map((item) => item.textContent?.trim())).toEqual(['Morgan Diaz', 'Riley Chen']);
+    expect(within(updatedOpenNames).queryByRole('textbox')).not.toBeInTheDocument();
+    expect(within(updatedOpenNames).queryByRole('button', { name: /Remove/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Open nomination intake' }).querySelector('.intake-collection-metrics')).toHaveTextContent('2');
+    expect(screen.queryByText(/Submissions updated:/)).not.toBeInTheDocument();
 
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).getByRole('button', { name: 'Grace Church' }));
     await waitFor(() => expect(streamRequest[1].signal.aborted).toBe(true));

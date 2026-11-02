@@ -2,7 +2,7 @@
 
 **Review date:** 2026-10-27<br>
 **Branch:** `feature/e9.1-admin-foundation`<br>
-**Reference:** `../prototype.html`<br>
+**Reference:** `../../prototype/prototype.html`<br>
 **Capture method:** Prototype rendered directly; React rendered from Vite with temporary browser-request interception returning API-shaped auth/church/election payloads. Interception exists only in `capture-react.mjs`; no mock data or simulation logic was added to the app.<br>
 **Viewports:** 1280×800 desktop and 390×844 mobile. Full-page screenshot files retain page height as required to capture the complete screen.
 

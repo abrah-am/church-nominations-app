@@ -2,12 +2,18 @@
 
 - **Epic:** E9 Bootstrap UI Modernization
 - **Priority:** P1 (proposed)
-- **Workflow status:** First admin slice accepted by Product Owner; Annual Boards visual migration implemented on `feature/e9.1-admin-foundation`, with the next UX review pending
+- **Workflow status:** Closed by Product Owner 2026-11-01 as a partially delivered modernization umbrella; residual acceptance work is deferred to owning stories E2-E7 and E9.2. This closure does not claim that every original acceptance criterion is complete or that accessibility conformance has been established.
 - **User story:** As an administrator or election participant, I want a consistent, responsive interface so I can understand and complete election tasks confidently across devices.
 
 ## Product Owner Approval
 
 The Product Owner approved the UX redesign initiative and the recommended Bootstrap 5 CSS integration with existing React-controlled components on 2026-10-26. This approval authorizes planning/refinement, not implementation, dependency installation, merge, or deployment. Implementation requires approval of the refined implementation plan. The UX assessment recommended retaining a restrained visual identity while improving hierarchy, spacing, typography, and consistency.
+
+## Product Owner Closure Decision (2026-11-01)
+
+The Product Owner requested that E9.1 be closed and handed off. Close this initiative as a **partially delivered umbrella**, not as full completion of its original broad acceptance criteria. The delivered theme and page-specific UI slices remain in place. Remaining work belongs to its owning feature/accessibility stories or the existing E9.2 technical-debt story; do not reopen E9.1 for those changes unless the Product Owner creates a new story or explicitly reopens it.
+
+This closure is not acceptance of unverified responsive/accessibility criteria and does not change the open E7.1/PD-009 policies. Do not claim WCAG conformance or that all E9.1 criteria passed. Prototype changes are maintained through their own approved stories under `docs/prototype/`.
 
 ## Product Owner Decision: NAD Theme (2026-10-29)
 
