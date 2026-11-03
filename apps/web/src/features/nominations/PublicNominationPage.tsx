@@ -16,6 +16,7 @@ export default function PublicNominationPage({ accessToken }: { accessToken: str
   const [isSaving, setIsSaving] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const [closed, setClosed] = useState(false);
+  const [closedListPublished, setClosedListPublished] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [withdrawn, setWithdrawn] = useState(false);
@@ -31,7 +32,15 @@ export default function PublicNominationPage({ accessToken }: { accessToken: str
     let isCurrent = true;
     getPublicNominationIntake(accessToken, deviceToken).then((loaded) => {
       if (!isCurrent) return;
-      setIntake(loaded);
+      const current = {
+        ...loaded,
+        intakeOpen: loaded.intakeOpen ?? true,
+        listPublished: loaded.listPublished ?? false,
+        publishedNames: loaded.publishedNames ?? [],
+      };
+      setIntake(current);
+      setClosed(!current.intakeOpen);
+      setClosedListPublished(current.listPublished);
       setNames(loaded.submittedNames.length > 0 ? loaded.submittedNames : ['']);
     }).catch((requestError: unknown) => {
       if (!isCurrent) return;
@@ -43,6 +52,28 @@ export default function PublicNominationPage({ accessToken }: { accessToken: str
     });
     return () => { isCurrent = false; };
   }, [accessToken, deviceToken, loadAttempt]);
+
+  useEffect(() => {
+    if (!intake) return;
+    const refreshTimer = window.setInterval(() => {
+      getPublicNominationIntake(accessToken, deviceToken).then((loaded) => {
+        const current = {
+          ...loaded,
+          intakeOpen: loaded.intakeOpen ?? true,
+          listPublished: loaded.listPublished ?? false,
+          publishedNames: loaded.publishedNames ?? [],
+        };
+        setIntake(current);
+        setClosed(!current.intakeOpen);
+        setClosedListPublished(current.listPublished);
+        setUnavailable(false);
+      }).catch((requestError: unknown) => {
+        if (requestError instanceof NominationsApiError && requestError.status === 404) setUnavailable(true);
+        else setError(requestError instanceof Error ? requestError.message : 'Could not refresh this nomination link.');
+      });
+    }, 2500);
+    return () => window.clearInterval(refreshTimer);
+  }, [accessToken, deviceToken, intake !== null]);
 
   function retryLoad() {
     setError('');
@@ -153,7 +184,7 @@ export default function PublicNominationPage({ accessToken }: { accessToken: str
         {isLoading ? <p className="state-message" role="status">Loading nomination form…</p> : unavailable ? (
           <div className="public-state"><p className="eyebrow">Nomination intake</p><h1 id="public-nomination-title">This link is unavailable</h1><p className="intro">The nomination intake may have been removed or this link may be incorrect.</p></div>
         ) : closed ? (
-          <div className="public-state"><p className="eyebrow">Nomination intake</p><h1 id="public-nomination-title">Nominations are closed</h1><p className="intro">This intake is no longer accepting changes. Any names saved before it closed remain available to the administrator for review.</p></div>
+          <div className="public-state"><p className="eyebrow">Nomination intake</p><h1 id="public-nomination-title">{closedListPublished ? intake?.positionName : 'Nominations are closed'}</h1><p className="intro">{closedListPublished ? 'This is the confirmed consolidated list.' : 'This intake is no longer accepting changes. The confirmed list is not currently being shared.'}</p>{closedListPublished && <ol className="member-list shared-nomination-list" aria-label="Confirmed consolidated list">{intake?.publishedNames.map((name, index) => <li key={`${index}-${name}`}><span className="shared-nomination-name">{name}</span></li>)}</ol>}</div>
         ) : error && !intake ? (
           <div className="public-state">
             <p className="eyebrow">Nomination intake</p>
@@ -161,7 +192,7 @@ export default function PublicNominationPage({ accessToken }: { accessToken: str
             <p className="error-message" role="alert">{error}</p>
             <button className="secondary-button" type="button" onClick={retryLoad}>Retry loading form</button>
           </div>
-        ) : intake && (
+        ) : intake?.intakeOpen && (
           <>
             <div className="public-state">
               <p className="eyebrow">Anonymous nomination</p>

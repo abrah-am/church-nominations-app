@@ -30,6 +30,7 @@ public interface VotingRoundRepository extends JpaRepository<VotingRound, UUID> 
     Optional<VotingRound> findFirstByPositionIdAndStatus(UUID positionId, VotingRoundStatus status);
 
     boolean existsByPositionIdAndStatus(UUID positionId, VotingRoundStatus status);
+    boolean existsByPositionIdAndRoundNumberGreaterThan(UUID positionId, int roundNumber);
 
     @Query("select coalesce(max(round.roundNumber), 0) from VotingRound round where round.positionId = :positionId")
     int findMaximumRoundNumber(@Param("positionId") UUID positionId);

@@ -451,7 +451,12 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .round-candidates label { display: flex; min-height: 43px; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); cursor: pointer; }
 .round-candidates input { width: 17px; min-height: 17px; margin: 0; accent-color: var(--green); }
 .round-selection-count { display: block; font-size: 12px; font-weight: 700; }
-.round-configuration-form > input[type="number"] { width: min(100%, 180px); }
+.round-selection-stepper { display: grid; width: max-content; max-width: 100%; grid-template-columns: 48px minmax(72px, 88px) 48px; gap: 8px; align-items: center; }
+.round-selection-step { min-height: 48px; border: 1px solid #b7c3ba; border-radius: 4px; background: #fff; color: var(--ink); font-size: 20px; font-weight: 700; }
+.round-selection-step:hover:not(:disabled) { background: #f0f4ef; }
+.round-selection-step:disabled { opacity: .48; cursor: not-allowed; }
+.round-selection-stepper input[type="number"] { width: 100%; min-width: 0; min-height: 48px; padding: 8px; border: 1px solid #aebbb0; border-radius: 4px; text-align: center; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.round-selection-stepper + .form-note { margin: 0; }
 .round-configuration-form .form-actions { margin-top: 12px; }
 .voting-round-list { display: grid; gap: 17px; margin: 0 0 22px; padding: 0; list-style: none; }
 .voting-round-item { display: grid; justify-items: start; gap: 10px; padding: 15px 0; border-top: 1px solid var(--line); }
@@ -506,6 +511,7 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .public-state .eyebrow { margin-bottom: 13px; }
 .public-state h1 { overflow-wrap: anywhere; }
 .public-state .intro { margin-top: 9px; }
+.public-state .shared-nomination-list { margin-top: 20px; }
 .public-instructions { max-width: 550px; margin: 22px 0 0; color: #48574d; font-size: 14px; line-height: 1.65; }
 .public-nomination-form { padding-top: 18px; border-top: 1px solid var(--line); }
 .public-nomination-form .positions-form-heading { margin-top: 0; }

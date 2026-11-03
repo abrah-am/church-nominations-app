@@ -62,6 +62,10 @@ public class VotingRoundService {
         }
     }
 
+    public boolean hasActiveRound(UUID positionId) {
+        return rounds.findFirstByPositionIdAndStatus(positionId, VotingRoundStatus.ACTIVE).isPresent();
+    }
+
     @Transactional
     public VotingRoundResponse create(
             UUID electionId, UUID positionId, ConfigureVotingRoundRequest request, String accountEmail) {
@@ -113,6 +117,19 @@ public class VotingRoundService {
         rounds.save(round);
         saveCandidates(roundId, selectedNames);
         return response(round);
+    }
+
+    @Transactional
+    public void deleteDraft(UUID electionId, UUID positionId, UUID roundId, String accountEmail) {
+        elections.lockPositionForChurch(electionId, positionId, accountEmail);
+        VotingRound round = rounds.findByIdAndPositionIdForUpdate(roundId, positionId)
+            .orElseThrow(VotingRoundNotFoundException::new);
+        if (round.getStatus() != VotingRoundStatus.DRAFT
+            || rounds.existsByPositionIdAndStatus(positionId, VotingRoundStatus.ACTIVE)
+            || rounds.existsByPositionIdAndRoundNumberGreaterThan(positionId, round.getRoundNumber())) {
+            throw new VotingRoundConflictException();
+        }
+        rounds.delete(round);
     }
 
         @Transactional

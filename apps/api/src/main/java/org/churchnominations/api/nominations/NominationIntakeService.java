@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -90,7 +91,12 @@ public class NominationIntakeService {
     public PresentationSessionResponse showPresentation(UUID electionId, UUID positionId, String accountEmail) {
         elections.getPositionForChurch(electionId, positionId, accountEmail);
         NominationIntake intake = findByPosition(positionId);
-        NominationPresentationSession session = presentationSessions.findByIntakeId(intake.getId())
+        Optional<NominationPresentationSession> existingSession = presentationSessions.findByIntakeId(intake.getId());
+        if (intake.getStatus() == NominationIntakeStatus.CLOSED && !intake.isRevealed()
+            && existingSession.filter(NominationPresentationSession::isVisible).isEmpty()) {
+            throw new NominationConflictException();
+        }
+        NominationPresentationSession session = existingSession
             .orElseGet(() -> new NominationPresentationSession(intake.getId()));
         session.show();
         session = presentationSessions.saveAndFlush(session);
@@ -177,13 +183,23 @@ public class NominationIntakeService {
     }
 
     private PresentationSnapshotResponse presentationProjection(NominationIntake intake) {
-        if (!intake.isRevealed()) return PresentationSnapshotResponse.neutral();
+        if (votingRounds.hasActiveRound(intake.getPositionId())) return PresentationSnapshotResponse.neutral();
+        if (intake.getStatus() == NominationIntakeStatus.OPEN) {
+            List<String> incomingNames = submissions.findAllByIntakeId(intake.getId()).stream()
+                .sorted(Comparator.comparing(NominationSubmission::getName, String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(NominationSubmission::getName)
+                    .thenComparing(NominationSubmission::getId))
+                .map(NominationSubmission::getName)
+                .toList();
+            return new PresentationSnapshotResponse(false, true, false, incomingNames, List.of());
+        }
+        if (!intake.isListCreated()) return PresentationSnapshotResponse.neutral();
         List<String> activeNames = consolidatedNames.findAllByIntakeIdAndActiveTrueOrderBySequenceAsc(intake.getId())
             .stream().map(NominationConsolidatedName::getCandidateName).toList();
         List<NominationChangeEventResponse> changeEvents = sharedListAudit
             .findAllByIntakeIdOrderByOccurredAtAscIdAsc(intake.getId()).stream()
             .map(NominationChangeEventResponse::from).toList();
-        return new PresentationSnapshotResponse(true, activeNames, changeEvents);
+        return new PresentationSnapshotResponse(intake.isRevealed(), false, true, activeNames, changeEvents);
     }
 
     private void publishPresentationAfterCommit(UUID intakeId) {
@@ -273,6 +289,7 @@ public class NominationIntakeService {
         NominationIntake saved = intakes.saveAndFlush(intake);
         NominationIntakeResponse response = adminResponse(saved);
         publishAfterCommit(intake.getId(), response, true);
+        publishPresentationAfterCommit(intake.getId());
         return response;
     }
 
@@ -420,15 +437,26 @@ public class NominationIntakeService {
 
     public PublicNominationIntakeResponse getPublic(UUID accessToken, UUID deviceToken) {
         NominationIntake intake = findByAccessToken(accessToken);
-        requireOpen(intake);
         ElectionPosition position = positions.findWithElectionById(intake.getPositionId())
                 .orElseThrow(NominationIntakeNotFoundException::new);
-        List<String> names = submissions.findAllByIntakeIdAndDeviceTokenOrderBySequenceAsc(
-                intake.getId(), deviceToken).stream()
+        boolean intakeOpen = intake.getStatus() == NominationIntakeStatus.OPEN;
+        boolean presentationVisible = presentationSessions.findByIntakeId(intake.getId())
+            .filter(NominationPresentationSession::isVisible)
+            .filter(session -> session.getEndedAt() == null)
+            .isPresent();
+        boolean pollActive = votingRounds.hasActiveRound(intake.getPositionId());
+        boolean listPublished = !intakeOpen && !pollActive && intake.isListCreated() && presentationVisible;
+        List<String> names = intakeOpen ? submissions.findAllByIntakeIdAndDeviceTokenOrderBySequenceAsc(
+            intake.getId(), deviceToken).stream()
                 .map(NominationSubmission::getName)
-                .toList();
+            .toList() : List.of();
+        List<String> publishedNames = listPublished
+            ? consolidatedNames.findAllByIntakeIdAndActiveTrueOrderBySequenceAsc(intake.getId()).stream()
+            .map(NominationConsolidatedName::getCandidateName).toList()
+            : List.of();
         return new PublicNominationIntakeResponse(
-                position.getElection().getDepartmentName(), position.getName(), intake.getNameLimit(), names);
+            position.getElection().getDepartmentName(), position.getName(), intake.getNameLimit(),
+            intakeOpen, listPublished, names, publishedNames);
     }
 
     @Transactional
@@ -452,6 +480,7 @@ public class NominationIntakeService {
                 .toList();
         submissions.saveAllAndFlush(replacement);
         publishAfterCommit(intake.getId(), adminResponse(intake), false);
+        publishPresentationAfterCommit(intake.getId());
         return new SubmittedNamesResponse(cleanNames);
     }
 

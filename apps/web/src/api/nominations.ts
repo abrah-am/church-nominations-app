@@ -51,6 +51,8 @@ export type NominationChangeEvent = {
 
 export type NominationPresentationSnapshot = {
   revealed: boolean;
+  intakeOpen: boolean;
+  listCreated: boolean;
   activeNames: string[];
   events: NominationChangeEvent[];
 };
@@ -65,7 +67,10 @@ export type PublicNominationIntake = {
   departmentName: string;
   positionName: string;
   nameLimit: number;
+  intakeOpen: boolean;
+  listPublished: boolean;
   submittedNames: string[];
+  publishedNames: string[];
 };
 
 export class NominationsApiError extends Error {
@@ -333,7 +338,7 @@ export async function streamNominationPresentation(
     if (data.length === 0) return;
     const snapshot = JSON.parse(data.join('\n')) as NominationPresentationSnapshot;
     if (eventName === 'snapshot') onSnapshot(snapshot, frameEventId);
-    if (eventName === 'clear') onSnapshot({ revealed: false, activeNames: [], events: [] }, frameEventId);
+    if (eventName === 'clear') onSnapshot({ revealed: false, intakeOpen: false, listCreated: false, activeNames: [], events: [] }, frameEventId);
   };
   const consumeFrames = (flush = false) => {
     let boundary = buffer.match(/\r\n\r\n|\n\n|\r\r/);
