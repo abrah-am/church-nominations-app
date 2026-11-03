@@ -217,6 +217,12 @@
     .btn-secondary { background: #fff; color: var(--ink); border-color: #b7c3ba; }
     .btn-secondary:hover:not(:disabled) { background: #f0f4ef; }
     .btn:disabled { opacity: .48; cursor: not-allowed; }
+    .selection-count-label { display: block; margin: 0 0 8px; font-weight: 700; }
+    .selection-stepper { display: grid; grid-template-columns: 48px minmax(72px, 88px) 48px; gap: 8px; align-items: center; }
+    .selection-stepper button { min-height: 48px; border: 1px solid #b7c3ba; border-radius: 4px; background: #fff; color: var(--ink); font-size: 1.25rem; font-weight: 700; }
+    .selection-stepper button:hover:not(:disabled) { background: #f0f4ef; }
+    .selection-stepper input { width: 100%; min-width: 0; min-height: 48px; padding: 8px; border: 1px solid #aebbb0; border-radius: 4px; text-align: center; font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .selection-count-help { margin-top: 8px; font-size: .88rem; }
     .callout { padding: 12px 14px; border-radius: 3px; background: var(--blue-soft); color: #244d68; font-size: .88rem; margin: 16px 0 0; }
     .success { background: var(--green-soft); color: #244b38; }
     .warning { background: var(--orange-soft); color: #693b18; }
@@ -489,20 +495,27 @@
             <p class="fine-print" id="intake-presentation-status" role="status">Audience presentation is off.</p>
           </div>
           <div class="task" id="admin-intake-review" hidden>
-            <h3>Nomination Intake Consolidation</h3>
+            <h3>Review and consolidate</h3>
             <p class="subtle">Edit spellings, remove duplicates or declined names, and confirm the final list. When the presentation is shown, confirmed changes appear on both viewer surfaces.</p>
             <div id="admin-review-names"></div>
             <div class="action-row"><button class="btn btn-primary" id="confirm-nominations">Confirm consolidated list</button></div>
           </div>
           <div class="task" id="admin-intake-confirmed" hidden>
-            <h3>Consolidated list confirmed</h3>
-            <p class="subtle" id="confirmed-list-copy">The final list is saved. Turn on Audience presentation to show it to the room and participants, or continue to voting setup.</p>
+            <h3>Consolidated list</h3>
+            <p class="subtle" id="confirmed-list-copy">The final list is confirmed. Turn on Audience presentation to show it to the room and participants, or continue to voting setup.</p>
+            <ul class="candidate-list" id="confirmed-roster" aria-label="Confirmed consolidated names"></ul>
             <div class="action-row"><button class="btn btn-primary" id="prepare-round">Prepare round 1</button></div>
           </div>
           <div class="task" id="admin-progress" hidden>
             <h3>Round setup</h3>
-            <p class="subtle">Select exactly <strong id="selection-count">2</strong> candidates per ballot.</p>
-            <div class="action-row"><button class="btn btn-primary" id="open-voting">Open voting</button><button class="btn btn-secondary" id="cancel-draft">Cancel and rebuild draft</button></div>
+            <label class="selection-count-label" for="round-selection-count">How many names can each ballot select?</label>
+            <div class="selection-stepper" role="group" aria-label="Selections allowed per ballot">
+              <button type="button" id="decrease-selection-count" aria-label="Decrease selections per ballot">−</button>
+              <input id="round-selection-count" type="number" min="1" step="1" value="2" inputmode="numeric" aria-describedby="selection-count-help">
+              <button type="button" id="increase-selection-count" aria-label="Increase selections per ballot">+</button>
+            </div>
+            <p class="subtle selection-count-help" id="selection-count-help">Choose from 1 to 3, the number of names on the confirmed list.</p>
+            <div class="action-row"><button class="btn btn-primary" id="open-voting">Start voting</button><button class="btn btn-secondary" id="cancel-draft">Cancel and rebuild draft</button></div>
           </div>
           <div class="task" id="admin-active" hidden>
             <h3>Voting is active</h3>
@@ -640,7 +653,7 @@
         { name: "Jordan Ellis", votes: 7 },
         { name: "Morgan Patel", votes: 4 }
       ];
-      const state = { phase: "intake-setup", round: 1, nominationSubmitted: false, nominees: [], participantNominees: ["Taylor Reed", "Casey Lin", "Emerson Brooks", "Nia Carter", "Alex Morgan"], participantNominationSubmitted: false, candidates: [...candidates], participantListVisible: false, nominationChanges: [], submitted: false, selected: [], decisions: [], released: false, winner: "Avery Bennett", declinedCandidates: [], replacementCandidates: [], replacementTieBreak: false, presentationVisible: false };
+      const state = { phase: "intake-setup", round: 1, selectionCount: "2", nominationSubmitted: false, nominees: [], participantNominees: ["Taylor Reed", "Casey Lin", "Emerson Brooks", "Nia Carter", "Alex Morgan"], participantNominationSubmitted: false, candidates: [...candidates], participantListVisible: false, nominationChanges: [], submitted: false, selected: [], decisions: [], released: false, winner: "Avery Bennett", declinedCandidates: [], replacementCandidates: [], replacementTieBreak: false, presentationVisible: false };
       const $ = (id) => document.getElementById(id);
       const prototypeKey = "church-nominations-three-experience-mock-v2";
       const query = new URLSearchParams(location.search);
@@ -792,7 +805,7 @@
         if (state.round === 2) return roundTwo.filter((candidate) => state.candidates.includes(candidate.name));
         return state.candidates.map((name, index) => ({ name, votes: [9, 6, 3][index] ?? 1 }));
       }
-      function selectedCount() { return state.round === 1 ? 2 : 1; }
+      function selectedCount() { return state.round === 1 ? Number(state.selectionCount) : 1; }
       function listItem(name, value, suffix = "") {
         const li = document.createElement("li");
         const label = document.createElement("span");
@@ -1026,11 +1039,20 @@
         $("replacement-roster").hidden = state.phase !== "replacement-roster";
         $("save-decisions").hidden = !["released"].includes(state.phase);
         $("open-voting").textContent = state.round === 1 ? "Start voting" : `Start round ${state.round}`;
+        const selectionInput = $("round-selection-count");
+        selectionInput.max = String(state.candidates.length);
+        selectionInput.value = state.selectionCount;
+        const configuredSelectionCount = Number(state.selectionCount);
+        const selectionCountValid = Number.isInteger(configuredSelectionCount) && configuredSelectionCount >= 1 && configuredSelectionCount <= state.candidates.length;
+        $("open-voting").disabled = !selectionCountValid;
+        $("decrease-selection-count").disabled = !selectionCountValid || configuredSelectionCount <= 1;
+        $("increase-selection-count").disabled = !selectionCountValid || configuredSelectionCount >= state.candidates.length;
+        $("selection-count-help").textContent = `Choose from 1 to ${state.candidates.length}, the number of names on the confirmed list.`;
         $("cancel-draft").hidden = !["draft", "next-draft"].includes(state.phase);
         $("confirmed-list-copy").textContent = state.phase === "nominations-shared"
           ? "The final list is shared with the room and participants. Continue to voting setup when ready."
           : "The final list is saved. Turn on Audience presentation to show it to the room and participants, or continue to voting setup.";
-        $("selection-count").textContent = selectedCount();
+        renderList("confirmed-roster", state.candidates.map((name) => ({ name })));
         $("round-label").textContent = `Round ${state.round}`;
         $("roster-kicker").textContent = intakePhases.includes(state.phase) ? "Nomination intake" : `Round ${state.round} · Candidate roster`;
         $("roster-title").textContent = state.phase === "complete" ? "Position outcome" : state.phase === "intake-setup" || state.phase === "intake-active" ? "Names not yet submitted" : "People on the ballot";
@@ -1040,7 +1062,7 @@
           "intake-setup": ["Not open", "Open nomination intake", "Start by inviting people to submit names for this position.", "Open nomination intake"],
           "intake-active": ["Intake open", "Nomination Intake", "Review incoming names. Turn on Audience presentation to show them live to the room only.", "Nomination Intake"],
           "intake-submitted": ["Intake open", "Nomination Intake", "A mock participant submitted names. The room display updates when shown; the participant link stays private to that participant.", "Nomination Intake"],
-          "intake-review": ["Intake closed", "Nomination Intake Consolidation", "Review the full submitted list, confirm corrections and removals, then consolidate.", "Nomination Intake Consolidation"],
+          "intake-review": ["Intake closed", "Review and consolidate", "Review the full submitted list, confirm corrections and removals, then consolidate.", "Nomination Intake Consolidation"],
           "nominations-confirmed": ["List confirmed", "Prepare the first voting round", "The final list is confirmed. Show Audience presentation to publish it to the room and participants.", "Nomination Intake Consolidation"],
           "nominations-shared": ["List shared", "Prepare the first voting round", "The final list is shared with the audience and participants. Continue to voting setup when ready.", "Nomination Intake Consolidation"],
           draft: ["Draft", "Prepare round 1", "Review the roster and open voting when the room is ready.", "Round setup"],
@@ -1184,6 +1206,20 @@
         update();
       });
       $("prepare-round").addEventListener("click", () => { state.phase = "draft"; update(); });
+      $("round-selection-count").addEventListener("input", (event) => {
+        state.selectionCount = event.currentTarget.value;
+        update();
+      });
+      $("decrease-selection-count").addEventListener("click", () => {
+        const currentCount = Number(state.selectionCount);
+        if (Number.isInteger(currentCount) && currentCount > 1) state.selectionCount = String(currentCount - 1);
+        update();
+      });
+      $("increase-selection-count").addEventListener("click", () => {
+        const currentCount = Number(state.selectionCount);
+        if (Number.isInteger(currentCount) && currentCount < state.candidates.length) state.selectionCount = String(currentCount + 1);
+        update();
+      });
       $("cancel-draft").addEventListener("click", () => {
         if (state.round === 1) {
           state.phase = "nominations-confirmed";
@@ -1195,6 +1231,8 @@
         update();
       });
       $("open-voting").addEventListener("click", () => {
+        const configuredSelectionCount = Number(state.selectionCount);
+        if (!Number.isInteger(configuredSelectionCount) || configuredSelectionCount < 1 || configuredSelectionCount > state.candidates.length) return;
         state.phase = "active";
         state.presentationVisible = false;
         state.participantListVisible = false;

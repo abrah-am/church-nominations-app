@@ -8,7 +8,6 @@
 
 | ID | Epic | Story | Priority | Workflow status | Dependencies | Requirements |
 | --- | --- | --- | --- | --- | --- | --- |
-| E9.2 | E9 Bootstrap UI Modernization | Consolidate election access cards into reusable components | P2 (proposed) | Done; PR #25 merged 2026-11-02 | PR #21 position-workflow layout; E9.1 shared UI conventions | [requirements](../stories/E9.2/requirements.md) |
 | E2.2 | E2 Nomination Workflow Clarity and Recovery | Preserve consolidation drafts on failure and navigation | P1 | Backlog | US-009 | [requirements](../stories/E2.2/requirements.md) |
 | E2.3 | E2 Nomination Workflow Clarity and Recovery | Explain roster lock and provide pre-draft edit path | P1 | Backlog | US-009, E2.2 | [requirements](../stories/E2.3/requirements.md) |
 | E3.1 | E3 Round Setup and Candidate Roster | Clarify roster source and valid selection count | P1 | Backlog | US-009, US-010; prior decisions | [requirements](../stories/E3.1/requirements.md) |
@@ -24,7 +23,7 @@
 | E5.3 | E5 Results Review and Candidate Decisions | Provide a reviewed-results handoff to the next round | P1 | Backlog | E3.2, E5.2 | [requirements](../stories/E5.3/requirements.md) |
 | E6.8 | E6 Election Completion and History | Present revealed session content with live nomination changes | P1 (high) | Backlog; presentation tab/API and event-history contract review pending | E6.9, E6.10, US-012 | [requirements](../stories/E6.8/requirements.md) |
 | E6.9 | E6 Election Completion and History | Review nominations, reveal, and share live list changes | P1 (high) | Product Owner accepted 2026-10-26; implementation and QA complete; push pending. Single-instance POC only; PD-005/E8.2 retention remains a production gate | US-008, E6.10; replaces separate refined-list step in US-009 | [requirements](../stories/E6.9/requirements.md) |
-| E6.13 | E6 Election Completion and History | Clarify nomination intake and consolidation stages | P1 (proposed) | Backlog refinement; Product Owner direction recorded 2026-11-02; API and participant-view contract review required | E6.9, E6.10, E6.11 | [requirements](../stories/E6.13/requirements.md) |
+| E6.13 | E6 Election Completion and History | Clarify nomination intake and consolidation stages | P1 (proposed) | Product Owner approved 2026-11-02; implementation complete; PR #26 open; full frontend suite has 3 known Annual Boards navigation failures | E6.9, E6.10, E6.11 | [requirements](../stories/E6.13/requirements.md) |
 | E6.12 | E6 Election Completion and History | Show a session QR code in the presentation view | P1 (high; future follow-up) | Future backlog; QR is not part of initial link delivery | E6.8, E6.11 | [requirements](../stories/E6.12/requirements.md) |
 | E7.2 | E7 Accessibility and Responsive Administration | Audit and repair workflow semantics and keyboard access | P1 | Backlog | E7.1 | [requirements](../stories/E7.2/requirements.md) |
 | E7.3 | E7 Accessibility and Responsive Administration | Validate responsive layouts for core workflows | P1 | Backlog | E7.1; approved device matrix | [requirements](../stories/E7.3/requirements.md) |
@@ -69,6 +68,7 @@
 
 | ID | Epic | Story | Priority | Workflow status | Dependencies | Requirements |
 | --- | --- | --- | --- | --- | --- | --- |
+| E9.2 | E9 Bootstrap UI Modernization | Consolidate election access cards into reusable components | P2 (proposed) | Done; PR #25 merged 2026-11-02 | PR #21 position-workflow layout; E9.1 shared UI conventions | [requirements](../stories/E9.2/requirements.md) |
 | E1.1 | E1 Election and Position Progress | Show meaningful election lifecycle status | P1 | Accepted by Product Owner 2026-10-22; implemented and merged (`70e41be`) | Election/position lifecycle data | [requirements](../stories/STORY-E1.1/requirements.md) |
 | E1.2 | E1 Election and Position Progress | Show position progress and next action | P1 | Accepted by Product Owner 2026-10-21; PR #5 merged (`a23033e`) | E1.1 concepts; position workflow data | [requirements](../stories/STORY-E1.2/requirements.md) |
 | E1.3 | E1 Election and Position Progress | Remove contradictory election setup notice | P1 | Closed; scope delivered by merged E1.1/E1.2; no separate implementation | E1.1, E1.2 | [requirements](../stories/E1.3/requirements.md) |

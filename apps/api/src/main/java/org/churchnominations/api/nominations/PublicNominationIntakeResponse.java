@@ -6,5 +6,8 @@ public record PublicNominationIntakeResponse(
         String departmentName,
         String positionName,
         int nameLimit,
-        List<String> submittedNames) {
+        boolean intakeOpen,
+        boolean listPublished,
+        List<String> submittedNames,
+        List<String> publishedNames) {
 }

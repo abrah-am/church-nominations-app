@@ -3,6 +3,7 @@ package org.churchnominations.api.election.voting;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -57,6 +58,14 @@ public class VotingRoundController {
             @Valid @RequestBody ConfigureVotingRoundRequest request,
             Principal principal) {
         return rounds.update(electionId, positionId, roundId, request, principal.getName());
+    }
+
+    @DeleteMapping("/{roundId}")
+    public ResponseEntity<Void> deleteDraft(
+            @PathVariable UUID electionId, @PathVariable UUID positionId, @PathVariable UUID roundId,
+            Principal principal) {
+        rounds.deleteDraft(electionId, positionId, roundId, principal.getName());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{roundId}/start")

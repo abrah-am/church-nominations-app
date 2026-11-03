@@ -35,8 +35,9 @@ Treat this prototype as a maintained product artifact, not an ad hoc scratch fil
 ## Nomination State Reference
 
 - **Open intake:** show the current profile count and configured name limit. Submitted names are visible to admins. The audience presentation is off by default; when enabled, it shows incoming names live on the room display only. The participant session link does not show open-intake names.
-- **Nomination Intake Consolidation:** after closure, show the full submitted list as editable inputs. A changed value enables its Save action; Remove is available on each row. Duplicate names remain until explicitly removed.
+- **Review and consolidate:** after closure, show the full submitted list as editable inputs. A changed value enables its Save action; Remove is available on each row. Duplicate names remain until explicitly removed. **Confirm consolidated list** saves the edits and shows the confirmed names as a plain list, with **Prepare round 1** as the next action.
 - **Publication:** if the room presentation was on when intake closes, it remains on and the consolidated list is also released to participants. Otherwise, participants stay neutral until the admin turns the presentation on. Hiding after closure clears both viewer surfaces. An active poll hides the presentation; closed poll results still require explicit reveal.
+- **Round 1 setup:** **Prepare round 1** opens a draft under the **Round setup** heading. A compact, labeled stepper configures the number of names each ballot can select, from 1 through the confirmed roster size. **Start voting** is enabled only for a valid whole-number selection count. **Cancel and rebuild draft** returns to the confirmed list. Later-round mock selection counts remain one.
 - **Workflow progress:** nomination remains the current step until a round draft exists. Configuring a draft advances the current step to voting rounds.
 
 These are UI reference behaviors. Product rules and production API state remain defined by the linked story requirements and API contracts.

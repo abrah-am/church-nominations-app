@@ -51,7 +51,7 @@ export default async function run(page) {
     await page.locator(stage.view === 'admin' ? '#election-flow' : stage.view === 'voter' ? '#view-voter' : '#view-presentation').waitFor();
     if (stage.view === 'admin') {
       await page.locator('#admin-task-title').waitFor();
-      await page.waitForFunction(() => document.querySelector('#admin-task-title')?.textContent === 'Nomination Intake Consolidation' || document.querySelector('#admin-task-title')?.textContent === 'Monitor voting');
+      await page.waitForFunction(() => document.querySelector('#admin-task-title')?.textContent === 'Review and consolidate' || document.querySelector('#admin-task-title')?.textContent === 'Monitor voting');
       await page.evaluate(() => {
         document.querySelector('#election-flow').scrollIntoView();
       });

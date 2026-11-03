@@ -120,6 +120,15 @@ export function updateVotingRound(
   return request<VotingRound>(`${roundsPath(electionId, positionId)}/${encodeURIComponent(roundId)}`, credentials, 'PUT', configuration);
 }
 
+export function deleteDraftVotingRound(
+  credentials: string,
+  electionId: string,
+  positionId: string,
+  roundId: string,
+): Promise<void> {
+  return request<void>(`${roundsPath(electionId, positionId)}/${encodeURIComponent(roundId)}`, credentials, 'DELETE');
+}
+
 function roundPath(electionId: string, positionId: string, roundId: string): string {
   return `${roundsPath(electionId, positionId)}/${encodeURIComponent(roundId)}`;
 }

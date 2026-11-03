@@ -5,7 +5,7 @@ import {
   streamNominationPresentation,
 } from '../../api/nominations';
 
-const neutralSnapshot: NominationPresentationSnapshot = { revealed: false, activeNames: [], events: [] };
+const neutralSnapshot: NominationPresentationSnapshot = { revealed: false, intakeOpen: false, listCreated: false, activeNames: [], events: [] };
 
 export default function NominationPresentationPage({ accessToken }: { accessToken: string }) {
   const [snapshot, setSnapshot] = useState(neutralSnapshot);
@@ -37,7 +37,7 @@ export default function NominationPresentationPage({ accessToken }: { accessToke
           if (!current) return;
           if (eventId) lastEventId = eventId;
           setSnapshot(next);
-          setConnection(next.revealed ? 'Live presentation' : 'Waiting for the administrator to reveal nominations');
+          setConnection(next.intakeOpen ? 'Live presentation · incoming names' : next.revealed ? 'Live presentation' : 'Waiting for the administrator to confirm the consolidated list');
         });
       } catch {
         if (current && !controller.signal.aborted) {
@@ -60,6 +60,19 @@ export default function NominationPresentationPage({ accessToken }: { accessToke
     };
   }, [accessToken]);
 
+  useEffect(() => {
+    const refreshTimer = window.setInterval(() => {
+      getNominationPresentation(accessToken).then((next) => {
+        setSnapshot(next);
+        setConnection(next.intakeOpen ? 'Live presentation · incoming names' : 'Live presentation');
+      }).catch(() => {
+        setSnapshot(neutralSnapshot);
+        setConnection('Presentation unavailable. Reconnecting…');
+      });
+    }, 2500);
+    return () => window.clearInterval(refreshTimer);
+  }, [accessToken]);
+
   return (
     <main className="nomination-presentation" aria-labelledby="presentation-title">
       <header className="presentation-header">
@@ -67,25 +80,25 @@ export default function NominationPresentationPage({ accessToken }: { accessToke
         <h1 id="presentation-title">Shared nominations</h1>
         <p className="presentation-connection" role="status" aria-live="polite">{connection}</p>
       </header>
-      {!snapshot.revealed ? (
-        <section className="presentation-neutral" aria-label="Nominations not revealed">
+      {!snapshot.intakeOpen && !snapshot.listCreated ? (
+        <section className="presentation-neutral" aria-label="Nominations not published">
           <span className="presentation-neutral-mark" aria-hidden="true" />
-          <h2>Nominations are not being shown</h2>
+          <h2>{snapshot.listCreated ? 'The consolidated list is not being shown' : 'Nominations are not being shown'}</h2>
         </section>
       ) : (
         <div className="presentation-content">
           <section aria-labelledby="presentation-list-title">
             <div className="presentation-section-heading">
-              <h2 id="presentation-list-title">Current list</h2>
+              <h2 id="presentation-list-title">{snapshot.intakeOpen ? 'Incoming names' : 'Current list'}</h2>
               <span>{snapshot.activeNames.length} {snapshot.activeNames.length === 1 ? 'name' : 'names'}</span>
             </div>
             {snapshot.activeNames.length ? (
               <ol className="presentation-name-list" aria-label="Current list">
                 {snapshot.activeNames.map((name, index) => <li key={`${index}-${name}`}>{name}</li>)}
               </ol>
-            ) : <p className="presentation-empty">No active names.</p>}
+            ) : <p className="presentation-empty">{snapshot.intakeOpen ? 'No names submitted yet.' : 'No active names.'}</p>}
           </section>
-          <section className="presentation-history" aria-labelledby="presentation-history-title">
+          {snapshot.revealed && <section className="presentation-history" aria-labelledby="presentation-history-title">
             <div className="presentation-section-heading">
               <h2 id="presentation-history-title">Confirmed changes</h2>
               <span>Chronological</span>
@@ -106,7 +119,7 @@ export default function NominationPresentationPage({ accessToken }: { accessToke
                 ))}
               </ol>
             ) : <p className="presentation-empty">No confirmed changes.</p>}
-          </section>
+          </section>}
         </div>
       )}
     </main>
