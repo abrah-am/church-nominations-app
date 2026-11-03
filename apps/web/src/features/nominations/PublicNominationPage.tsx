@@ -27,6 +27,7 @@ export default function PublicNominationPage({ accessToken }: { accessToken: str
   const keepNamesRef = useRef<HTMLButtonElement>(null);
   const withdrawConfirmRef = useRef<HTMLButtonElement>(null);
   const nameInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  const hasIntake = intake !== null;
 
   useEffect(() => {
     let isCurrent = true;
@@ -54,7 +55,7 @@ export default function PublicNominationPage({ accessToken }: { accessToken: str
   }, [accessToken, deviceToken, loadAttempt]);
 
   useEffect(() => {
-    if (!intake) return;
+    if (!hasIntake) return;
     const refreshTimer = window.setInterval(() => {
       getPublicNominationIntake(accessToken, deviceToken).then((loaded) => {
         const current = {
@@ -73,7 +74,7 @@ export default function PublicNominationPage({ accessToken }: { accessToken: str
       });
     }, 2500);
     return () => window.clearInterval(refreshTimer);
-  }, [accessToken, deviceToken, intake !== null]);
+  }, [accessToken, deviceToken, hasIntake]);
 
   function retryLoad() {
     setError('');

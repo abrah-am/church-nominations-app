@@ -32,7 +32,7 @@ This is a focused terminology and nomination-publication interaction follow-up t
 - Automatic presentation hiding when a poll starts; that is tracked separately in E4.7.
 
 ## Product Owner Direction (2026-11-02)
-- Use **Nomination Intake** for the intake stage and **Nomination Intake Consolidation** for the post-close editing stage.
+- Use **Nomination Intake** for the open intake section and **Review and consolidate** for the post-close editing task and section. After confirmation, label the read-only list **Consolidated list**.
 - During open intake, Show controls room presentation only. Participants receive no incoming names.
 - If the room is on at closure, the closed list publishes to participants at closure. If not, post-close Show publishes to both room and participant surfaces.
 - Hide after closure retracts the list from both viewer surfaces; Show republishes the server-confirmed current list.
