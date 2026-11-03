@@ -2,7 +2,7 @@
 
 ## Product Owner Acceptance and PR Preparation (2026-11-02)
 
-- **Acceptance:** Product Owner accepted E6.13 on 2026-11-02 after prototype review and application implementation. Story status is Accepted; this does not authorize merge or deployment.
+- **Approval:** Product Owner approved E6.13 on 2026-11-02 after prototype review and application implementation. Story status is Approved; this does not authorize merge or deployment.
 - **Final layout fix:** The **Edit consolidated list** and **Prepare round 1** action row is below both **Removed** and **Confirmed change history**, keeping the two supporting disclosures together.
 - **Independent review fixes:** A new post-close presentation Show is rejected server-side until consolidation is confirmed. An existing presentation that was already visible at closure continues to publish the closed list as approved. Active rounds suppress nomination snapshots from presentation and participant projections. Participant and presentation pages periodically refresh authoritative state so Hide, edits, or poll activation clear stale content in already-open tabs.
 - **Review-fix validation:** The focused API test `PostgresElectionIntegrationTest.adminCanReadAnonymousNominationNamesBeforeExplicitReveal` passed after adding direct-Show rejection and active-poll suppression assertions. Focused frontend tests for participant Hide refresh and the nomination-to-round workflow passed (2). The full API suite passed before the final test rearrangement, then the focused API test passed with the rearranged assertions. The active-poll assertion runs after list edits to respect draft/round lifecycle.

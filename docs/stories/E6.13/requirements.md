@@ -2,7 +2,7 @@
 
 - **Epic:** E6 Election Completion and History
 - **Priority:** P1 (proposed)
-- **Workflow status:** Accepted by Product Owner 2026-11-02; implementation complete; PR review and merge pending
+- **Workflow status:** Approved by Product Owner 2026-11-02; implementation complete; PR #26 open; merge pending
 - **User story:** As an administrator, I want the nomination workflow to identify the open intake and the post-close consolidation step with distinct, concise titles, so I can tell which stage I am managing.
 
 ## Acceptance Criteria
