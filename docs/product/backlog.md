@@ -8,9 +8,9 @@
 
 | ID | Epic | Story | Priority | Workflow status | Dependencies | Requirements |
 | --- | --- | --- | --- | --- | --- | --- |
-| E2.2 | E2 Nomination Workflow Clarity and Recovery | Preserve consolidation drafts on failure and navigation | P1 | Backlog | US-009 | [requirements](../stories/E2.2/requirements.md) |
-| E2.3 | E2 Nomination Workflow Clarity and Recovery | Explain roster lock and provide pre-draft edit path | P1 | Backlog | US-009, E2.2 | [requirements](../stories/E2.3/requirements.md) |
-| E3.1 | E3 Round Setup and Candidate Roster | Clarify roster source and valid selection count | P1 | Backlog | US-009, US-010; prior decisions | [requirements](../stories/E3.1/requirements.md) |
+| E2.2 | E2 Nomination Workflow Clarity and Recovery | Preserve consolidation drafts on failure and navigation | P1 | Backlog; refine against E6.13 confirmed-list and draft-rebuild flow; retain only unsatisfied save-failure recovery criteria | US-009, E6.13 | [requirements](../stories/E2.2/requirements.md) |
+| E2.3 | E2 Nomination Workflow Clarity and Recovery | Explain roster lock and provide pre-draft edit path | P1 | Backlog; verify remaining pre-draft edit/lock behavior against E6.13 before implementation | US-009, E6.13 | [requirements](../stories/E2.3/requirements.md) |
+| E3.1 | E3 Round Setup and Candidate Roster | Prepare round 1 from the confirmed nominee list | P1 (proposed) | Refinement and UX/implementation plan prepared for Product Owner approval; after **Prepare round 1**, focus the view on the poll roster, selection-count control, and **Start voting** while hiding/collapsing the consolidated-list review | E6.13, US-010; existing round-start confirmation | [requirements](../stories/E3.1/requirements.md) · [UX design](../stories/E3.1/ux-design.md) · [implementation plan](../stories/E3.1/implementation-plan.md) |
 | E3.2 | E3 Round Setup and Candidate Roster | Preview next-round roster from saved decisions | P1 | Backlog | US-012, E5.2 | [requirements](../stories/E3.2/requirements.md) |
 | E3.4 | E3 Round Setup and Candidate Roster | Make candidate rosters easy to review | P1 | Backlog | Round roster data; E7 target | [requirements](../stories/E3.4/requirements.md) |
 | E4.1 | E4 Ballot Operations | Explain expected voter count and cutoff before start | P1 | Backlog | Round start/configuration | [requirements](../stories/E4.1/requirements.md) |
@@ -21,14 +21,12 @@
 | E5.1 | E5 Results Review and Candidate Decisions | Make result rankings and recommendations easy to scan | P1 | Backlog | US-012; result access policy | [requirements](../stories/E5.1/requirements.md) |
 | E5.2 | E5 Results Review and Candidate Decisions | Show unsaved and failed candidate decisions | P1 | Backlog | Candidate decision API; audit policy | [requirements](../stories/E5.2/requirements.md) |
 | E5.3 | E5 Results Review and Candidate Decisions | Provide a reviewed-results handoff to the next round | P1 | Backlog | E3.2, E5.2 | [requirements](../stories/E5.3/requirements.md) |
-| E6.8 | E6 Election Completion and History | Present revealed session content with live nomination changes | P1 (high) | Backlog; presentation tab/API and event-history contract review pending | E6.9, E6.10, US-012 | [requirements](../stories/E6.8/requirements.md) |
-| E6.9 | E6 Election Completion and History | Review nominations, reveal, and share live list changes | P1 (high) | Product Owner accepted 2026-10-26; implementation and QA complete; push pending. Single-instance POC only; PD-005/E8.2 retention remains a production gate | US-008, E6.10; replaces separate refined-list step in US-009 | [requirements](../stories/E6.9/requirements.md) |
-| E6.13 | E6 Election Completion and History | Clarify nomination intake and consolidation stages | P1 (proposed) | Product Owner approved 2026-11-02; implementation complete; PR #26 open; full frontend suite has 3 known Annual Boards navigation failures | E6.9, E6.10, E6.11 | [requirements](../stories/E6.13/requirements.md) |
-| E6.12 | E6 Election Completion and History | Show a session QR code in the presentation view | P1 (high; future follow-up) | Future backlog; QR is not part of initial link delivery | E6.8, E6.11 | [requirements](../stories/E6.12/requirements.md) |
+| E6.8 | E6 Election Completion and History | Present revealed session content with live nomination changes | P1 (high) | Backlog; implement the read-only voting-results and elected-outcome presentation, coordinating nomination publication already delivered under E6.9/E6.13 | E6.9, E6.10, US-012 | [requirements](../stories/E6.8/requirements.md) |
+| E6.11 | E6 Election Completion and History | Reuse one participant link across an active session | P1 (high) | Backlog; stable session-level phase resolver and participant viewer remain unimplemented; API/security contract review required | US-008, US-011, US-012, E6.9, E6.10 | [requirements](../stories/E6.11/requirements.md) |
+| E6.12 | E6 Election Completion and History | Show a session QR code in the presentation view | P2 (proposed future follow-up) | Defer until E6.8 and E6.11 are implemented; QR is not required for initial link delivery | E6.8, E6.11 | [requirements](../stories/E6.12/requirements.md) |
 | E7.2 | E7 Accessibility and Responsive Administration | Audit and repair workflow semantics and keyboard access | P1 | Backlog | E7.1 | [requirements](../stories/E7.2/requirements.md) |
 | E7.3 | E7 Accessibility and Responsive Administration | Validate responsive layouts for core workflows | P1 | Backlog | E7.1; approved device matrix | [requirements](../stories/E7.3/requirements.md) |
-| US-014 | P1 Future Integration Discovery | Discover member directory integration | P1 | Discovery not started; integration is future scope | System of record and access decision | [requirements](../stories/US-014/requirements.md) |
-| US-015 | P0 Ballot Operations (legacy umbrella) | Private voting rounds POC | P0 | Local POC work reported; handoff remains WIP; no acceptance/merge recorded | US-007–US-012; overlaps granular E4/E5 stories | [requirements](../stories/US-015/requirements.md) |
+| US-014 | P1 Future Integration Discovery | Discover member directory integration | P2 (proposed future discovery) | Defer; integration is future scope and no system of record/access decision is approved | System of record and access decision | [requirements](../stories/US-014/requirements.md) |
 
 ## Defects / Follow-up
 
@@ -49,14 +47,12 @@
 | E6.2 | E6 Election Completion and History | Show completion status in election and position lists | P1 | Blocked | E6.1; E1.1/E1.2 | [requirements](../stories/E6.2/requirements.md) |
 | E6.3 | E6 Election Completion and History | Build navigable position history | P1 | Blocked by history access/privacy policy | E6.1, E6.4, E8.2 | [requirements](../stories/E6.3/requirements.md) |
 | E6.4 | E6 Election Completion and History | Define historical result and report access | P1 | Product/security decision needed | E8.2 | [requirements](../stories/E6.4/requirements.md) |
-| E6.5 | E6 Election Completion and History | Decide and design a results-only view for poll participants | P1 | Blocked by E6.4 | E6.4, E8.2 | [requirements](../stories/E6.5/requirements.md) |
 | E6.6 | E6 Election Completion and History | Confirm elected people and mark position openings filled | P1 | Product clarification needed | E6.1; candidate elected outcomes | [requirements](../stories/E6.6/requirements.md) |
 | E6.7 | E6 Election Completion and History | Handle declined offers and select a replacement path | P1 | Product clarification needed | E6.6; last-round results and candidate roster | [requirements](../stories/E6.7/requirements.md) |
-| E6.11 | E6 Election Completion and History | Reuse one participant link across an active session | P1 (high) | Policy approved; API/security contract review pending | US-008, US-011, US-012, E6.9, E6.10 | [requirements](../stories/E6.11/requirements.md) |
 | E7.1 | E7 Accessibility and Responsive Administration | Approve accessibility target and test approach | P1 | Product decision needed | Jurisdiction/device requirements | [requirements](../stories/E7.1/requirements.md) |
 | E8.1 | E8 Privacy, Audit, and Production Readiness | Resolve production identity and account lifecycle | P0 production | Production blocker | Identity, account and transport policy | [requirements](../stories/E8.1/requirements.md) |
 | E8.2 | E8 Privacy, Audit, and Production Readiness | Define privacy, participation, and retention policy | P0 production | Product/privacy decision needed | Privacy and retention inputs | [requirements](../stories/E8.2/requirements.md) |
-| E8.3 | E8 Privacy, Audit, and Production Readiness | Complete tenant and privacy security verification | P0 production | Partial POC coverage; production verification needed | US-002, E8.2, E6.4/E6.5 | [requirements](../stories/E8.3/requirements.md) |
+| E8.3 | E8 Privacy, Audit, and Production Readiness | Complete tenant and privacy security verification | P0 production | Partial POC coverage; production verification needed | US-002, E8.2, E6.4 | [requirements](../stories/E8.3/requirements.md) |
 | E8.4 | E8 Privacy, Audit, and Production Readiness | Define operational readiness and recovery | P0 production | Operations/Product Owner decision needed | Scale, hosting, privacy and retention | [requirements](../stories/E8.4/requirements.md) |
 | US-002 | P0 Security Foundation | Tenant data isolation | P0 | Partial local POC; full endpoint coverage not verified | Identity/membership; scoped guest links | [requirements](../stories/US-002/requirements.md) |
 | US-003 | P0 Security Foundation | Maintain church users and permissions | P0 | Partial local POC; production identity unresolved | US-002, US-004, US-005 | [requirements](../stories/US-003/requirements.md) |
@@ -73,9 +69,11 @@
 | E1.2 | E1 Election and Position Progress | Show position progress and next action | P1 | Accepted by Product Owner 2026-10-21; PR #5 merged (`a23033e`) | E1.1 concepts; position workflow data | [requirements](../stories/STORY-E1.2/requirements.md) |
 | E1.3 | E1 Election and Position Progress | Remove contradictory election setup notice | P1 | Closed; scope delivered by merged E1.1/E1.2; no separate implementation | E1.1, E1.2 | [requirements](../stories/E1.3/requirements.md) |
 | E9.1 | E9 Bootstrap UI Modernization | Establish Bootstrap 5 design foundation and shared components | P1 (proposed) | Closed by Product Owner 2026-11-01 as partially delivered/deferred. NAD theme and page-specific UI slices merged in PRs #18, #19, #21; original shared-primitives and accessibility/device acceptance scope is not fully complete. See closure handoff; no blanket accessibility-conformance claim. | E7.1/PD-009 accessibility target and supported browser/device matrix remain open; residual workflow changes stay in owning E2-E7 stories; E9.2 remains separate | [requirements](../stories/E9.1/requirements.md) |
-| E6.10 | E6 Election Completion and History | Approve session-link and presentation access policy | P1 (high) | Accepted by Product Owner 2026-10-23; policy recorded; no application implementation in scope | E6.4, E6.5, E8.2, PD-004, PD-006, PD-012 | [requirements](../stories/E6.10/requirements.md) |
-| E2.1 | E2 Nomination Workflow Clarity and Recovery | Make intake states and closure consequences clear | P1 | Accepted by Product Owner 2026-10-22; merge pending explicit authorization | US-008 | [requirements](../stories/E2.1/requirements.md) |
-| E2.5 | E2 Nomination Workflow Clarity and Recovery | Restore current position workflow state on revisit | P1 | Accepted by Product Owner 2026-11-01; implementation, focused QA, and review complete locally; full suite has 3 unrelated annual-board failures; merge authorization pending, so not marked Done | US-008, E2.1 | [requirements](../stories/E2.5/requirements.md) |
+| E6.10 | E6 Election Completion and History | Approve session-link and presentation access policy | P1 (high) | Accepted by Product Owner 2026-10-23; policy recorded; no application implementation in scope. Current-session policy does not decide historical-report access | E6.11, E6.8, E8.2, PD-004, PD-006, PD-012 | [requirements](../stories/E6.10/requirements.md) |
+| E6.13 | E6 Election Completion and History | Clarify nomination intake and consolidation stages | P1 | Product Owner approved 2026-11-02; implementation merged in PR #26 (`ef4b0bc`); known full-frontend-suite Annual Boards failures remain unrelated follow-up | E6.9, E6.10 | [requirements](../stories/E6.13/requirements.md) |
+| E6.9 | E6 Election Completion and History | Review nominations, reveal, and share live list changes | P1 (high) | Implemented and merged in PR #26 (`ef4b0bc`); single-instance POC only; PD-005/E8.2 retention and multi-instance coordination remain production gates | US-008, E6.10; replaces separate refined-list step in US-009 | [requirements](../stories/E6.9/requirements.md) |
+| E2.1 | E2 Nomination Workflow Clarity and Recovery | Make intake states and closure consequences clear | P1 | Accepted by Product Owner 2026-10-22; implemented and merged in PR #23 (`d015cec`) | US-008 | [requirements](../stories/E2.1/requirements.md) |
+| E2.5 | E2 Nomination Workflow Clarity and Recovery | Restore current position workflow state on revisit | P1 | Accepted by Product Owner 2026-11-01; implementation, QA, and review merged in PR #23 (`d015cec`); known full-frontend-suite Annual Boards failures are unrelated follow-up | US-008, E2.1 | [requirements](../stories/E2.5/requirements.md) |
 | US-001 | P0 Developer Foundation | Reproducible local database environment | P0 | Implemented locally; acceptance not recorded | Docker Compose, PostgreSQL, integration tests | [requirements](../stories/US-001/requirements.md) |
 | US-004 | POC Identity and Onboarding | Register an administrator account | P0 | Implemented for local demonstration; acceptance not recorded | Identity persistence; US-002 | [requirements](../stories/US-004/requirements.md) |
 | US-005 | POC Identity and Onboarding | Register a church | P0 | Implemented for local demonstration; acceptance not recorded | US-004, US-002 | [requirements](../stories/US-005/requirements.md) |
@@ -87,6 +85,23 @@
 | US-011 | P0 Ballot Operations | Cast or replace a private ballot | P0 | Implemented for local POC; acceptance not recorded | US-010, active scoped voting link | [requirements](../stories/US-011/requirements.md) |
 | US-012 | P0 Ballot Operations | Close and reveal a round | P0 | Implemented for local POC; acceptance not recorded | US-011 | [requirements](../stories/US-012/requirements.md) |
 
+## Archived / Superseded
+
+These records remain available for traceability but are not assignable active work. Reopen only if the Product Owner approves a materially different scope.
+
+| ID | Story | Disposition | Requirements |
+| --- | --- | --- | --- |
+| E6.5 | Decide and design a results-only view for poll participants | Current-session audience and publication behavior is decided by E6.10 and implemented through E6.13 follow-up. Historical access remains in E6.4/E8.2/US-013; no separate current-session design story is needed. | [requirements](../stories/E6.5/requirements.md) |
+| US-015 | Private voting rounds POC | Legacy implementation umbrella overlaps US-010–US-012 and E4/E5/E8; retain only as historical traceability. | [requirements](../stories/US-015/requirements.md) |
+
+## Proposed Stories
+
+Proposals are not approved or implementation-ready. Assign an ID and create detailed requirements only after Product Owner approval.
+
+| Proposed story | Problem / outcome | Suggested priority | Dependencies / decisions |
+| --- | --- | --- | --- |
+| Persist election terms and scope elections by term | Replace the prototype-only term chooser and Add period alert with persisted election years/terms, term-scoped election listing, and historical navigation. Define term fields, migration/assignment of existing elections, and how departments/positions relate before implementation. | P1 (proposed, if real term management is required) | Product Owner decision on term semantics; existing elections/data migration; US-007 |
+
 ## Product Outcome
 
 An administrator can onboard a church, establish its annual board, configure a department election with multiple positions/openings, collect and consolidate nominations, operate private voting rounds, and review aggregate outcomes without exposing voter-to-choice mappings. Current POC capability is a development baseline; production readiness and end-to-end acceptance remain outstanding.
@@ -97,3 +112,4 @@ An administrator can onboard a church, establish its annual board, configure a d
 - Do not mark a story Done without verified acceptance, required tests/reviews, and merge evidence per [development workflow](../development-workflow.md).
 - Approved cross-story policies are recorded in the story/technical source of truth; unresolved product-wide decisions are tracked in [product-decisions.md](product-decisions.md).
 - Preserve existing story IDs. Proposed `US-001`–`US-015` assignments are new identifiers for previously unnumbered work; E1–E8 identifiers are unchanged.
+- Keep superseded or closed requirements linked in the archive for traceability; do not delete story files as part of routine backlog cleanup.
