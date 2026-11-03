@@ -32,6 +32,6 @@ Make the transition from a confirmed nomination list to poll setup clear. After 
 
 The canonical flow is `docs/prototype/prototype.html`, where **Prepare round 1** changes from the confirmed roster task to the Round setup task with its candidate-selection count and **Start voting**. Match its state transition while following the approved E6.13 wording and current application conventions; the mock prototype itself is not a behavior or security authority.
 
-## Approval boundary
+## Approval Boundary
 
-This document describes a proposed refinement for Product Owner review. It does not approve implementation or alter the existing E6.13 product decisions.
+The Product Owner approved E3.1 implementation on 2026-11-03. A focused Round 1 setup component is acceptable provided lifecycle state and API behavior remain owned by the parent workflow; this does not alter the existing E6.13 product decisions.

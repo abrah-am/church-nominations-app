@@ -265,16 +265,17 @@ describe('voting round navigation', () => {
     expect(resetRequest?.[0]).not.toMatch(/\/reopen$/);
     expect(screen.queryByText('7 / 8')).not.toBeInTheDocument();
     expect(screen.queryByText('5 votes')).not.toBeInTheDocument();
-    expect(screen.getByRole('list', { name: 'Candidates advancing to this round' })).toHaveTextContent('Riley ChenMorgan Diaz');
+    expect(screen.getByRole('heading', { name: 'Round 1 setup' })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Candidates in this poll' })).toHaveTextContent('Riley ChenMorgan Diaz');
     expect(screen.getByText('Reset count: 1')).toBeInTheDocument();
-    expect(screen.getByLabelText('How many names can each ballot select?')).toHaveValue(null);
-    expect(screen.getByRole('button', { name: 'Start voting' })).toBeDisabled();
+    expect(screen.getByLabelText('How many candidates can each ballot select?')).toHaveValue(null);
+    expect(screen.getByRole('button', { name: 'Start Voting' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Cancel and rebuild draft' })).toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText('How many names can each ballot select?'), { target: { value: '1' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save round setup' }));
-    expect(await screen.findByText('Draft round configuration saved.')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('How many candidates can each ballot select?'), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Start Voting' }));
+    expect(await screen.findByRole('dialog', { name: 'Start voting for round 1?' })).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([url, options]) => String(url).endsWith('/round-1') && options?.method === 'PUT' && options.body === JSON.stringify({ candidateNames: ['Riley Chen', 'Morgan Diaz'], selectionCount: 1 }))).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Start voting' }));
     expect(screen.getByLabelText('Expected voter count')).toHaveValue(null);
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Start voting for round 1?' })).getByRole('button', { name: 'Cancel' }));
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/round-1/reopen'))).toBe(false);
@@ -1252,7 +1253,7 @@ describe('election administration', () => {
     let intakeState: NominationIntake = openIntake;
     let intakeExists = false;
     const workflowResponses = [
-      response({}, 500), response(createdDraft, 201), response(updatedDraft), response(activeRound),
+      response({}, 500), response(createdDraft, 201), response(updatedDraft), response({}, 500), response(activeRound),
       response({}, 404), response(revealedResults), response(decidedResults), response(eliminatedResults),
       response(undoneResults), response(electedResults),
       response({ id: 'round-2', roundNumber: 2, status: 'DRAFT', selectionCount: 1, candidates: [{ id: 'candidate-1-round-2', name: 'Riley Chen', sequence: 1 }] }, 201),
@@ -1392,15 +1393,15 @@ describe('election administration', () => {
     expect(await screen.findByRole('button', { name: 'Prepare round 1' })).toBeInTheDocument();
     expect(viewerLocation.assign).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Prepare round 1' }));
-    expect(screen.getByRole('heading', { name: 'Voting round configuration' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Round 1 setup' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Round 1 setup' })).toHaveFocus();
+    expect(document.querySelector('.workflow-stage-group')).toHaveClass('is-intake-closed', 'is-round-setup-primary');
+    expect(document.querySelector('.voting-round-configuration')).toHaveClass('is-first-round-setup');
+    expect(screen.queryByRole('list', { name: 'Confirmed consolidated list' })).not.toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Candidates in this poll' })).toHaveTextContent('Morgan Diaz Jr.Riley Chen');
+    expect(screen.getByRole('button', { name: 'Start Voting' })).toBeEnabled();
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
-    const configurationDisclosure = screen.getAllByText(/Voting round configuration/)[0].closest('details');
-    expect(configurationDisclosure).toHaveAttribute('open');
-    const configurationSummary = configurationDisclosure?.querySelector('summary');
-    fireEvent.click(configurationSummary as HTMLElement);
-    expect(configurationDisclosure).not.toHaveAttribute('open');
-    fireEvent.click(configurationSummary as HTMLElement);
-    expect(configurationDisclosure).toHaveAttribute('open');
+    expect(screen.getByRole('region', { name: 'Round 1 setup' }).closest('.voting-round-configuration')).toHaveClass('is-first-round-setup');
     const closeRequest = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/nominations/close'));
     const revealRequest = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/nominations/reveal'));
     const presentationRequest = fetchMock.mock.calls.find(([url, options]) => String(url).endsWith('/nominations/presentation') && options?.method === 'POST');
@@ -1430,37 +1431,42 @@ describe('election administration', () => {
       ], removals: [] }),
     });
 
-    expect(await screen.findByRole('heading', { name: 'Voting round configuration' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Round 1 setup' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'People on the ballot' })).toBeInTheDocument();
+    expect(screen.getByText('Round 1 · candidate roster')).toBeInTheDocument();
     const roundListRequest = fetchMock.mock.calls.find(([url, options]) => String(url).endsWith('/positions/position-1/rounds') && options?.method === 'GET');
     expect(roundListRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
     expect(roundListRequest?.[1].method).toBe('GET');
-    expect(screen.getByLabelText('How many names can each ballot select?')).toHaveValue(2);
+    expect(screen.getByLabelText('How many candidates can each ballot select?')).toHaveValue(2);
             expect(screen.queryByText('Candidates for this round')).not.toBeInTheDocument();
             expect(screen.getByRole('list', { name: 'Candidates in this poll' })).toHaveTextContent('Morgan Diaz Jr.Riley Chen');
-    fireEvent.change(screen.getByLabelText('How many names can each ballot select?'), { target: { value: '2' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save round setup' }));
+    fireEvent.change(screen.getByLabelText('How many candidates can each ballot select?'), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Start Voting' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('HTTP 500');
-    expect(screen.getByRole('button', { name: 'Save round setup' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Save round setup' }));
-    expect(await screen.findByText('Draft round configuration saved.')).toBeInTheDocument();
+    expect(await screen.findByText('The request failed (HTTP 500).', { selector: '[role="alert"]' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Round 1 setup' })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Candidates in this poll' })).toHaveTextContent('Morgan Diaz Jr.Riley Chen');
+    expect(screen.getByLabelText('How many candidates can each ballot select?')).toHaveValue(1);
+    expect(screen.queryByRole('list', { name: 'Confirmed consolidated list' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start Voting' })).toBeEnabled();
+    fireEvent.change(screen.getByLabelText('How many candidates can each ballot select?'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Start Voting' }));
+    expect(await screen.findByRole('dialog', { name: 'Start voting for round 1?' })).toBeInTheDocument();
     const createRoundRequests = fetchMock.mock.calls.filter(([url, options]) => String(url).endsWith('/positions/position-1/rounds') && options?.method === 'POST');
     expect(createRoundRequests[0]?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
-    expect(createRoundRequests[0]?.[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ candidateNames: ['Morgan Diaz Jr.', 'Riley Chen'], selectionCount: 2 }) });
+    expect(createRoundRequests[0]?.[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ candidateNames: ['Morgan Diaz Jr.', 'Riley Chen'], selectionCount: 1 }) });
     expect(createRoundRequests[1]?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
     expect(createRoundRequests[1]?.[1]).toMatchObject({
       method: 'POST',
       body: JSON.stringify({ candidateNames: ['Morgan Diaz Jr.', 'Riley Chen'], selectionCount: 2 }),
     });
-            expect(screen.getByText('Draft round 1: allows 2 selections from 2 candidates.')).toBeInTheDocument();
+              expect(screen.getByRole('button', { name: 'Start Voting' })).toBeEnabled();
+              expect(screen.queryByRole('list', { name: 'Confirmed consolidated list' })).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('How many names can each ballot select?'), { target: { value: '1' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save round setup' }));
-            expect(await screen.findByText('Draft round 1: allows 1 selection from 2 candidates.')).toBeInTheDocument();
-    const initialRoundDisclosure = screen.getAllByText('Round 1')[0].closest('details');
-    expect(initialRoundDisclosure).not.toHaveAttribute('open');
-    fireEvent.click(initialRoundDisclosure?.querySelector('summary') as HTMLElement);
-    expect(initialRoundDisclosure).toHaveAttribute('open');
+    fireEvent.change(screen.getByLabelText('How many candidates can each ballot select?'), { target: { value: '1' } });
+              fireEvent.click(screen.getByRole('button', { name: 'Start Voting' }));
+              expect(await screen.findByRole('dialog', { name: 'Start voting for round 1?' })).toBeInTheDocument();
+              expect(screen.getByLabelText('How many candidates can each ballot select?')).toHaveValue(1);
     const updateRoundRequest = fetchMock.mock.calls.find(([url, options]) => String(url).endsWith('/rounds/round-1') && options?.method === 'PUT');
     expect(updateRoundRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds/round-1');
     expect(updateRoundRequest?.[1]).toMatchObject({
@@ -1468,21 +1474,33 @@ describe('election administration', () => {
       body: JSON.stringify({ candidateNames: ['Morgan Diaz Jr.', 'Riley Chen'], selectionCount: 1 }),
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start voting' }));
     expect(screen.getByRole('dialog', { name: 'Start voting for round 1?' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Expected voter count')).toHaveFocus();
+    fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+    expect(screen.getByRole('button', { name: 'Confirm and start' })).toHaveFocus();
+    fireEvent.keyDown(window, { key: 'Tab' });
+    expect(screen.getByLabelText('Expected voter count')).toHaveFocus();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.getByText('Draft round 1: allows 1 selection from 2 candidates.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Round 1 setup' })).toBeInTheDocument();
+    expect(screen.getByLabelText('How many candidates can each ballot select?')).toHaveValue(1);
+    expect(screen.getByRole('button', { name: 'Start Voting' })).toHaveFocus();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start voting' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start Voting' }));
     const expectedVoterInput = screen.getByLabelText('Expected voter count');
     fireEvent.change(expectedVoterInput, { target: { value: '16' } });
     expect(screen.getByText(/automatically close after 15 ballots/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm and start' }));
+    expect(await within(screen.getByRole('dialog', { name: 'Start voting for round 1?' })).findByRole('alert')).toHaveTextContent('The request failed (HTTP 500).');
+    expect(screen.getByLabelText('Expected voter count')).toHaveValue(16);
+    expect(screen.getByRole('heading', { name: 'Round 1 setup' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Confirm and start' }));
     const startRoundRequest = fetchMock.mock.calls.find(([url, options]) => String(url).endsWith('/rounds/round-1/start') && options?.method === 'POST');
     expect(startRoundRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds/round-1/start');
     expect(startRoundRequest?.[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ expectedVoterCount: 16 }) });
     expect(await screen.findByText(/Voting is active\. Share the private ballot link/)).toBeInTheDocument();
+    const activeRoundDisclosure = document.getElementById('round-round-1');
+    fireEvent.click(activeRoundDisclosure?.querySelector('summary') as HTMLElement);
     expect(await screen.findByText('Ballots submitted: 7 of 16 expected')).toBeInTheDocument();
     const progressMessage = screen.getByText('Ballots submitted: 7 of 16 expected').parentElement;
     expect(progressMessage).toHaveTextContent('not as verified people');
@@ -1902,6 +1920,53 @@ describe('election administration', () => {
       { id: 'shared-1', name: 'Alex Kim', sequence: 1, active: true },
       { id: 'shared-3', name: 'Riley Chen Jr.', sequence: 3, active: true },
     ], removals: [] }) });
+  });
+
+  it('reloads a round 1 draft into focused setup and cancels back to the confirmed list', async () => {
+    const revealedIntake = {
+      id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'CLOSED', listCreated: true, revealed: true,
+      currentContributorCount: 2, sharedListRevision: 4, submissions: [], consolidatedNames: ['Riley Chen', 'Morgan Diaz'],
+      sharedList: [
+        { id: 'shared-1', name: 'Riley Chen', sequence: 1, active: true },
+        { id: 'shared-2', name: 'Morgan Diaz', sequence: 2, active: true },
+      ], removedEntries: [], changeEvents: [],
+    };
+    const draft = {
+      id: 'round-1', roundNumber: 1, status: 'DRAFT', selectionCount: 1, nominationRevision: 4,
+      candidates: [
+        { id: 'candidate-1', name: 'Riley Chen', sequence: 1 },
+        { id: 'candidate-2', name: 'Morgan Diaz', sequence: 2 },
+      ],
+    };
+    const fetchMock = signedInFetch([church], [election]);
+    fetchMock.mockImplementation(async (url, options) => {
+      const requestUrl = String(url);
+      if (requestUrl === 'http://localhost:8080/api/auth/me') return response(account);
+      if (requestUrl === 'http://localhost:8080/api/churches/my') return response([church]);
+      if (requestUrl === 'http://localhost:8080/api/elections') return response([election]);
+      if (requestUrl === 'http://localhost:8080/api/elections/election-1') return response(election);
+      if (requestUrl.endsWith('/nominations') && options?.method === 'GET') return response(revealedIntake);
+      if (requestUrl.endsWith('/nominations/stream')) return eventStreamResponse([`event: intake\ndata: ${JSON.stringify(revealedIntake)}\n\n`]);
+      if (requestUrl.endsWith('/rounds') && options?.method === 'GET') return response([draft]);
+      if (requestUrl.endsWith('/rounds/round-1') && options?.method === 'DELETE') return response(null);
+      return response({}, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue election: Treasurer' }));
+
+    expect(await screen.findByRole('heading', { name: 'Round 1 setup' })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Candidates in this poll' })).toHaveTextContent('Riley ChenMorgan Diaz');
+    expect(screen.queryByRole('list', { name: 'Confirmed consolidated list' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel and rebuild draft' }));
+
+    expect(await screen.findByRole('button', { name: 'Prepare round 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Prepare round 1' })).toHaveFocus();
+    expect(screen.getByRole('list', { name: 'Confirmed consolidated list' })).toHaveTextContent('Riley ChenMorgan Diaz');
+    expect(screen.queryByRole('heading', { name: 'Round 1 setup' })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([url, options]) => String(url).endsWith('/rounds/round-1') && options?.method === 'DELETE')).toBe(true);
   });
 
   it('confirms nominations without opening a presentation tab', async () => {

@@ -1,6 +1,6 @@
 # E3.1 Implementation Plan: Prepare Round 1
 
-**Status:** Proposed; Product Owner approval required before implementation.
+**Status:** Product Owner approved 2026-11-03; implementation complete, QA and independent review in progress.
 
 ## Objective
 
@@ -13,18 +13,19 @@ After **Prepare round 1**, present a focused poll-setup view containing only the
 - The API already supports saving a draft round, loading its roster, guarded draft deletion, and starting through the expected-voter confirmation. Reuse these contracts; no API change is expected.
 - `docs/prototype/prototype.html` provides the state transition reference: confirmed roster, then a focused Round setup task with candidate count control and **Start voting**.
 
-## Proposed steps
+## Implementation completed
 
-1. Add a focused frontend test for the pre-prepare state, asserting the confirmed consolidated list is visible and the round setup roster is not.
-2. Add a transition test for **Prepare round 1**, asserting the consolidated-list review content is hidden/collapsed and the exact poll roster, selection-count control, and start/cancel actions are visible.
-3. Implement the smallest state-driven rendering change in `NominationAdminPanel.tsx`; retain existing candidate source, default selection count, draft persistence, stale-roster guard, and cancellation semantics.
-4. Verify saved-draft reload and returning to the view preserve the focused setup state when a first-round draft exists; do not make a draft appear as nomination setup.
-5. Add or adjust error-state coverage to verify roster and entered selection count remain visible on save/start failure.
-6. Validate keyboard/focus behavior and narrow viewport layout against the approved accessibility target/device matrix when available. Do not claim formal conformance while E7.1 is unresolved.
+1. Extracted shared round-poll setup presentation into `RoundPollSetup.tsx`; lifecycle state and API calls remain in `NominationAdminPanel.tsx`. Round 1 supplies its own heading and cancel action labels.
+2. Hide the confirmed-list review while Round 1 setup is active and render the unchanged server-confirmed candidate order with candidate count.
+3. Keep the start action visible and gate it on a valid, saved, current draft; preserve the expected-voter confirmation and cutoff warning.
+4. Preserve draft reload, guarded cancel/rebuild, focus restoration, and selection input after save/start failures. Failed start errors are announced in the open confirmation dialog.
+5. Add frontend coverage for setup visibility, retry after save and start failures, draft reload, cancellation, and existing start confirmation.
+6. Add narrow-layout wrapping and focus handling; formal accessibility conformance remains outside scope while E7.1 is unresolved.
 
 ## Acceptance verification
 
-- Run focused `App.test.tsx` cases for first-round preparation, draft save/start, cancel/rebuild, and failure recovery.
+- Focused E3.1 `App.test.tsx` run: 2 passed.
+- Run the full frontend test suite and record known baseline failures separately.
 - Run the full frontend test suite and record known baseline failures separately.
 - Run `npm run lint` and `npm run build` in `apps/web`.
 - Capture a new desktop and narrow viewport screenshot without overwriting existing approved prototype or review evidence.
@@ -36,4 +37,4 @@ After **Prepare round 1**, present a focused poll-setup view containing only the
 - Preserve the stale-draft guard when nomination data changes; do not permit starting an outdated roster.
 - Do not alter nomination publication, participant link routing, ballot behavior, expected voter count, cutoff policy, reveal policy, or persistence.
 - Starting voting must continue through the existing expected-voter confirmation and server-authoritative lifecycle transition.
-- This plan is not implementation approval. The backlog's P1 priority remains proposed pending Product Owner approval.
+- Product Owner approval covers implementation scope only. The backlog's P1 priority remains proposed and unchanged.
