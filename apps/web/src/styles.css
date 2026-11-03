@@ -259,8 +259,11 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .workflow-stage-group.is-intake-closed { margin-bottom: 0; padding: 18px 20px 0; border: 1px solid #cbd8cc; border-bottom: 0; border-radius: 4px 4px 0 0; background: #fff; }
 .workflow-stage-group.is-intake-closed .guided-workflow { margin: 0; padding: 0 0 14px; border: 0; border-radius: 0; background: transparent; }
 .workflow-stage-group.is-intake-closed .workflow-presentation-control { display: none; }
+.workflow-stage-group.is-intake-closed.is-round-setup-primary { margin-bottom: 0; padding-bottom: 0; border-bottom: 0; border-radius: 4px 4px 0 0; }
 .position-workflow-grid.is-intake-closed { grid-template-columns: minmax(0, 1fr); gap: 0; }
 .position-workflow-grid.is-intake-closed .position-workflow-main { width: 100%; }
+.position-workflow-grid.is-round-setup-primary { grid-template-columns: minmax(0, 1fr); gap: 0; }
+.position-workflow-grid.is-round-setup-primary .position-workflow-main { width: 100%; }
 .closed-review-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 18px; padding-top: 13px; border-top: 1px solid var(--line); }
 .closed-review-message { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.5; }
 .closed-review-message:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
@@ -420,7 +423,9 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .confirmation-label { display: flex; align-items: flex-start; gap: 10px; margin-top: 16px; cursor: pointer; line-height: 1.5; }
 .confirmation-label input { width: 17px; min-height: 17px; flex: 0 0 auto; margin: 1px 0 0; accent-color: var(--green); }
 .confirmation-label span { font-size: 12px; }
-.voting-round-configuration { max-width: 680px; margin-top: 30px; padding-top: 23px; border-top: 1px solid var(--line); }
+.voting-round-configuration { max-width: 100%; margin-top: 30px; padding-top: 23px; border-top: 1px solid var(--line); }
+.voting-round-configuration.is-first-round-setup { width: 100%; margin-top: 0; padding: 18px 24px 24px; border: 1px solid #cbd8cc; border-top: 0; border-radius: 0 0 4px 4px; background: #fff; }
+.voting-round-configuration.is-first-round-setup > summary { display: none; }
 .voting-round-configuration .section-heading { margin-bottom: 14px; }
 .workflow-details > summary { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; color: var(--ink); cursor: pointer; font-family: var(--font-display); font-size: 13px; font-weight: 700; list-style-position: inside; }
 .workflow-details > summary span { color: var(--muted); font-family: inherit; font-size: 11px; font-weight: 500; text-align: right; }
@@ -443,6 +448,18 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .result-details > summary { min-height: 38px; }
 .saved-round-summary { padding: 12px 14px; border-left: 3px solid var(--green); background: var(--surface); }
 .round-configuration-form { display: grid; gap: 9px; }
+.round-poll-setup { display: grid; min-width: 0; width: 100%; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
+.round-poll-setup-controls { display: grid; min-width: 0; gap: 10px; }
+.round-poll-setup h3 { margin: 0 0 4px; font-size: 1rem; }
+.round-poll-setup h3:focus-visible { outline: 2px solid var(--green); outline-offset: 4px; }
+.round-poll-setup .form-actions { justify-content: flex-start; flex-wrap: wrap; gap: 9px; margin-top: 10px; padding-top: 0; border-top: 0; }
+.round-poll-selection-input { width: min(100%, 112px); min-height: 42px; }
+.round-poll-setup-roster { width: 100%; min-width: 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+.round-poll-setup-roster .eyebrow { margin-bottom: 8px; }
+.round-poll-setup-roster h4 { margin: 0 0 8px; font-family: var(--font-display); font-size: 1.15rem; }
+.round-poll-setup-roster > .form-note { margin: 0; }
+.round-poll-setup-roster ol { margin: 14px 0 0; padding: 0; border-top: 1px solid var(--line); list-style: none; }
+.round-poll-setup-roster li { min-height: 47px; display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); font-weight: 650; overflow-wrap: anywhere; }
 .round-candidate-roster { display: grid; gap: 8px; padding: 12px 14px; border-left: 3px solid var(--green); background: var(--surface); }
 .round-candidate-roster ul { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding-left: 18px; color: var(--ink); font-size: 13px; }
 .round-candidate-roster .secondary-button { justify-self: start; margin-top: 4px; }
@@ -556,6 +573,8 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
   .consolidation-complete .shared-nomination-row { grid-template-columns: minmax(0, 1fr) auto auto; }
   .consolidation-complete .shared-nomination-row > input { grid-column: auto; min-width: 0; }
   .position-workflow-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .round-poll-setup { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .round-poll-setup-roster { padding: 15px; }
   .workflow-stage-group.is-intake-setup { padding: 15px; }
   .workflow-stage-action .primary-button { width: 100%; }
   .position-roster-panel { padding: 15px; }
@@ -595,6 +614,7 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
   .intake-controls, .share-controls { grid-template-columns: 1fr; }
   .intake-controls button { justify-self: start; }
   .intake-summary { grid-template-columns: 1fr; }
+  .voting-round-configuration.is-first-round-setup { padding: 16px; }
   .intake-summary > div:first-child { grid-column: auto; }
   .intake-controls button, .share-controls button { justify-self: start; }
 }

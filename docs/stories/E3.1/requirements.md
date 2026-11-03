@@ -2,7 +2,7 @@
 
 - **Epic:** E3 Round Setup and Candidate Roster
 - **Priority:** P1 (proposed)
-- **Workflow status:** Proposed refinement for Product Owner review; implementation not approved
+- **Workflow status:** Implementation approved by Product Owner 2026-11-03; P1 priority remains proposed
 - **User story:** As an election administrator, I want **Prepare round 1** to replace the consolidated-list view with the exact poll roster and selection-count controls, so I can verify who will be included and start voting confidently.
 
 ## Acceptance Criteria

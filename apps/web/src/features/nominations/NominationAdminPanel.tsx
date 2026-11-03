@@ -41,6 +41,7 @@ import {
 import { getCandidateRecommendation } from '../elections/candidateRecommendations';
 import { AudiencePresentationCard } from '../../components/AudiencePresentationCard';
 import { ParticipantSessionLinkCard } from '../../components/ParticipantSessionLinkCard';
+import RoundPollSetup from './RoundPollSetup';
 
 export type NominationAdminPanelProps = {
 	credentials: string;
@@ -100,6 +101,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	const [firstRoundPrepared, setFirstRoundPrepared] = useState(false);
 	const [sharedListEditing, setSharedListEditing] = useState(false);
 	const [focusClosedStatus, setFocusClosedStatus] = useState(false);
+	const [focusPrepareRound, setFocusPrepareRound] = useState(false);
 	const [rounds, setRounds] = useState<VotingRound[]>([]);
 	const [draftRoundId, setDraftRoundId] = useState<string | null>(null);
 	const [selectionCount, setSelectionCount] = useState('');
@@ -126,6 +128,11 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	const lifecycleChangeRef = useRef(onLifecycleChange);
 	const closeTriggerRef = useRef<HTMLButtonElement>(null);
 	const closeButtonRef = useRef<HTMLButtonElement>(null);
+	const prepareRoundButtonRef = useRef<HTMLButtonElement>(null);
+	const startDialogTriggerRef = useRef<HTMLElement | null>(null);
+	const startDialogCompletedRef = useRef(false);
+	const expectedVoterInputRef = useRef<HTMLInputElement>(null);
+	const startSuccessRef = useRef<HTMLParagraphElement>(null);
 	const keepIntakeOpenRef = useRef<HTMLButtonElement>(null);
 		const removeDialogRef = useRef<HTMLElement>(null);
 	const closedStatusRef = useRef<HTMLParagraphElement>(null);
@@ -193,6 +200,44 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setFocusClosedStatus(false);
 		}
 	}, [focusClosedStatus]);
+	useEffect(() => {
+		if (focusPrepareRound) {
+			prepareRoundButtonRef.current?.focus();
+			setFocusPrepareRound(false);
+		}
+	}, [focusPrepareRound]);
+	useEffect(() => {
+		if (!startRoundId) {
+			if (startDialogTriggerRef.current) {
+				if (startDialogCompletedRef.current) startSuccessRef.current?.focus();
+				else startDialogTriggerRef.current.focus();
+				startDialogTriggerRef.current = null;
+				startDialogCompletedRef.current = false;
+			}
+			return;
+		}
+		if (!startDialogTriggerRef.current && document.activeElement instanceof HTMLElement) {
+			startDialogTriggerRef.current = document.activeElement;
+		}
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.key !== 'Tab') return;
+			const controls = Array.from(document.querySelectorAll<HTMLElement>(
+				'.confirmation-dialog[aria-labelledby="start-voting-title"] button:not([disabled]), .confirmation-dialog[aria-labelledby="start-voting-title"] input:not([disabled])',
+			));
+			if (controls.length === 0) return;
+			const first = controls[0];
+			const last = controls[controls.length - 1];
+			if (event.shiftKey && document.activeElement === first) {
+				event.preventDefault();
+				last.focus();
+			} else if (!event.shiftKey && document.activeElement === last) {
+				event.preventDefault();
+				first.focus();
+			}
+		};
+		window.addEventListener('keydown', handleKeyDown);
+		return () => window.removeEventListener('keydown', handleKeyDown);
+	}, [startRoundId]);
 	const confirmedNames = intake?.status === 'CLOSED' && Array.isArray(intake.consolidatedNames)
 		? intake.consolidatedNames
 		: [];
@@ -203,6 +248,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	const hasActiveRound = Boolean(activeRound);
 	const activeRoundIdsKey = rounds.filter((round) => round.status === 'ACTIVE').map((round) => round.id).join(',');
 	const draftRound = rounds.find((round) => round.id === draftRoundId);
+	const firstRoundSetupVisible = !hasActiveRound && (draftRound?.roundNumber === 1 && draftRound.status === 'DRAFT' || firstRoundPrepared && !draftRound && rounds.length === 0);
 	const firstRoundDraftStale = Boolean(draftRound?.roundNumber === 1 && intake
 		&& draftRound.nominationRevision !== intake.sharedListRevision);
 	const latestRound = [...rounds].sort((first, second) => first.roundNumber - second.roundNumber)[rounds.length - 1];
@@ -543,7 +589,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	}
 
 	async function cancelAndRebuildFirstRound() {
-		if (!credentials || !draftRound || draftRound.roundNumber !== 1 || draftRound.status !== 'DRAFT') return;
+		if (!credentials || !draftRound || draftRound.roundNumber !== 1 || draftRound.status !== 'DRAFT' || (draftRound.resetCount ?? 0) > 0) return;
 		setRoundsSaving(true);
 		setRoundsError('');
 		try {
@@ -553,6 +599,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setSelectionCount('');
 			setSelectionCountBaseline('');
 			setFirstRoundPrepared(false);
+			setFocusPrepareRound(true);
 			setRoundsSuccess('Draft cancelled. The confirmed list is ready to rebuild.');
 			onLifecycleChange();
 		} catch (requestError) {
@@ -755,18 +802,22 @@ export default function NominationAdminPanel({ credentials, electionId, position
 
 	async function saveRoundConfiguration(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		if (!hasSavedSnapshot) return;
+		await persistRoundConfiguration();
+	}
+
+	async function persistRoundConfiguration(): Promise<VotingRound | null> {
+		if (!hasSavedSnapshot) return null;
 		const candidateNames = candidateOptions;
 		const requestedSelectionCount = Number(selectionCount);
 		if (!Number.isInteger(requestedSelectionCount) || requestedSelectionCount < 1 || requestedSelectionCount > candidateNames.length) {
 			setRoundsError('Enter a selection count from 1 through the number of candidates in this round.');
 			setRoundsSuccess('');
-			return;
+			return null;
 		}
 		if (candidateNames.length === 0) {
 			setRoundsError('No candidates are available for this round.');
 			setRoundsSuccess('');
-			return;
+			return null;
 		}
 
 		setRoundsSaving(true);
@@ -784,17 +835,36 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setSelectionCountBaseline(String(saved.selectionCount));
 			setRoundsSuccess('Draft round configuration saved.');
 			onLifecycleChange();
+			return saved;
 		} catch (requestError) {
 			setRoundsError(requestError instanceof RoundsApiError || requestError instanceof Error
 				? requestError.message
 				: 'Could not save the draft round configuration.');
+			return null;
 		} finally {
 			setRoundsSaving(false);
 		}
 	}
 
+	async function saveAndOpenStartDialog(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		if (roundsSaving || roundsLoading) return;
+		if (draftRound && draftRound.roundNumber === 1 && !firstRoundDraftStale
+			&& Number.isInteger(Number(selectionCount))
+			&& Number(selectionCount) >= 1
+			&& Number(selectionCount) <= candidateOptions.length
+			&& selectionCount === selectionCountBaseline
+			&& draftRound.selectionCount === Number(selectionCount)) {
+			openStartDialog(draftRound);
+			return;
+		}
+		const saved = await persistRoundConfiguration();
+		if (saved?.roundNumber === 1 && saved.selectionCount !== null) openStartDialog(saved);
+	}
+
 	function openStartDialog(round: VotingRound) {
 		if (round.selectionCount === null) return;
+		startDialogCompletedRef.current = false;
 		const mostRecentCount = [...rounds]
 			.filter((item) => Number.isInteger(item.expectedVoterCount) && Number(item.expectedVoterCount) > 0)
 			.sort((first, second) => second.roundNumber - first.roundNumber)[0]?.expectedVoterCount;
@@ -817,6 +887,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			const active = await startVotingRound(credentials, electionId, positionId, startRoundId, count);
 			setRounds((current) => current.map((round) => round.id === active.id ? active : round));
 			setDraftRoundId(null);
+			startDialogCompletedRef.current = true;
 			setStartRoundId(null);
 			setRoundsSuccess('Voting is active. Share the private ballot link with voters.');
 			onLifecycleChange();
@@ -1065,7 +1136,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					{presentationError && <p className="error-message" role="alert">{presentationError}</p>}
 				</AudiencePresentationCard>
 			</section>
-			<div className={`workflow-stage-group${!intake ? ' is-intake-setup' : ''}${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}`}>
+			<div className={`workflow-stage-group${!intake ? ' is-intake-setup' : ''}${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}${firstRoundSetupVisible ? ' is-round-setup-primary' : ''}`}>
 			<section className="guided-workflow" aria-label="Position workflow progress">
 				<div className="guided-workflow-task" aria-live="polite" aria-atomic="true">
 					<p className="eyebrow">Position workflow</p>
@@ -1115,7 +1186,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 				<div className="position-roster-empty">No candidates yet.</div>
 				<span className="position-opening-count">{openingCount} {openingCount === 1 ? 'opening' : 'openings'}</span>
 			</aside>}
-			{isExpanded && !isLoading && intake?.status === 'CLOSED' && (
+			{isExpanded && !isLoading && intake?.status === 'CLOSED' && !firstRoundSetupVisible && (
 				<section className="closed-review-summary" aria-label="Closed nomination review">
 					<p ref={closedStatusRef} tabIndex={-1} className="closed-review-message" role="status" aria-live="polite" aria-atomic="true">
 						{intake.revealed
@@ -1146,7 +1217,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 				</section>
 			)}
 			</div>
-			<div className={`position-workflow-grid${!intake ? ' is-intake-setup' : ''}${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}`}>
+			<div className={`position-workflow-grid${!intake ? ' is-intake-setup' : ''}${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}${firstRoundSetupVisible ? ' is-round-setup-primary' : ''}`}>
 				<div className="position-workflow-main">
 			{closeDialogOpen && (
 				<div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCloseDialogOpen(false); }}>
@@ -1177,7 +1248,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					</section>
 				</div>
 			)}
-			{isExpanded && !isLoading && intake?.status === 'CLOSED' && intake.listCreated && (
+			{isExpanded && !isLoading && intake?.status === 'CLOSED' && intake.listCreated && !firstRoundSetupVisible && (
 				<section ref={sharedListSectionRef} className="workflow-details consolidation-details">
 					<div className="consolidation-list-heading">
 						<h3>{intake.revealed ? 'Consolidated list' : 'Review and consolidate'}</h3>
@@ -1222,7 +1293,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 						{confirmedChangeEvents.length > 0 && <details className="admin-change-history"><summary>Confirmed change history ({confirmedChangeEvents.length})</summary><ol>{confirmedChangeEvents.map((event) => <li key={event.id}><span>{event.action === 'CORRECTED' ? `${event.beforeName} → ${event.afterName}` : event.action === 'REMOVED' ? `${event.beforeName} removed · ${event.removalReason ?? 'Other'}${event.reasonDetail ? `: ${event.reasonDetail}` : ''}` : `${event.afterName ?? event.beforeName} restored`}</span><small>{event.actorLabel} · {new Date(event.occurredAt).toLocaleString()}</small></li>)}</ol></details>}
 						{intake.revealed && !sharedListEditing && !hasActiveRound && <div className="form-actions">
 							<button className="secondary-button" type="button" onClick={() => setSharedListEditing(true)}>Edit consolidated list</button>
-							{rounds.length === 0 && <button className="primary-button" type="button" onClick={() => {
+							{rounds.length === 0 && <button ref={prepareRoundButtonRef} className="primary-button" type="button" onClick={() => {
 								const initialCount = String(Math.min(2, confirmedNames.length));
 								setSelectionCount(initialCount);
 								setSelectionCountBaseline(initialCount);
@@ -1235,14 +1306,12 @@ export default function NominationAdminPanel({ credentials, electionId, position
 				</section>
 			)}
 			{isExpanded && hasSavedSnapshot && (rounds.length > 0 || firstRoundPrepared) && (
-				<details className="workflow-details voting-round-configuration" open>
-					<summary>Voting round configuration <span>{rounds.length} {rounds.length === 1 ? 'round' : 'rounds'} · {hasActiveRound ? 'Voting active' : draftRoundId ? 'Draft ready' : 'Setup'}</span></summary>
-					<section aria-labelledby="voting-round-title">
-							<div className="section-heading">
-						<div><h3 id="voting-round-title">Voting round configuration</h3><p>{latestRound ? 'Candidates marked Advanced in the preceding round continue automatically.' : 'The consolidated list is the complete candidate roster for this poll.'}</p></div>
-					</div>
-					{roundsLoading && <p className="state-message" role="status">Loading draft round configuration…</p>}
-					{roundsError && <p className="error-message" role="alert">{roundsError}</p>}
+				<details className={`workflow-details voting-round-configuration${firstRoundSetupVisible ? ' is-first-round-setup' : ''}`} open>
+					{!firstRoundSetupVisible && <summary>Voting round configuration <span>{rounds.length} {rounds.length === 1 ? 'round' : 'rounds'} · {hasActiveRound ? 'Voting active' : draftRoundId ? 'Draft ready' : 'Setup'}</span></summary>}
+						<section aria-labelledby="voting-round-title">
+							{!firstRoundSetupVisible && <div className="section-heading">
+								<div><h3 id="voting-round-title">Voting round configuration</h3><p>{latestRound ? 'Candidates marked Advanced in the preceding round continue automatically.' : 'The consolidated list is the complete candidate roster for this poll.'}</p></div>
+							</div>}
 					{roundsError && !roundsLoading && !roundsReady && <button className="secondary-button" type="button" onClick={() => setRoundsLoadAttempt((attempt) => attempt + 1)}>Retry loading rounds</button>}
 					{!roundsLoading && roundsReady && (
 						<>
@@ -1261,7 +1330,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 									Go to active round {activeRound.roundNumber}
 								</button>
 							)}
-							{rounds.length > 0 && (
+							{rounds.length > 0 && !firstRoundSetupVisible && (
 								<ul className="voting-round-list" aria-label="Voting rounds">
 									{rounds.map((round) => (
 										<li className="voting-round-item" key={round.id}>
@@ -1391,7 +1460,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 									))}
 								</ul>
 							)}
-							{draftRoundId && (() => {
+							{draftRoundId && !firstRoundSetupVisible && (() => {
 								const draft = rounds.find((round) => round.id === draftRoundId);
 								return draft ? (
 									<p className="state-message saved-round-summary" role="status">
@@ -1399,7 +1468,24 @@ export default function NominationAdminPanel({ credentials, electionId, position
 									</p>
 								) : null;
 							})()}
-							{hasActiveRound ? (
+							{firstRoundSetupVisible && !hasActiveRound ? (
+								<RoundPollSetup
+									roundNumber={1}
+									candidateNames={candidateOptions}
+									selectionCount={selectionCount}
+									isSaving={roundsSaving}
+									isLoading={roundsLoading}
+									hasSavedDraft={draftRound?.roundNumber === 1 && draftRound.status === 'DRAFT'}
+									resetCount={draftRound?.resetCount ?? 0}
+									canStart={Boolean(Number.isInteger(Number(selectionCount)) && Number(selectionCount) >= 1 && Number(selectionCount) <= candidateOptions.length && !roundsSaving && !roundsLoading && !firstRoundDraftStale)}
+									error={roundsError}
+									success={roundsSuccess}
+									cancelDraftLabel="Cancel and rebuild draft"
+									onSelectionCountChange={(value) => { setSelectionCount(value); updateDraftState(value !== selectionCountBaseline); }}
+									onStart={(event, trigger) => { startDialogTriggerRef.current = trigger; void saveAndOpenStartDialog(event); }}
+									onCancel={() => { void cancelAndRebuildFirstRound(); }}
+								/>
+							) : hasActiveRound ? (
 								<p className="state-message" role="status">Next-round setup is available after the active round closes and results are reviewed.</p>
 							) : draftRoundId || rounds.length === 0 || candidateOptions.length > 0 ? (
 								<form className="round-configuration-form" onSubmit={saveRoundConfiguration}>
@@ -1452,7 +1538,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 							) : (
 								<p className="state-message" role="status">No candidates are ready for the next round. Reveal the preceding round and mark candidates Advanced to continue.</p>
 							)}
-							{roundsSuccess && <p className="state-message" role="status">{roundsSuccess}</p>}
+							{!firstRoundSetupVisible && roundsSuccess && <p className="state-message" role="status" tabIndex={roundsSuccess.startsWith('Voting is active') ? -1 : undefined} ref={roundsSuccess.startsWith('Voting is active') ? startSuccessRef : undefined}>{roundsSuccess}</p>}
 							{startRoundId && (() => {
 								const round = rounds.find((item) => item.id === startRoundId);
 								if (!round) return null;
@@ -1462,10 +1548,12 @@ export default function NominationAdminPanel({ credentials, electionId, position
 									<div className="dialog-backdrop">
 										<section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="start-voting-title" aria-describedby="start-voting-description">
 											<h3 id="start-voting-title">Start voting for round {round.roundNumber}?</h3>
+											{roundLifecycleBusy && <p className="state-message" role="status">Starting voting…</p>}
 											<p id="start-voting-description">Expected voter count: {Number.isInteger(Number(expectedVoterCount)) ? expectedVoterCount : 'not set'}. Confirm the count below; the round will become active immediately.</p>
+											{roundsError && <p className="error-message" role="alert">{roundsError}</p>}
 											<form onSubmit={startRound}>
 												<label htmlFor="expected-voter-count">Expected voter count</label>
-												<input id="expected-voter-count" type="number" min="1" step="1" value={expectedVoterCount} onChange={(event) => setExpectedVoterCount(event.target.value)} required autoFocus />
+												<input ref={expectedVoterInputRef} id="expected-voter-count" type="number" min="1" step="1" value={expectedVoterCount} onChange={(event) => setExpectedVoterCount(event.target.value)} required autoFocus />
 												{cutoffApplies && <p className="cutoff-warning" role="note">With {count} expected voters, this two-candidate, one-selection round will automatically close after {count - 1} ballots.</p>}
 												<div className="form-actions dialog-actions">
 													<button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setStartRoundId(null)}>Cancel</button>
