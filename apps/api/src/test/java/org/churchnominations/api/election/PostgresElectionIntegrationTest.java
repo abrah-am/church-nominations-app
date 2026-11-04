@@ -1951,6 +1951,43 @@ class PostgresElectionIntegrationTest {
     }
 
     @Test
+    void cancellingActiveRoundInvalidatesVotingLinkAndVoidsAttempt() throws Exception {
+        String admin = "active-round-cancel-admin@example.org";
+        registerChurch(admin, "Active Round Cancel Church");
+        UUID positionId = createElection(admin, "Active Round Cancel Election", List.of("Chair")).get(0);
+        UUID roundId = prepareRound(admin, electionIdFor(positionId), positionId, List.of("Alice", "Bob"));
+        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/start",
+                        electionIdFor(positionId), positionId, roundId).with(httpBasic(admin, PASSWORD))
+                        .contentType(APPLICATION_JSON).content("{\"expectedVoterCount\":2}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+        UUID accessToken = jdbcTemplate.queryForObject(
+                "select access_token from voting_rounds where id = ?", UUID.class, roundId);
+        UUID candidateId = jdbcTemplate.queryForObject(
+                "select id from voting_round_candidates where round_id = ? order by sequence limit 1",
+                UUID.class, roundId);
+        submitBallot(accessToken, UUID.randomUUID(), candidateId);
+
+        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/reset",
+                        electionIdFor(positionId), positionId, roundId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.selectionCount").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.expectedVoterCount").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.accessToken").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.resetCount").value(1))
+                .andExpect(jsonPath("$.candidates", hasSize(2)));
+
+        assertEquals(0, jdbcTemplate.queryForObject(
+                "select count(*) from voting_ballots where round_id = ?", Integer.class, roundId));
+        assertEquals(1, jdbcTemplate.queryForObject(
+                "select count(*) from voting_round_reset_events where round_id = ?", Integer.class, roundId));
+        mockMvc.perform(get("/api/polls/{token}", accessToken)
+                        .header("X-Voting-Device-Token", UUID.randomUUID()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
         void resettingRejectsNonClosedRoundsAndRoundsWithAnyLaterRound() throws Exception {
         String admin = "round-reset-guard-admin@example.org";
         registerChurch(admin, "Round Reset Guard Church");

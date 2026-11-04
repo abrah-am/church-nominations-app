@@ -157,7 +157,7 @@ public class VotingRoundService {
         elections.lockPositionForChurch(electionId, positionId, accountEmail);
         VotingRound round = rounds.findByIdAndPositionIdForUpdate(roundId, positionId)
             .orElseThrow(VotingRoundNotFoundException::new);
-        if (round.getStatus() != VotingRoundStatus.CLOSED
+        if ((round.getStatus() != VotingRoundStatus.CLOSED && round.getStatus() != VotingRoundStatus.ACTIVE)
             || jdbc.queryForObject("""
                 select exists (
                     select 1 from voting_rounds

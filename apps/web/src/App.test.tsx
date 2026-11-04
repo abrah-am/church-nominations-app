@@ -138,7 +138,7 @@ describe('read-only nomination presentation', () => {
 });
 
 describe('voting round navigation', () => {
-  it('keeps multiple rounds collapsed while summaries and round actions remain accessible', async () => {
+  it('hides the active round row while preserving closed-round history and actions', async () => {
     const savedIntake = {
       id: 'intake-1',
       accessToken: 'share-token',
@@ -183,16 +183,27 @@ describe('voting round navigation', () => {
     const roundList = await screen.findByRole('list', { name: 'Voting rounds' });
     const details = Array.from(roundList.querySelectorAll('.round-details'));
     const roundDisclosures = details.map((disclosure) => disclosure.querySelector('summary span:first-child'));
-    expect(details).toHaveLength(3);
+    expect(details).toHaveLength(2);
     details.forEach((disclosure) => {
       expect(disclosure).not.toHaveAttribute('open');
       expect(disclosure).toHaveAttribute('name', 'voting-rounds');
     });
     expect(details[0].querySelector('summary')).toHaveTextContent('Closed · 1 candidates');
     expect(details[1].querySelector('summary')).toHaveTextContent('Closed · 2 candidates');
-    expect(details[2].querySelector('summary')).toHaveTextContent('Voting active now · 1 candidates');
-    fireEvent.click(screen.getByRole('button', { name: 'Go to active round 3' }));
-    expect(details[2]).toHaveAttribute('open');
+    expect(screen.queryByText('Round 3')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Voting is active' })).toBeInTheDocument();
+    expect(document.querySelector('.workflow-stage-group.is-voting-active')).toBeInTheDocument();
+    expect(document.querySelector('.position-workflow-grid.is-voting-active')).toBeInTheDocument();
+    expect(document.querySelector('.voting-round-configuration.is-voting-active .active-voting-card')).toBeInTheDocument();
+    const processList = within(screen.getByRole('region', { name: 'Position workflow progress' })).getByRole('list');
+    expect(processList).toHaveTextContent('Collect and review nominations');
+    expect(processList).toHaveTextContent('Voting rounds');
+    expect(processList).toHaveTextContent('Candidate decisions');
+    expect(processList).toHaveTextContent('Position complete');
+    expect(screen.queryByText(/^Details$/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Closed nomination review' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel active voting' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close voting' })).toBeInTheDocument();
 
     fireEvent.click(roundDisclosures[1] as HTMLElement);
     expect(details[1]).toHaveAttribute('open');
@@ -200,6 +211,13 @@ describe('voting round navigation', () => {
     fireEvent.click(roundDisclosures[0] as HTMLElement);
     expect(details[0]).toHaveAttribute('open');
     expect(within(details[0] as HTMLElement).getByRole('button', { name: 'Reopen voting' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel active voting' }));
+    const cancelDialog = screen.getByRole('dialog', { name: 'Cancel active voting?' });
+    expect(cancelDialog).toHaveTextContent('permanently deletes ballots and current decisions');
+    fireEvent.click(within(cancelDialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog', { name: 'Cancel active voting?' })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/round-3/reset'))).toBe(false);
   });
 
   it('resets a closed round separately from reopen and requires fresh configuration before start', async () => {
@@ -279,6 +297,85 @@ describe('voting round navigation', () => {
     expect(screen.getByLabelText('Expected voter count')).toHaveValue(null);
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Start voting for round 1?' })).getByRole('button', { name: 'Cancel' }));
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/round-1/reopen'))).toBe(false);
+  });
+
+  it('cancels active voting only after confirmation and returns to round setup', async () => {
+    const savedIntake = {
+      id: 'intake-1', accessToken: 'share-token', nameLimit: 2, status: 'CLOSED',
+      submissions: [], consolidatedNames: ['Riley Chen', 'Morgan Diaz'],
+    };
+    const activeRound = {
+      id: 'round-1', roundNumber: 1, status: 'ACTIVE', selectionCount: 1,
+      expectedVoterCount: 8, accessToken: 'active-token', resetCount: 0,
+      candidates: [
+        { id: 'candidate-1', name: 'Riley Chen', sequence: 1 },
+        { id: 'candidate-2', name: 'Morgan Diaz', sequence: 2 },
+      ],
+    };
+    const resetRound = {
+      ...activeRound, status: 'DRAFT', selectionCount: null, expectedVoterCount: null,
+      accessToken: null, resetCount: 1,
+    };
+    const fetchMock = signedInFetch([church], [election]);
+    fetchMock
+      .mockResolvedValueOnce(response(election))
+      .mockResolvedValueOnce(response(savedIntake))
+      .mockResolvedValueOnce(response([activeRound]))
+      .mockResolvedValueOnce(response({ roundId: 'round-1', status: 'ACTIVE', ballotsCast: 3, expectedVoterCount: 8 }))
+      .mockResolvedValueOnce(response(resetRound))
+      .mockResolvedValueOnce(response({ ...election, status: 'IN_PROGRESS' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue election: Treasurer' }));
+    await waitForPositionHydration();
+    expect(await screen.findByText('3 of 8 profile/link submissions')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel active voting' }));
+    const dialog = screen.getByRole('dialog', { name: 'Cancel active voting?' });
+    expect(dialog).toHaveTextContent('permanently deletes ballots and current decisions');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel active voting' }));
+
+    expect(await screen.findByText(/Voting cancelled\. Ballots and current decisions were permanently deleted/)).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([url, options]) => String(url).endsWith('/round-1/reset') && options?.method === 'POST')).toBe(true);
+    expect(screen.queryByText('3 of 8 profile/link submissions')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Round 1 setup' })).toBeInTheDocument();
+  });
+
+  it('shows an API error when active voting cancellation is rejected', async () => {
+    const savedIntake = {
+      id: 'intake-1', accessToken: 'share-token', nameLimit: 2, status: 'CLOSED',
+      submissions: [], consolidatedNames: ['Riley Chen', 'Morgan Diaz'],
+    };
+    const activeRound = {
+      id: 'round-1', roundNumber: 1, status: 'ACTIVE', selectionCount: 1,
+      expectedVoterCount: 8, accessToken: 'active-token', resetCount: 0,
+      candidates: [
+        { id: 'candidate-1', name: 'Riley Chen', sequence: 1 },
+        { id: 'candidate-2', name: 'Morgan Diaz', sequence: 2 },
+      ],
+    };
+    const fetchMock = signedInFetch([church], [election]);
+    fetchMock
+      .mockResolvedValueOnce(response(election))
+      .mockResolvedValueOnce(response(savedIntake))
+      .mockResolvedValueOnce(response([activeRound]))
+      .mockResolvedValueOnce(response({ roundId: 'round-1', status: 'ACTIVE', ballotsCast: 3, expectedVoterCount: 8 }))
+      .mockResolvedValueOnce(response({}, 409));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue election: Treasurer' }));
+    await waitForPositionHydration();
+    expect(await screen.findByText('3 of 8 profile/link submissions')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel active voting' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Cancel active voting?' }))
+      .getByRole('button', { name: 'Cancel active voting' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The request failed (HTTP 409).');
+    expect(screen.getByText('3 of 8 profile/link submissions')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Cancel active voting?' })).toBeInTheDocument();
   });
 
   it('does not report zero profile submissions when an older API omits the profile count', async () => {
@@ -1498,11 +1595,13 @@ describe('election administration', () => {
     const startRoundRequest = fetchMock.mock.calls.find(([url, options]) => String(url).endsWith('/rounds/round-1/start') && options?.method === 'POST');
     expect(startRoundRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds/round-1/start');
     expect(startRoundRequest?.[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ expectedVoterCount: 16 }) });
-    expect(await screen.findByText(/Voting is active\. Share the private ballot link/)).toBeInTheDocument();
-    const activeRoundDisclosure = document.getElementById('round-round-1');
-    fireEvent.click(activeRoundDisclosure?.querySelector('summary') as HTMLElement);
-    expect(await screen.findByText('Ballots submitted: 7 of 16 expected')).toBeInTheDocument();
-    const progressMessage = screen.getByText('Ballots submitted: 7 of 16 expected').parentElement;
+    expect(await screen.findByRole('heading', { name: 'Voting is active' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Closed nomination review' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Confirmed consolidated list' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Voting rounds' })).not.toBeInTheDocument();
+    expect(await screen.findByText('7 of 16 profile/link submissions')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Confirmed consolidated list' })).not.toBeInTheDocument();
+    const progressMessage = screen.getByText('7 of 16 profile/link submissions').parentElement;
     expect(progressMessage).toHaveTextContent('not as verified people');
     expect(progressMessage).not.toHaveTextContent('Riley Chen');
     expect(progressMessage).not.toHaveTextContent('Morgan Diaz');
@@ -1515,7 +1614,7 @@ describe('election administration', () => {
       pollAgain();
       await new Promise((resolve) => window.setTimeout(resolve, 0));
     });
-    expect(screen.queryByText('Ballots submitted: 9 of 16 expected')).not.toBeInTheDocument();
+    expect(screen.queryByText('9 of 16 profile/link submissions')).not.toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'Reveal results' })).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/round-1/results'))).toBe(true);
     intervalSpy.mockRestore();
@@ -1560,6 +1659,7 @@ describe('election administration', () => {
     const roundDisclosure = screen.getAllByText('Round 1')[0].closest('details');
     expect(roundDisclosure).toBeInTheDocument();
     const roundSummary = within(roundDisclosure as HTMLElement).getAllByText('Round 1')[0];
+    fireEvent.click(roundSummary);
     expect(roundDisclosure).toHaveAttribute('open');
     fireEvent.click(roundSummary);
     expect(roundDisclosure).not.toHaveAttribute('open');
@@ -1623,7 +1723,7 @@ describe('election administration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reopen voting' }));
     expect(screen.getByRole('dialog', { name: 'Reopen voting for round 1?' })).toHaveTextContent('overrides this round’s automatic ballot-count limit');
     fireEvent.click(screen.getByRole('button', { name: 'Confirm reopen' }));
-    expect(await screen.findByText('Round 1 is active again.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Voting is active' })).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/round-1/reveal'))).toBe(true);
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/round-1/reopen'))).toBe(true);
     expect(screen.queryByText('15 / 16')).not.toBeInTheDocument();
@@ -1797,10 +1897,11 @@ describe('election administration', () => {
     await waitFor(() => expect(restoreButton).toBeEnabled());
     fireEvent.click(restoreButton);
 
-    expect(await screen.findByText('The closed intake is read-only while voting is active. This name cannot be restored until the round closes.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Voting is active' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Restore Riley Chen' })).not.toBeInTheDocument();
+    expect(screen.queryByText('The closed intake is read-only while voting is active. This name cannot be restored until the round closes.')).not.toBeInTheDocument();
     expect(roundsReads).toBe(2);
     expect(fetchMock.mock.calls.some(([url, options]) => String(url).endsWith('/nominations/shared-list/restore') && options?.method === 'POST')).toBe(false);
-    expect(screen.getByRole('button', { name: 'Restore Riley Chen' })).toBeDisabled();
   });
 
   it('traps focus in the removal dialog and restores focus when dismissed with Escape', async () => {

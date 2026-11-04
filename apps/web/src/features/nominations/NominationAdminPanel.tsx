@@ -290,7 +290,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			: !intake.revealed
 				? { stage: 0, title: 'Review and consolidate', description: 'Review proposed names, correct spellings, remove duplicates, then confirm the consolidated list.' }
 				: activeRound
-					? { stage: 1, title: `Monitor voting · Round ${activeRound.roundNumber}`, description: 'Track participation only. Ballot totals remain hidden while voting is active.' }
+					? { stage: 1, title: 'Voting is active', description: 'Track profile/link submissions only. Ballot totals remain hidden while voting is active.' }
 					: latestClosedRound && unrevealedRoundIds.includes(latestClosedRound.id)
 						? { stage: 1, title: `Review results · Round ${latestClosedRound.roundNumber}`, description: 'Voting is closed. Results remain private until you explicitly reveal them.' }
 						: latestRevealedResult && !latestRevealedResult.candidates.every((candidate) => candidate.decision)
@@ -1030,7 +1030,8 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	async function confirmResetRound() {
 		if (!credentials || !resetRoundId) return;
 		const round = rounds.find((item) => item.id === resetRoundId);
-		if (!round || round.status !== 'CLOSED' || rounds.some((item) => item.roundNumber > round.roundNumber)) return;
+		if (!round || (round.status !== 'CLOSED' && round.status !== 'ACTIVE') || rounds.some((item) => item.roundNumber > round.roundNumber)) return;
+		const cancellingActiveRound = round.status === 'ACTIVE';
 		setRoundLifecycleBusy(true);
 		setRoundsError('');
 		setRoundsSuccess('');
@@ -1054,7 +1055,9 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			onLifecycleChange(true);
 			setUnrevealedRoundIds((current) => current.filter((id) => id !== reset.id));
 			setResetRoundId(null);
-			setRoundsSuccess(`Round ${reset.roundNumber} reset. Ballots and current decisions were permanently deleted; candidate roster preserved. Reset count: ${reset.resetCount ?? 0}.`);
+			setRoundsSuccess(cancellingActiveRound
+				? `Voting cancelled. Ballots and current decisions were permanently deleted; candidate roster preserved for round ${reset.roundNumber}.`
+				: `Round ${reset.roundNumber} reset. Ballots and current decisions were permanently deleted; candidate roster preserved. Reset count: ${reset.resetCount ?? 0}.`);
 		} catch (requestError) {
 			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not reset the round.');
 		} finally {
@@ -1136,16 +1139,16 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					{presentationError && <p className="error-message" role="alert">{presentationError}</p>}
 				</AudiencePresentationCard>
 			</section>
-			<div className={`workflow-stage-group${!intake ? ' is-intake-setup' : ''}${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}${firstRoundSetupVisible ? ' is-round-setup-primary' : ''}`}>
-			<section className="guided-workflow" aria-label="Position workflow progress">
-				<div className="guided-workflow-task" aria-live="polite" aria-atomic="true">
+			<div className={`workflow-stage-group${!intake ? ' is-intake-setup' : ''}${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}${firstRoundSetupVisible ? ' is-round-setup-primary' : ''}${hasActiveRound ? ' is-voting-active' : ''}`}>
+			<section className={`guided-workflow${hasActiveRound ? ' is-voting-active' : ''}`} aria-label="Position workflow progress">
+				{!hasActiveRound && <div className="guided-workflow-task" aria-live="polite" aria-atomic="true">
 					<p className="eyebrow">Position workflow</p>
 					<h2 className="workflow-position-name" id="nomination-admin-title">{positionName}</h2>
 					<p className="workflow-task-kicker">Current task</p>
 					<div className="workflow-task-heading-row"><h3>{currentWorkflowTask.title}</h3>{workflowStatus !== 'Voting open' && <span className={`row-status ${workflowStatus === 'Not open' || (intake?.status === 'CLOSED' && !intake.revealed) ? 'closed-status' : ''}`}>{workflowStatus}</span>}</div>
 					<p>{currentWorkflowTask.description}</p>
 					<span className="sr-only">Workflow step {currentWorkflowTask.stage + 1} of {workflowSteps.length}.</span>
-				</div>
+				</div>}
 				<div className="guided-workflow-progress">
 					<div className="workflow-progress-meta"><span>Election progress</span><span>{currentWorkflowTask.stage + 1} of {workflowSteps.length}</span></div>
 					<div className="workflow-progress-bar" aria-hidden="true">
@@ -1186,7 +1189,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 				<div className="position-roster-empty">No candidates yet.</div>
 				<span className="position-opening-count">{openingCount} {openingCount === 1 ? 'opening' : 'openings'}</span>
 			</aside>}
-			{isExpanded && !isLoading && intake?.status === 'CLOSED' && !firstRoundSetupVisible && (
+			{isExpanded && !isLoading && intake?.status === 'CLOSED' && !firstRoundSetupVisible && !hasActiveRound && (
 				<section className="closed-review-summary" aria-label="Closed nomination review">
 					<p ref={closedStatusRef} tabIndex={-1} className="closed-review-message" role="status" aria-live="polite" aria-atomic="true">
 						{intake.revealed
@@ -1217,7 +1220,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 				</section>
 			)}
 			</div>
-			<div className={`position-workflow-grid${!intake ? ' is-intake-setup' : ''}${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}${firstRoundSetupVisible ? ' is-round-setup-primary' : ''}`}>
+			<div className={`position-workflow-grid${!intake ? ' is-intake-setup' : ''}${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}${firstRoundSetupVisible ? ' is-round-setup-primary' : ''}${hasActiveRound ? ' is-voting-active' : ''}`}>
 				<div className="position-workflow-main">
 			{closeDialogOpen && (
 				<div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCloseDialogOpen(false); }}>
@@ -1248,7 +1251,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					</section>
 				</div>
 			)}
-			{isExpanded && !isLoading && intake?.status === 'CLOSED' && intake.listCreated && !firstRoundSetupVisible && (
+			{isExpanded && !isLoading && intake?.status === 'CLOSED' && intake.listCreated && !firstRoundSetupVisible && !hasActiveRound && (
 				<section ref={sharedListSectionRef} className="workflow-details consolidation-details">
 					<div className="consolidation-list-heading">
 						<h3>{intake.revealed ? 'Consolidated list' : 'Review and consolidate'}</h3>
@@ -1305,34 +1308,31 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					</div>
 				</section>
 			)}
-			{isExpanded && hasSavedSnapshot && (rounds.length > 0 || firstRoundPrepared) && (
-				<details className={`workflow-details voting-round-configuration${firstRoundSetupVisible ? ' is-first-round-setup' : ''}`} open>
-					{!firstRoundSetupVisible && <summary>Voting round configuration <span>{rounds.length} {rounds.length === 1 ? 'round' : 'rounds'} · {hasActiveRound ? 'Voting active' : draftRoundId ? 'Draft ready' : 'Setup'}</span></summary>}
+			{isExpanded && (hasActiveRound || hasSavedSnapshot && (rounds.length > 0 || firstRoundPrepared)) && (
+				<details className={`workflow-details voting-round-configuration${firstRoundSetupVisible ? ' is-first-round-setup' : ''}${hasActiveRound ? ' is-voting-active' : ''}`} open>
+					<summary hidden={firstRoundSetupVisible || hasActiveRound}>Voting round configuration <span>{rounds.length} {rounds.length === 1 ? 'round' : 'rounds'} · {draftRoundId ? 'Draft ready' : 'Setup'}</span></summary>
 						<section aria-labelledby="voting-round-title">
-							{!firstRoundSetupVisible && <div className="section-heading">
+							{hasActiveRound ? <div className="active-voting-card" aria-labelledby="voting-round-title">
+								<div className="section-heading"><div><h3 id="voting-round-title">Voting is active</h3></div></div>
+								{activeRound && <div className="round-progress" role="status" aria-live="polite" aria-atomic="true">
+									{roundProgress[activeRound.id]?.status === 'ACTIVE'
+										? <strong>{roundProgress[activeRound.id].ballotsCast} of {roundProgress[activeRound.id].expectedVoterCount} profile/link submissions</strong>
+										: <strong>Loading submission count…</strong>}
+									<span>Submissions are counted per browser profile or link, not as verified people. Ballot totals and choices remain private.</span>
+								</div>}
+								<div className="active-voting-actions">
+									{activeRound && <button className="danger-button" type="button" disabled={roundLifecycleBusy} onClick={() => setResetRoundId(activeRound.id)}>Cancel active voting</button>}
+									{activeRound && <button className="primary-button" type="button" disabled={roundLifecycleBusy} onClick={() => { void closeRound(activeRound); }}>Close voting</button>}
+								</div>
+							</div> : !firstRoundSetupVisible && <div className="section-heading">
 								<div><h3 id="voting-round-title">Voting round configuration</h3><p>{latestRound ? 'Candidates marked Advanced in the preceding round continue automatically.' : 'The consolidated list is the complete candidate roster for this poll.'}</p></div>
 							</div>}
 					{roundsError && !roundsLoading && !roundsReady && <button className="secondary-button" type="button" onClick={() => setRoundsLoadAttempt((attempt) => attempt + 1)}>Retry loading rounds</button>}
 					{!roundsLoading && roundsReady && (
 						<>
-							{activeRound && (
-								<button
-									className="secondary-button active-round-jump"
-									type="button"
-									onClick={() => {
-										const activeRoundElement = document.getElementById(`round-${activeRound.id}`);
-										if (activeRoundElement instanceof HTMLDetailsElement) {
-											activeRoundElement.open = true;
-											activeRoundElement.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-										}
-									}}
-								>
-									Go to active round {activeRound.roundNumber}
-								</button>
-							)}
-							{rounds.length > 0 && !firstRoundSetupVisible && (
+							{rounds.some((round) => round.status !== 'ACTIVE') && !firstRoundSetupVisible && (
 								<ul className="voting-round-list" aria-label="Voting rounds">
-									{rounds.map((round) => (
+									{rounds.filter((round) => round.status !== 'ACTIVE').map((round) => (
 										<li className="voting-round-item" key={round.id}>
 											<details id={`round-${round.id}`} className={`workflow-details round-details${round.status === 'ACTIVE' ? ' round-details-active' : ''}`} name="voting-rounds">
 												<summary><span>Round {round.roundNumber}</span><span>{round.status === 'DRAFT' ? 'Draft' : round.status === 'ACTIVE' ? 'Voting active now' : 'Closed'} · {round.candidates.length} candidates</span></summary>
@@ -1351,13 +1351,6 @@ export default function NominationAdminPanel({ credentials, electionId, position
 														<button className="secondary-button" type="button" onClick={() => copyVotingLink(round)}>{copiedRoundId === round.id ? 'Copied' : 'Copy link'}</button>
 													</div>
 												</>
-											)}
-											{round.status === 'ACTIVE' && <button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => closeRound(round)}>Close voting</button>}
-											{round.status === 'ACTIVE' && roundProgress[round.id]?.status === 'ACTIVE' && (
-												<div className="round-progress" role="status">
-													<strong>Ballots submitted: {roundProgress[round.id].ballotsCast} of {roundProgress[round.id].expectedVoterCount} expected</strong>
-													<span>Ballots are counted per browser profile/link, not as verified people.</span>
-												</div>
 											)}
 											{round.status === 'CLOSED' && unrevealedRoundIds.includes(round.id) && <button className="primary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setRevealRoundId(round.id)}>Reveal results</button>}
 																			{round.status === 'CLOSED' && <button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setReopenRoundId(round.id)}>Reopen voting</button>}
@@ -1538,7 +1531,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 							) : (
 								<p className="state-message" role="status">No candidates are ready for the next round. Reveal the preceding round and mark candidates Advanced to continue.</p>
 							)}
-							{!firstRoundSetupVisible && roundsSuccess && <p className="state-message" role="status" tabIndex={roundsSuccess.startsWith('Voting is active') ? -1 : undefined} ref={roundsSuccess.startsWith('Voting is active') ? startSuccessRef : undefined}>{roundsSuccess}</p>}
+							{!firstRoundSetupVisible && !hasActiveRound && roundsSuccess && <p className="state-message" role="status" tabIndex={roundsSuccess.startsWith('Voting is active') ? -1 : undefined} ref={roundsSuccess.startsWith('Voting is active') ? startSuccessRef : undefined}>{roundsSuccess}</p>}
 							{startRoundId && (() => {
 								const round = rounds.find((item) => item.id === startRoundId);
 								if (!round) return null;
@@ -1578,15 +1571,17 @@ export default function NominationAdminPanel({ credentials, electionId, position
 							)}
 							{resetRoundId && (() => {
 								const round = rounds.find((item) => item.id === resetRoundId);
-								if (!round || round.status !== 'CLOSED') return null;
+								if (!round || (round.status !== 'CLOSED' && round.status !== 'ACTIVE')) return null;
+								const cancellingActiveRound = round.status === 'ACTIVE';
 								return (
 									<div className="dialog-backdrop">
 										<section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-round-title" aria-describedby="reset-round-description">
-											<h3 id="reset-round-title">Reset this round?</h3>
+											<h3 id="reset-round-title">{cancellingActiveRound ? 'Cancel active voting?' : 'Reset this round?'}</h3>
 											<p id="reset-round-description">This permanently deletes ballots and current decisions. The candidate roster stays in place. Selection count and expected voter count are cleared; configure them again to start from zero.</p>
+											{roundsError && <p className="error-message" role="alert">{roundsError}</p>}
 											<div className="form-actions dialog-actions">
 												<button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setResetRoundId(null)}>Cancel</button>
-												<button className="primary-button" type="button" disabled={roundLifecycleBusy} onClick={confirmResetRound}>{roundLifecycleBusy ? 'Resetting…' : 'Reset round'}</button>
+												<button className="danger-button" type="button" disabled={roundLifecycleBusy} onClick={confirmResetRound}>{roundLifecycleBusy ? 'Cancelling…' : cancellingActiveRound ? 'Cancel active voting' : 'Reset round'}</button>
 											</div>
 										</section>
 									</div>
