@@ -17,6 +17,8 @@
 - Keeps **Close voting** and explicit **Reveal results** as separate actions because the current Audience presentation endpoint only supports nomination snapshots.
 - Keeps the active card visible when no saved nomination names remain.
 - Displays reset API errors inside the cancellation confirmation dialog so a rejected cancellation is not a silent no-op.
+- Updated the canonical standalone prototype with a prototype-only control that creates anonymous mock ballots using the configured distinct-selection count. Active admin UI displays only their submission count; closing derives the private preview from those ballots, and explicit release remains required for viewer results. The simulation is bounded by the expected count and models the two-candidate, one-choice `N - 1` cutoff. Browser verification confirmed 5 anonymous ballots at cutoff for an expected group of 6, with a 3-to-2 aggregate preview and no active-round totals; it does not call the API.
+- Added post-close result bars showing vote count and percentage of ballots cast, with all result consumers ranked by votes descending and alphabetical tie breaks. Active voting remains count-only with no bars or candidate totals.
 
 ## Files Changed
 
@@ -49,3 +51,4 @@
 - Active cancellation permanently deletes ballots/current decisions in the local POC, matching existing reset semantics. Production retention/deletion remains open under PD-007/E8.2.
 - The active reset API guard rejects reset if any later-numbered round exists. The local API was restarted 2026-11-03 to load the updated active-reset implementation.
 - The E4.2 P1 priority remains proposed; no priority change was made.
+- Prototype-only follow-up on 2026-11-04: mock ballots are held in browser-local prototype state solely to validate the close/reveal experience. This does not change E4.2 acceptance, product rules, or the real application/API.

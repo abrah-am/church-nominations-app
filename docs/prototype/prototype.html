@@ -209,6 +209,9 @@
     .metric { display: flex; align-items: baseline; gap: 8px; margin: 18px 0 4px; }
     .metric strong { font-size: 2rem; line-height: 1; }
     .metric span { color: var(--muted); }
+    .simulation-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); }
+    .simulation-controls label { font-size: .86rem; font-weight: 680; }
+    .simulation-controls select { min-height: 40px; padding: 6px 30px 6px 9px; border: 1px solid #aebbb0; border-radius: 4px; background: #fff; }
     .fine-print { font-size: .82rem; color: var(--muted); }
     .action-row { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 20px; }
     .btn { border: 1px solid transparent; border-radius: 4px; min-height: 42px; padding: 9px 14px; font-weight: 730; text-align: center; }
@@ -230,6 +233,10 @@
     .candidate-list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); padding: 11px 0; }
     .candidate-list .name { font-weight: 640; overflow-wrap: anywhere; }
     .candidate-list .value { font-variant-numeric: tabular-nums; font-weight: 780; min-width: 30px; text-align: right; }
+    .candidate-list .result-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px 16px; }
+    .result-total { color: var(--muted); font-size: .88rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .result-bar { grid-column: 1 / -1; height: 9px; overflow: hidden; border-radius: 2px; background: #e5ecef; }
+    .result-bar-fill { display: block; height: 100%; background: var(--blue); }
     .nominee-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
     .nominee-row input { min-width: 0; width: 100%; padding: 8px 9px; border: 1px solid #b7c3ba; border-radius: 3px; }
     .compact-view { max-width: 440px; margin: 0 auto; }
@@ -245,8 +252,9 @@
     .compact-view .candidate-list { font-size: .95rem; }
     .decision-controls { display: grid; gap: 8px; margin-top: 14px; }
     .decision-controls label { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); padding: 9px 11px; border-radius: 4px; }
-    .decision-controls .decision-label { display: flex; flex: 1; align-items: center; justify-content: space-between; gap: 12px; }
+    .decision-controls .decision-label { display: grid; flex: 1; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px 12px; }
     .decision-controls .vote-total { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .decision-controls .result-bar { grid-column: 1 / -1; height: 7px; }
     input[type="checkbox"] { width: 19px; height: 19px; accent-color: var(--green); flex: 0 0 auto; }
     .mobile-stage { max-width: 440px; margin: 0 auto; border: 8px solid #25332e; border-radius: 24px; padding: 18px 17px 20px; background: white; box-shadow: 0 20px 45px rgba(27, 44, 35, .15); }
     .mobile-top { display: flex; justify-content: space-between; gap: 8px; padding-bottom: 13px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: .78rem; }
@@ -521,6 +529,17 @@
             <h3>Voting is active</h3>
             <div class="metric"><strong id="received-count">0</strong><span>of <span id="expected-count">18</span> profile/link submissions</span></div>
             <p class="fine-print">Profile/link submissions are not verified people. Ballot totals stay hidden.</p>
+            <div class="simulation-controls" aria-label="Prototype voting simulation">
+              <label for="simulate-submissions">Simulate anonymous submissions</label>
+              <select id="simulate-submissions" aria-label="Number of profile or link submissions to simulate">
+                <option value="1">1 submission</option>
+                <option value="3">3 submissions</option>
+                <option value="3" selected>3 submissions</option>
+                <option value="10">10 submissions</option>
+              </select>
+              <button class="btn btn-secondary btn-small" id="add-simulated-submissions" type="button">Add submissions</button>
+              <span class="fine-print" id="simulation-status" role="status">Prototype simulation only.</span>
+            </div>
             <div class="action-row"><button class="btn btn-primary" id="close-voting" disabled>Close voting</button></div>
           </div>
           <div class="task" id="admin-closed" hidden>
@@ -653,7 +672,7 @@
         { name: "Jordan Ellis", votes: 7 },
         { name: "Morgan Patel", votes: 4 }
       ];
-      const state = { phase: "intake-setup", round: 1, selectionCount: "2", nominationSubmitted: false, nominees: [], participantNominees: ["Taylor Reed", "Casey Lin", "Emerson Brooks", "Nia Carter", "Alex Morgan"], participantNominationSubmitted: false, candidates: [...candidates], participantListVisible: false, nominationChanges: [], submitted: false, selected: [], decisions: [], released: false, winner: "Avery Bennett", declinedCandidates: [], replacementCandidates: [], replacementTieBreak: false, presentationVisible: false };
+      const state = { phase: "intake-setup", round: 1, selectionCount: "2", expectedVoters: 18, simulatedBallots: [], nominationSubmitted: false, nominees: [], participantNominees: ["Taylor Reed", "Casey Lin", "Emerson Brooks", "Nia Carter", "Alex Morgan"], participantNominationSubmitted: false, candidates: [...candidates], participantListVisible: false, nominationChanges: [], submitted: false, selected: [], decisions: [], released: false, winner: "Avery Bennett", declinedCandidates: [], replacementCandidates: [], replacementTieBreak: false, presentationVisible: false };
       const $ = (id) => document.getElementById(id);
       const prototypeKey = "church-nominations-three-experience-mock-v2";
       const query = new URLSearchParams(location.search);
@@ -692,6 +711,8 @@
       function applySharedState(shared) {
         if (!shared || typeof shared !== "object") return;
         Object.assign(state, shared);
+        if (!Array.isArray(state.simulatedBallots)) state.simulatedBallots = [];
+        if (!Number.isInteger(Number(state.expectedVoters)) || Number(state.expectedVoters) < 1) state.expectedVoters = 18;
         update(false);
       }
       try {
@@ -800,12 +821,35 @@
       $("toggle-election-presentation").addEventListener("change", (event) => setPresentationVisible(event.currentTarget.checked));
       $("toggle-workflow-presentation").addEventListener("change", (event) => setPresentationVisible(event.currentTarget.checked));
 
+      function expectedSubmissionLimit() {
+        const expected = Number(state.expectedVoters) || 18;
+        return state.candidates.length === 2 && selectedCount() === 1 && expected % 2 === 0 ? expected - 1 : expected;
+      }
+      function receivedSubmissions() {
+        return state.simulatedBallots.length + (state.submitted ? 1 : 0);
+      }
+      function mockBallotTotals() {
+        const totals = new Map(state.candidates.map((name) => [name, 0]));
+        const ballots = [...state.simulatedBallots, ...(state.submitted ? [state.selected] : [])];
+        ballots.forEach((ballot) => ballot.forEach((name) => {
+          if (totals.has(name)) totals.set(name, totals.get(name) + 1);
+        }));
+        return state.candidates.map((name) => ({ name, votes: totals.get(name) }));
+      }
+      function rankResults(entries) {
+        return [...entries].sort((first, second) => second.votes - first.votes || first.name.localeCompare(second.name));
+      }
       function results() {
-        if (state.round === 1) return roundOne;
-        if (state.round === 2) return roundTwo.filter((candidate) => state.candidates.includes(candidate.name));
-        return state.candidates.map((name, index) => ({ name, votes: [9, 6, 3][index] ?? 1 }));
+        if (receivedSubmissions() > 0 && state.phase !== "active") return rankResults(mockBallotTotals());
+        if (state.round === 1) return rankResults(roundOne);
+        if (state.round === 2) return rankResults(roundTwo.filter((candidate) => state.candidates.includes(candidate.name)));
+        return rankResults(state.candidates.map((name, index) => ({ name, votes: [9, 6, 3][index] ?? 1 })));
       }
       function selectedCount() { return state.round === 1 ? Number(state.selectionCount) : 1; }
+      function resultBallotCount(entries) {
+        if (receivedSubmissions() > 0 && state.phase !== "active") return receivedSubmissions();
+        return Number(state.expectedVoters) || 18;
+      }
       function listItem(name, value, suffix = "") {
         const li = document.createElement("li");
         const label = document.createElement("span");
@@ -822,7 +866,36 @@
       }
       function renderList(id, entries, showVotes = false) {
         const list = $(id);
-        list.replaceChildren(...entries.map((entry) => listItem(entry.name, showVotes ? entry.votes : undefined)));
+        if (!showVotes) {
+          list.replaceChildren(...entries.map((entry) => listItem(entry.name)));
+          return;
+        }
+        const ballotCount = Math.max(1, resultBallotCount(entries));
+        const ranked = rankResults(entries);
+        list.replaceChildren(...ranked.map((entry) => {
+          const item = document.createElement("li");
+          item.className = "result-item";
+          const label = document.createElement("span");
+          label.className = "name";
+          label.textContent = entry.name;
+          const percentage = Math.round(entry.votes / ballotCount * 100);
+          const total = document.createElement("span");
+          total.className = "result-total";
+          total.textContent = `${entry.votes} ${entry.votes === 1 ? "vote" : "votes"} · ${percentage}%`;
+          const bar = document.createElement("span");
+          bar.className = "result-bar";
+          bar.setAttribute("role", "progressbar");
+          bar.setAttribute("aria-valuemin", "0");
+          bar.setAttribute("aria-valuemax", "100");
+          bar.setAttribute("aria-valuenow", String(Math.min(100, percentage)));
+          bar.setAttribute("aria-label", `${entry.name}: ${entry.votes} votes, ${percentage}% of ballots`);
+          const fill = document.createElement("span");
+          fill.className = "result-bar-fill";
+          fill.style.width = `${Math.min(100, percentage)}%`;
+          bar.appendChild(fill);
+          item.append(label, total, bar);
+          return item;
+        }));
       }
       function renderBallot() {
         const options = $("ballot-options");
@@ -967,8 +1040,19 @@
         $("selection-progress").textContent = `${state.selected.length} of ${selectedCount()} selected`;
         $("submit-ballot").textContent = state.submitted ? "Replace ballot" : "Submit ballot";
         $("submit-ballot").disabled = state.phase !== "active" || state.selected.length !== selectedCount();
-        $("close-voting").disabled = !state.submitted;
-        $("received-count").textContent = state.submitted ? "1" : "0";
+        const received = receivedSubmissions();
+        const limit = expectedSubmissionLimit();
+        [...$("simulate-submissions").options].forEach((option) => {
+          option.disabled = Number(option.value) > Number(state.expectedVoters || 18);
+        });
+        $("received-count").textContent = String(received);
+        $("expected-count").textContent = String(state.expectedVoters || 18);
+        $("close-voting").disabled = received === 0;
+        $("add-simulated-submissions").disabled = state.phase !== "active" || received >= limit;
+        $("simulate-submissions").disabled = state.phase !== "active" || received >= limit;
+        $("simulation-status").textContent = received >= limit
+          ? limit < Number(state.expectedVoters || 18) ? `Cutoff reached at ${limit} submissions.` : "Expected submission count reached."
+          : limit < Number(state.expectedVoters || 18) ? `Prototype only · automatic cutoff after ${limit} submissions.` : "Prototype simulation only · candidate totals stay hidden.";
       }
       function renderDecisions() {
         const controls = $("decision-controls");
@@ -988,8 +1072,20 @@
           candidateName.textContent = state.round > 1 ? `Elected: ${name.name}` : name.name;
           const total = document.createElement("span");
           total.className = "vote-total";
-          total.textContent = `${name.votes} votes`;
-          text.append(candidateName, total);
+          const percentage = Math.round(name.votes / Math.max(1, resultBallotCount(totals)) * 100);
+          total.textContent = `${name.votes} ${name.votes === 1 ? "vote" : "votes"} · ${percentage}%`;
+          const bar = document.createElement("span");
+          bar.className = "result-bar";
+          bar.setAttribute("role", "progressbar");
+          bar.setAttribute("aria-valuemin", "0");
+          bar.setAttribute("aria-valuemax", "100");
+          bar.setAttribute("aria-valuenow", String(Math.min(100, percentage)));
+          bar.setAttribute("aria-label", `${name.name}: ${name.votes} votes, ${percentage}% of ballots`);
+          const fill = document.createElement("span");
+          fill.className = "result-bar-fill";
+          fill.style.width = `${Math.min(100, percentage)}%`;
+          bar.appendChild(fill);
+          text.append(candidateName, total, bar);
           label.append(input, text);
           controls.appendChild(label);
         });
@@ -1016,8 +1112,21 @@
             name.textContent = candidate.name;
             const votes = document.createElement("span");
             votes.className = "vote-total";
-            votes.textContent = `${candidate.votes} votes`;
-            contents.append(name, votes);
+            const ranked = results();
+            const percentage = Math.round(candidate.votes / Math.max(1, resultBallotCount(ranked)) * 100);
+            votes.textContent = `${candidate.votes} ${candidate.votes === 1 ? "vote" : "votes"} · ${percentage}%`;
+            const bar = document.createElement("span");
+            bar.className = "result-bar";
+            bar.setAttribute("role", "progressbar");
+            bar.setAttribute("aria-valuemin", "0");
+            bar.setAttribute("aria-valuemax", "100");
+            bar.setAttribute("aria-valuenow", String(Math.min(100, percentage)));
+            bar.setAttribute("aria-label", `${candidate.name}: ${candidate.votes} votes, ${percentage}% of ballots`);
+            const fill = document.createElement("span");
+            fill.className = "result-bar-fill";
+            fill.style.width = `${Math.min(100, percentage)}%`;
+            bar.appendChild(fill);
+            contents.append(name, votes, bar);
             label.append(input, contents);
             container.appendChild(label);
           });
@@ -1238,12 +1347,38 @@
         state.participantListVisible = false;
         state.submitted = false;
         state.selected = [];
+        state.simulatedBallots = [];
+        update();
+      });
+      $("add-simulated-submissions").addEventListener("click", () => {
+        if (state.phase !== "active") return;
+        const limit = expectedSubmissionLimit();
+        const count = Math.min(Number($("simulate-submissions").value) || 1, limit - receivedSubmissions());
+        const firstBallotIndex = state.simulatedBallots.length;
+        for (let ballotIndex = 0; ballotIndex < count; ballotIndex += 1) {
+          const ballot = [];
+          for (let pick = 0; pick < selectedCount(); pick += 1) {
+            const start = (firstBallotIndex + ballotIndex) % state.candidates.length;
+            const candidate = state.candidates[(start + pick) % state.candidates.length];
+            ballot.push(candidate);
+          }
+          state.simulatedBallots.push(ballot);
+        }
+        const shouldCutoffClose = receivedSubmissions() >= limit && limit < Number(state.expectedVoters || 18);
+        if (shouldCutoffClose) {
+          state.phase = "closed";
+          state.released = false;
+        }
         update();
       });
       $("ballot-form").addEventListener("submit", (event) => {
         event.preventDefault();
         if (state.selected.length !== selectedCount() || state.phase !== "active") return;
         state.submitted = true;
+        if (receivedSubmissions() >= expectedSubmissionLimit() && expectedSubmissionLimit() < Number(state.expectedVoters || 18)) {
+          state.phase = "closed";
+          state.released = false;
+        }
         update();
       });
       $("close-voting").addEventListener("click", () => { state.phase = "closed"; state.released = false; update(); });
@@ -1269,6 +1404,7 @@
         state.phase = "next-draft";
         state.selected = [];
         state.submitted = false;
+        state.simulatedBallots = [];
         state.decisions = [];
         update();
       });
@@ -1311,6 +1447,7 @@
           state.round += 1;
           state.selected = [];
           state.submitted = false;
+          state.simulatedBallots = [];
           state.released = false;
           state.decisions = [];
           state.phase = "next-draft";
@@ -1321,6 +1458,7 @@
         state.round += 1;
         state.selected = [];
         state.submitted = false;
+        state.simulatedBallots = [];
         state.released = false;
         state.decisions = [];
         state.phase = "next-draft";
