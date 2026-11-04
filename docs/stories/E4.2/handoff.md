@@ -5,7 +5,7 @@
 - Implemented the focused active-voting admin workspace and active cancellation behavior for the local POC.
 - Product Owner approved scope and implementation plan on 2026-11-03.
 - Product Owner accepted E4.2 on 2026-11-04. PR [#29](https://github.com/abrah-am/church-nominations-app/pull/29) is open against `main`; mark the backlog item Completed after merge.
-- Automatic voting-result publication to Audience/participant viewers is deferred to E6.8/E6.11. Close voting and explicit admin reveal remain separate.
+- Product Owner updated voting-result policy on 2026-11-04 (PD-019): admin live totals; Audience Presentation controls totals on both participant and presentation surfaces; close ends voting with no separate reveal action. Reconcile PR #29 with the updated requirements before merge.
 
 ## Delivered
 
@@ -14,7 +14,7 @@
 - Hides the confirmed nomination summary/list/change history and active `Round N` row/jump action while voting is active. Earlier closed rounds remain available as history.
 - Keeps a hidden disclosure summary in the active-round wrapper so the browser does not render a stray default **Details** label.
 - Adds a confirmed **Cancel active voting** action. It uses the reset API, clears ballots/current decisions and access token, preserves roster/reset audit, and returns to a fresh draft. Existing later-round reset guard remains in effect.
-- Keeps **Close voting** and explicit **Reveal results** as separate actions because the current Audience presentation endpoint only supports nomination snapshots.
+- The prior implementation and PR #29 retain separate **Close voting** and **Reveal results** actions. This conflicts with PD-019 and must be reconciled before merge; current presentation API supports nomination snapshots only, so backend/API viewer work is still required.
 - Keeps the active card visible when no saved nomination names remain.
 - Displays reset API errors inside the cancellation confirmation dialog so a rejected cancellation is not a silent no-op.
 - Updated the canonical standalone prototype with a prototype-only control that creates anonymous mock ballots using the configured distinct-selection count. Active admin UI displays only their submission count; closing derives the private preview from those ballots, and explicit release remains required for viewer results. The simulation is bounded by the expected count and models the two-candidate, one-choice `N - 1` cutoff. Browser verification confirmed 5 anonymous ballots at cutoff for an expected group of 6, with a 3-to-2 aggregate preview and no active-round totals; it does not call the API.
