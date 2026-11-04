@@ -6,7 +6,7 @@
 - **User story:** Discovery story to define completion for positions and elections.
 
 ## Acceptance Criteria
-- Define when a position is complete for one or multiple openings, including unresolved ties, withdrawals, and no-advancement cases.
+- Define when a position is complete for one or multiple openings, including unresolved ties and withdrawals.
 - Define election-level completion from its positions.
 - Specify which states are user-visible and which actions remain available after completion.
 
@@ -14,4 +14,4 @@
 Product discovery for completion contract; blocks E6.2 and informs E1.1 status. Depends on approved majority/runoff rules and candidate-decision lifecycle.
 
 ## Relevant Approved Decisions
-E1.1 contract says election complete when every current position has at least its configured opening count of candidates marked ELECTED. Its status may regress. The broader position cases (ties, withdrawals, no advancement) remain unresolved and must not be silently inferred.
+E1.1 contract says election complete when every current position has at least its configured opening count of candidates marked ELECTED. Its status may regress. The broader position cases (ties and withdrawals) remain unresolved and must not be silently inferred. Decision-set validation requires at least one ELECTED or at least two ADVANCED candidates; invalid sets stay in the current decision step.

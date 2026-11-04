@@ -2,9 +2,11 @@
 
 **Status:** Product Owner approved 2026-11-03; implementation in progress.
 
+**Product Owner update (2026-11-04):** PD-019 supersedes this plan's original explicit-reveal behavior. Admin live totals and Audience Presentation-controlled viewer totals replace the separate reveal action. This accepted story/PR must be reconciled before merge; candidate decisions are scoped in US-012/E5.2/E5.3.
+
 ## Objective
 
-After **Start voting** succeeds, show one focused active-voting card with profile/link submission progress and clear **Cancel active voting** and **Close voting** actions. Remove nomination review and round disclosure clutter from this active state while preserving ballot confidentiality. Keep result reveal explicit in this scope; automatic viewer reveal depends on E6.8/E6.11.
+After **Start voting** succeeds, show one focused active-voting card with profile/link submission progress and clear **Cancel active voting** and **Close voting** actions. Remove nomination review and round disclosure clutter from this active state while preserving ballot confidentiality. Show live aggregate totals to the admin; the Audience Presentation switch governs current totals on both viewer surfaces, with hiding clearing those projections.
 
 ## Implementation Anchors
 
@@ -18,10 +20,10 @@ After **Start voting** succeeds, show one focused active-voting card with profil
 1. Make active round status a first-class branch in the position workspace. Hide the consolidated list and confirmed-change history while a round is active; restore appropriate review/history when the active state ends.
 2. Replace the active-state **Voting round configuration** summary/title, active-round jump button, and `Round N` disclosure row with a single active card titled **Voting is active**.
 3. Move progress into the card as `{received} of {expected} profile/link submissions`; keep the qualification that this is not a verified-person count and never surface candidate totals or ballot choices.
-4. Keep **Close voting** as a distinct action. After closure, retain the existing explicit **Reveal results** action; do not publish results to viewer surfaces as part of this story.
+4. Keep **Close voting** as a distinct action. After closure, make final aggregate totals available to the admin immediately. Do not retain a separate **Reveal Results** action; viewer publication follows the Audience Presentation control.
 5. Add **Cancel active voting** with an accessible confirmation naming the round and warning that ballots and current decisions will be permanently deleted in this local POC. On confirmation, use a server-authoritative lifecycle transition to stop ballot access, reset the active attempt, and return the UI to fresh setup with zero progress/results. Preserve the reset audit event.
 6. Preserve existing reopen and closed-round reset behavior as separate actions. Failed transitions retain accurate state and provide an actionable error.
-7. Add focused component/workflow tests for active layout, count privacy, cancel-confirm/cancel-dismiss, close and explicit reveal, transition failures, and regression coverage for reopen/reset.
+7. Add focused component/workflow tests for active layout, count privacy, cancel-confirm/cancel-dismiss, live admin totals, audience visibility toggle, close, transition failures, and regression coverage for reopen/reset.
 
 ## Acceptance Verification
 
@@ -33,8 +35,8 @@ After **Start voting** succeeds, show one focused active-voting card with profil
 
 ## Risks and Boundaries
 
-- Voting-result viewer publication is not implemented by the current nomination presentation endpoint. Do not route ballot results through that endpoint; E6.8/E6.11 own viewer support and auto-reveal follow-up.
-- Closing and revealing must not expose participation status, voter identity, individual ballots, or live candidate totals. Active progress is profile/link submissions, not verified people.
+- Voting-result viewer publication is not implemented by the current nomination presentation endpoint. Do not route ballot results through that endpoint; E6.8/E6.10/E6.11 own viewer support and the Audience Presentation visibility contract.
+- Result displays must not expose participation status, voter identity, individual ballots, or voter-to-choice mappings. Active progress is profile/link submissions, not verified people.
 - Active cancellation is not the same as ordinary close or reopen. It uses POC reset semantics, permanently deleting ballots and current decisions while preserving the reset audit event; production retention remains open.
 - Do not alter nomination consolidation, expected-count/cutoff rules, ballot semantics, next-round decisions, or tenant authorization outside this story's lifecycle requirements.
 - This implementation plan was approved by the Product Owner on 2026-11-03.

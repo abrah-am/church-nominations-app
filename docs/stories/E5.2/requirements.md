@@ -7,12 +7,14 @@
 
 ## Acceptance Criteria
 - Draft decision changes are distinguishable from persisted decisions.
-- Save success/failure is associated with the candidate; failures preserve the selected decision.
+- Every candidate has exactly one selected action: **Elect**, **Advance**, or **Remove**.
+- Save success/failure is associated with the candidate; failures preserve the selected action.
 - A decision is not treated as saved until the API confirms it.
+- Saving all decisions creates the next draft immediately from candidates marked **Advance**, with fresh totals and no ballots carried forward. **Elect** records a filled opening; **Remove** excludes the candidate from subsequent rounds.
 - Decision actor/time follow the approved audit policy without linking a ballot to a voter.
 
 ## Scope and Dependencies
 Decision editor persistence state and error recovery. Depends on candidate decision API and approved audit policy (E8.2).
 
 ## Implementation Notes and Limitations
-Current POC supports Advanced, Eliminated, and Elected decisions. Handoff notes historical reasons may exist; E5.4 says preserve existing reason history while not collecting new free-text reasons in that editor.
+Current POC supports candidate outcome decisions but not the required three-action-per-candidate editing flow. Handoff notes historical reasons may exist; E5.4 says preserve existing reason history while not collecting new free-text reasons in that editor.

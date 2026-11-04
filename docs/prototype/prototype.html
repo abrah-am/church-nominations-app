@@ -251,10 +251,19 @@
     .compact-view { max-width: 440px; margin: 0 auto; }
     .compact-view .candidate-list { font-size: .95rem; }
     .decision-controls { display: grid; gap: 8px; margin-top: 14px; }
-    .decision-controls label { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); padding: 9px 11px; border-radius: 4px; }
-    .decision-controls .decision-label { display: grid; flex: 1; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px 12px; }
+    .decision-controls .decision-label { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px 12px; border: 1px solid var(--line); padding: 10px 11px; border-radius: 4px; }
     .decision-controls .vote-total { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
     .decision-controls .result-bar { grid-column: 1 / -1; height: 7px; }
+    .candidate-actions { display: inline-flex; grid-column: 1 / -1; width: fit-content; max-width: 100%; border-radius: 4px; }
+    .candidate-actions .btn-check { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    .candidate-actions .btn { display: inline-flex; justify-content: center; align-items: center; min-height: 38px; padding: 7px 12px; border: 1px solid #6c757d; border-radius: 0; background: #fff; color: #46535a; font-size: .88rem; font-weight: 650; cursor: pointer; }
+    .candidate-actions .btn + .btn { margin-left: -1px; }
+    .candidate-actions .btn:first-of-type { border-radius: 4px 0 0 4px; }
+    .candidate-actions .btn:last-of-type { border-radius: 0 4px 4px 0; }
+    .candidate-actions .btn-check:checked + .btn { background: #58666e; border-color: #58666e; color: #fff; }
+    .candidate-actions .btn-check:focus-visible + .btn { position: relative; z-index: 1; outline: 3px solid rgba(13, 110, 253, .38); outline-offset: 2px; }
+    .candidate-actions .btn:hover { position: relative; z-index: 1; background: #eef2f4; }
+    .candidate-actions .btn-check:checked + .btn:hover { background: #46535a; }
     input[type="checkbox"] { width: 19px; height: 19px; accent-color: var(--green); flex: 0 0 auto; }
     .mobile-stage { max-width: 440px; margin: 0 auto; border: 8px solid #25332e; border-radius: 24px; padding: 18px 17px 20px; background: white; box-shadow: 0 20px 45px rgba(27, 44, 35, .15); }
     .mobile-top { display: flex; justify-content: space-between; gap: 8px; padding-bottom: 13px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: .78rem; }
@@ -467,7 +476,7 @@
           <span class="access-context" id="workflow-presentation-status">Presentation display is off</span>
           <div class="action-row workflow-presentation-actions">
             <div class="form-check form-switch">
-                <input class="form-check-input" id="toggle-workflow-presentation" type="checkbox" role="switch" aria-checked="false">
+                    <input class="form-check-input" id="toggle-workflow-presentation" type="checkbox" role="switch" aria-checked="false">
               <label class="form-check-label" for="toggle-workflow-presentation">Show audience presentation</label>
             </div>
             <button class="btn btn-primary" id="open-workflow-presentation" type="button">Open presentation</button>
@@ -528,7 +537,8 @@
           <div class="task" id="admin-active" hidden>
             <h3>Voting is active</h3>
             <div class="metric"><strong id="received-count">0</strong><span>of <span id="expected-count">18</span> profile/link submissions</span></div>
-            <p class="fine-print">Profile/link submissions are not verified people. Ballot totals stay hidden.</p>
+            <p class="fine-print">Profile/link submissions are not verified people. Live totals are admin-only; the audience toggle controls whether viewers can see them.</p>
+            <ul class="candidate-list" id="admin-live-results" aria-label="Live aggregate results"></ul>
             <div class="simulation-controls" aria-label="Prototype voting simulation">
               <label for="simulate-submissions">Simulate anonymous submissions</label>
               <select id="simulate-submissions" aria-label="Number of profile or link submissions to simulate">
@@ -542,19 +552,13 @@
             </div>
             <div class="action-row"><button class="btn btn-primary" id="close-voting" disabled>Close voting</button></div>
           </div>
-          <div class="task" id="admin-closed" hidden>
-            <h3>Voting closed · Results unreleased</h3>
-            <p class="callout warning">Private admin preview is ready. Both audience surfaces remain neutral until you explicitly release results.</p>
-            <ul class="candidate-list" id="admin-preview"></ul>
-            <div class="action-row"><button class="btn btn-primary" id="release-results">Release results</button></div>
-          </div>
           <div class="task" id="admin-decisions" hidden>
             <h3 id="decision-heading">Record candidate decisions</h3>
-            <p class="subtle" id="decision-help">Choose who advances to the next round. These decisions are admin-only.</p>
+            <p class="subtle" id="decision-help">Choose Elect, Advance, or Remove for each candidate. After saving, the workflow shows only the next-round roster and elected candidates.</p>
             <div class="decision-controls" id="decision-controls"></div>
             <div class="action-row"><button class="btn btn-primary" id="save-decisions">Save decisions</button></div>
-            <p class="callout success" id="decision-saved" hidden>Mock decisions saved. A fresh round starts with zero votes.</p>
-            <div class="action-row" id="next-round-row" hidden><button class="btn btn-primary" id="next-round">Prepare round 2</button></div>
+            <p class="callout success" id="decision-saved" hidden>Mock decisions saved.</p>
+            <p class="fine-print" id="decision-outcome" hidden></p>
             <section class="task" id="candidate-response" hidden>
               <h3 id="response-title">Candidate response</h3>
               <p class="subtle" id="response-candidate"></p>
@@ -580,14 +584,14 @@
               <div class="action-row"><button class="btn btn-primary" id="start-replacement-round">Create replacement draft</button></div>
             </section>
           </div>
-        </section>
-
-        <section class="panel panel-pad" aria-labelledby="roster-title">
-          <p class="panel-kicker" id="roster-kicker">Nomination intake</p>
-          <h2 id="roster-title">Names not yet submitted</h2>
-          <p class="subtle" id="roster-description">Open-intake names are shown only when the admin turns on the audience presentation.</p>
-          <ul class="candidate-list" id="admin-roster"></ul>
-          <div class="callout" id="roster-note">Round setup is editable only before voting opens. This mock does not save to a server.</div>
+          <section class="task" id="elected-confirmation" hidden>
+            <h3 id="saved-roster-title">Next round</h3>
+            <p class="subtle" id="saved-roster-copy">Candidates marked Advance are included in the draft.</p>
+            <ul class="candidate-list" id="saved-advance-list"></ul>
+            <h3 id="elected-candidates-heading" hidden>Elected</h3>
+            <ul class="candidate-list" id="elected-candidate-list"></ul>
+            <div class="action-row" id="confirm-elected-row" hidden><button class="btn btn-primary" id="confirm-elected">Confirm</button></div>
+          </section>
         </section>
       </div>
       </div>
@@ -628,13 +632,14 @@
             <button type="submit" class="btn btn-primary full" id="submit-ballot" disabled>Submit ballot</button>
           </form>
           <div class="callout success" id="ballot-confirmation" role="status" hidden>Mock ballot submitted. You may replace it while this round remains open.</div>
+          <section class="task" id="voter-live-results" hidden>
+            <h3>Live results</h3>
+            <p class="fine-print">Aggregate totals · Current round</p>
+            <ul class="candidate-list" id="voter-live-result-list"></ul>
+          </section>
         </div>
         <div id="voter-neutral" hidden>
-          <div class="ballot-heading"><span class="status" id="neutral-status">Voting closed</span><h2 id="neutral-title">Thank you</h2><p class="subtle" id="neutral-copy">This round is closed. Results are not released.</p></div>
-        </div>
-        <div id="voter-results" hidden>
-          <div class="ballot-heading"><span class="status">Results released</span><h2 id="voter-results-title">Chair · Round 1</h2><p class="subtle">Aggregate totals only</p></div>
-          <ul class="candidate-list" id="voter-result-list"></ul>
+          <div class="ballot-heading"><span class="status" id="neutral-status">Voting closed</span><h2 id="neutral-title">Thank you</h2><p class="subtle" id="neutral-copy">This round is closed. The administrator is reviewing the round.</p></div>
         </div>
         <div id="voter-complete" hidden>
           <div class="ballot-heading"><span class="status">Position complete</span><h2>Chair</h2><p class="subtle">Elected: <strong id="voter-elected-name">Avery Bennett</strong></p></div>
@@ -672,9 +677,9 @@
         { name: "Jordan Ellis", votes: 7 },
         { name: "Morgan Patel", votes: 4 }
       ];
-      const state = { phase: "intake-setup", round: 1, selectionCount: "2", expectedVoters: 18, simulatedBallots: [], nominationSubmitted: false, nominees: [], participantNominees: ["Taylor Reed", "Casey Lin", "Emerson Brooks", "Nia Carter", "Alex Morgan"], participantNominationSubmitted: false, candidates: [...candidates], participantListVisible: false, nominationChanges: [], submitted: false, selected: [], decisions: [], released: false, winner: "Avery Bennett", declinedCandidates: [], replacementCandidates: [], replacementTieBreak: false, presentationVisible: false };
+      const state = { phase: "intake-setup", round: 1, selectionCount: "2", expectedVoters: 18, simulatedBallots: [], nominationSubmitted: false, nominees: [], participantNominees: ["Taylor Reed", "Casey Lin", "Emerson Brooks", "Nia Carter", "Alex Morgan"], participantNominationSubmitted: false, candidates: [...candidates], participantListVisible: false, nominationChanges: [], submitted: false, selected: [], decisions: {}, decisionHistory: [], savedAdvanceCandidates: [], electedCandidates: [], released: false, winner: "", declinedCandidates: [], replacementCandidates: [], replacementTieBreak: false, presentationVisible: false };
       const $ = (id) => document.getElementById(id);
-      const prototypeKey = "church-nominations-three-experience-mock-v2";
+      const prototypeKey = "church-nominations-three-experience-mock-v3";
       const query = new URLSearchParams(location.search);
       const requestedView = query.get("view");
       const currentView = ["admin", "voter", "presentation"].includes(requestedView) ? requestedView : "launcher";
@@ -787,7 +792,7 @@
       function syncPresentationControls() {
         [$("toggle-election-presentation"), $("toggle-workflow-presentation")].filter(Boolean).forEach((toggle) => {
           toggle.checked = state.presentationVisible;
-          toggle.disabled = state.phase === "active";
+          toggle.setAttribute("aria-checked", String(state.presentationVisible));
         });
         [$("election-presentation-status"), $("workflow-presentation-status")].filter(Boolean).forEach((status) => {
           status.textContent = `Presentation display is ${state.presentationVisible ? "on" : "off"}`;
@@ -810,7 +815,6 @@
       $("copy-workflow-link").addEventListener("click", copyParticipantLink);
       $("open-workflow-presentation").addEventListener("click", openPresentationWindow);
       function setPresentationVisible(visible) {
-        if (state.phase === "active") return;
         state.presentationVisible = visible;
         if (["intake-review", "nominations-confirmed"].includes(state.phase)) {
           state.participantListVisible = visible;
@@ -840,14 +844,15 @@
         return [...entries].sort((first, second) => second.votes - first.votes || first.name.localeCompare(second.name));
       }
       function results() {
-        if (receivedSubmissions() > 0 && state.phase !== "active") return rankResults(mockBallotTotals());
+        if (state.phase === "active") return rankResults(mockBallotTotals());
+        if (receivedSubmissions() > 0) return rankResults(mockBallotTotals());
         if (state.round === 1) return rankResults(roundOne);
         if (state.round === 2) return rankResults(roundTwo.filter((candidate) => state.candidates.includes(candidate.name)));
         return rankResults(state.candidates.map((name, index) => ({ name, votes: [9, 6, 3][index] ?? 1 })));
       }
       function selectedCount() { return state.round === 1 ? Number(state.selectionCount) : 1; }
       function resultBallotCount(entries) {
-        if (receivedSubmissions() > 0 && state.phase !== "active") return receivedSubmissions();
+        if (receivedSubmissions() > 0) return receivedSubmissions();
         return Number(state.expectedVoters) || 18;
       }
       function listItem(name, value, suffix = "") {
@@ -1052,42 +1057,43 @@
         $("simulate-submissions").disabled = state.phase !== "active" || received >= limit;
         $("simulation-status").textContent = received >= limit
           ? limit < Number(state.expectedVoters || 18) ? `Cutoff reached at ${limit} submissions.` : "Expected submission count reached."
-          : limit < Number(state.expectedVoters || 18) ? `Prototype only · automatic cutoff after ${limit} submissions.` : "Prototype simulation only · candidate totals stay hidden.";
+          : limit < Number(state.expectedVoters || 18) ? `Prototype only · automatic cutoff after ${limit} submissions.` : "Prototype simulation only · live totals update here.";
       }
       function renderDecisions() {
         const controls = $("decision-controls");
         controls.replaceChildren();
-        const totals = results().filter((candidate) => !state.declinedCandidates.includes(candidate.name));
-        const eligible = state.round > 1 ? totals.slice(0, 1) : totals;
-        eligible.forEach((name, index) => {
-          const label = document.createElement("label");
-          const input = document.createElement("input");
-          input.type = "checkbox";
-          input.value = name.name;
-          input.checked = state.decisions.includes(name.name);
-          input.id = `decision-${state.round}-${index}`;
-          const text = document.createElement("span");
-          text.className = "decision-label";
-          const candidateName = document.createElement("span");
-          candidateName.textContent = state.round > 1 ? `Elected: ${name.name}` : name.name;
+        const totals = results();
+        const ballotCount = resultBallotCount(totals);
+        totals.forEach((candidate, index) => {
+          const row = document.createElement("div");
+          row.className = "decision-label";
+          const name = document.createElement("strong");
+          name.textContent = candidate.name;
           const total = document.createElement("span");
           total.className = "vote-total";
-          const percentage = Math.round(name.votes / Math.max(1, resultBallotCount(totals)) * 100);
-          total.textContent = `${name.votes} ${name.votes === 1 ? "vote" : "votes"} · ${percentage}%`;
-          const bar = document.createElement("span");
-          bar.className = "result-bar";
-          bar.setAttribute("role", "progressbar");
-          bar.setAttribute("aria-valuemin", "0");
-          bar.setAttribute("aria-valuemax", "100");
-          bar.setAttribute("aria-valuenow", String(Math.min(100, percentage)));
-          bar.setAttribute("aria-label", `${name.name}: ${name.votes} votes, ${percentage}% of ballots`);
-          const fill = document.createElement("span");
-          fill.className = "result-bar-fill";
-          fill.style.width = `${Math.min(100, percentage)}%`;
-          bar.appendChild(fill);
-          text.append(candidateName, total, bar);
-          label.append(input, text);
-          controls.appendChild(label);
+          const percentage = ballotCount ? Math.round(candidate.votes / ballotCount * 100) : 0;
+          total.textContent = `${candidate.votes} ${candidate.votes === 1 ? "vote" : "votes"} · ${percentage}%`;
+          const actions = document.createElement("div");
+          actions.className = "candidate-actions";
+          actions.setAttribute("role", "group");
+          actions.setAttribute("aria-label", `Decision for ${candidate.name}`);
+          ["Elect", "Advance", "Remove"].forEach((action) => {
+            const input = document.createElement("input");
+            input.type = "radio";
+            input.className = "btn-check";
+            input.name = `decision-${state.round}-${index}`;
+            input.value = action.toLowerCase();
+            input.id = `decision-${state.round}-${index}-${input.value}`;
+            input.checked = state.decisions[candidate.name] === input.value;
+            input.addEventListener("change", () => { state.decisions[candidate.name] = input.value; });
+            const label = document.createElement("label");
+            label.className = "btn";
+            label.htmlFor = input.id;
+            label.textContent = action;
+            actions.append(input, label);
+          });
+          row.append(name, total, actions);
+          controls.appendChild(row);
         });
       }
       function renderReplacementCandidates() {
@@ -1139,14 +1145,13 @@
         $("admin-intake-confirmed").hidden = !["nominations-confirmed", "nominations-shared"].includes(state.phase);
         $("admin-progress").hidden = !["draft", "next-draft"].includes(state.phase);
         $("admin-active").hidden = state.phase !== "active";
-        $("admin-closed").hidden = state.phase !== "closed";
-        $("admin-decisions").hidden = !["released", "decided", "awaiting-response", "declined", "replacement-roster", "complete"].includes(state.phase);
-        $("decision-saved").hidden = state.phase !== "decided" && state.phase !== "complete";
-        $("next-round-row").hidden = state.phase !== "decided" || state.round !== 1;
+        $("admin-decisions").hidden = !["closed", "elected-pending-confirmation"].includes(state.phase);
+        $("decision-saved").hidden = true;
+        $("decision-outcome").hidden = true;
         $("candidate-response").hidden = !["awaiting-response", "declined", "replacement-decided"].includes(state.phase);
         $("decline-options").hidden = state.phase !== "declined";
         $("replacement-roster").hidden = state.phase !== "replacement-roster";
-        $("save-decisions").hidden = !["released"].includes(state.phase);
+        $("save-decisions").hidden = state.phase !== "closed";
         $("open-voting").textContent = state.round === 1 ? "Start voting" : `Start round ${state.round}`;
         const selectionInput = $("round-selection-count");
         selectionInput.max = String(state.candidates.length);
@@ -1163,10 +1168,6 @@
           : "The final list is saved. Turn on Audience presentation to show it to the room and participants, or continue to voting setup.";
         renderList("confirmed-roster", state.candidates.map((name) => ({ name })));
         $("round-label").textContent = `Round ${state.round}`;
-        $("roster-kicker").textContent = intakePhases.includes(state.phase) ? "Nomination intake" : `Round ${state.round} · Candidate roster`;
-        $("roster-title").textContent = state.phase === "complete" ? "Position outcome" : state.phase === "intake-setup" || state.phase === "intake-active" ? "Names not yet submitted" : "People on the ballot";
-        $("roster-description").textContent = ["intake-setup", "intake-active", "intake-submitted"].includes(state.phase) ? "Open-intake names appear on the room display only when the admin turns it on." : state.phase === "intake-review" || state.phase === "nominations-confirmed" ? "The closed list is shared with participants only when published by the admin." : state.phase === "nominations-shared" ? "The consolidated list is shared with participants and the audience." : state.phase === "complete" ? "The elected outcome is shown to participants and the audience." : "Representative names; the active ballot uses this same list.";
-        $("roster-note").textContent = state.phase === "complete" ? "Candidate response was recorded in this mock. Contact and response evidence are not stored." : "Round setup is editable only before voting opens. This mock does not save to a server.";
         const copy = {
           "intake-setup": ["Not open", "Open nomination intake", "Start by inviting people to submit names for this position.", "Open nomination intake"],
           "intake-active": ["Intake open", "Nomination Intake", "Review incoming names. Turn on Audience presentation to show them live to the room only.", "Nomination Intake"],
@@ -1175,33 +1176,42 @@
           "nominations-confirmed": ["List confirmed", "Prepare the first voting round", "The final list is confirmed. Show Audience presentation to publish it to the room and participants.", "Nomination Intake Consolidation"],
           "nominations-shared": ["List shared", "Prepare the first voting round", "The final list is shared with the audience and participants. Continue to voting setup when ready.", "Nomination Intake Consolidation"],
           draft: ["Draft", "Prepare round 1", "Review the roster and open voting when the room is ready.", "Round setup"],
-          "next-draft": ["Round 2 · Draft", "Prepare round 2", "The next poll starts with fresh totals and the same session link.", "Round 2 setup"],
-          active: ["Voting active", "Monitor voting", "Watch permitted operational progress. Totals remain concealed.", "Voting open"],
-          closed: ["Closed · Unreleased", "Review and reveal results", "Review the private mock preview, then reveal results to participants and the room presentation.", "Voting closed"],
-          released: ["Results released", "Record candidate decisions", "Choose who advances. Revealed results are visible on both viewer surfaces.", "Results released"],
-          decided: ["Decisions saved", "Prepare the next step", state.round === 1 ? "The selected mock candidates advance to a fresh round." : "Save an elected outcome to complete the opening.", "Decision saved"],
+          "next-draft": [`Round ${state.round} · Draft`, `Prepare round ${state.round}`, "The next poll starts with fresh totals and the same session link.", `Round ${state.round} setup`],
+          active: ["Voting active", "Monitor voting", "Review live aggregate totals in the admin workspace. The Audience Presentation control governs what voters and the room see.", "Voting open"],
+          closed: ["Voting closed", "Record candidate decisions", "Choose Elect, Advance, or Remove for each candidate. Totals are shown with each candidate's actions.", "Candidate decisions"],
+          "elected-pending-confirmation": ["Confirm elected candidates", "Confirm elected candidates", "Review the elected candidates and confirm to complete the position.", "Candidate decisions"],
+          complete: ["Position complete", "Position complete", "The required opening is filled.", "Opening filled"],
           "awaiting-response": ["Awaiting response", "Confirm candidate decision", "Record the elected candidate's response. An acceptance fills the opening; a decline starts the replacement choices.", "Candidate response"],
           declined: ["Candidate declined", "Choose a replacement path", "The elected candidate declined. Choose the next-highest candidate or configure a new round.", "Replacement decision"],
-          "replacement-roster": ["Replacement round", "Choose eligible candidates", "Select the previous-round candidates for a fresh replacement poll.", "Replacement roster"],
-          complete: ["Position complete", "Position complete", `The required opening is filled. ${state.winner} is shown as elected on both viewer surfaces.`, "Opening filled"]
+          "replacement-roster": ["Replacement round", "Choose eligible candidates", "Select the previous-round candidates for a fresh replacement poll.", "Replacement roster"]
         }[state.phase];
         $("admin-status").textContent = copy[0];
         $("admin-task-title").textContent = copy[1];
         $("admin-instruction").textContent = copy[2];
         $("progress-label").textContent = copy[3];
-        const phaseIndex = { "intake-setup": 0, "intake-active": 0, "intake-submitted": 0, "intake-review": 0, "nominations-confirmed": 0, "nominations-shared": 0, draft: 1, "next-draft": 1, active: 1, closed: 1, released: 2, decided: 2, "awaiting-response": 3, declined: 3, "replacement-roster": 3, complete: 4 }[state.phase];
+        const phaseIndex = { "intake-setup": 0, "intake-active": 0, "intake-submitted": 0, "intake-review": 0, "nominations-confirmed": 0, "nominations-shared": 0, draft: 1, "next-draft": 1, active: 1, closed: 2, "elected-pending-confirmation": 2, complete: 3 }[state.phase];
         [1, 2, 3, 4].forEach((number) => $(`progress-${number}`).classList.toggle("done", number <= phaseIndex + 1));
         ["step-nominations", "step-voting", "step-decisions", "step-complete"].forEach((id) => $(id).classList.remove("current", "complete"));
         if (intakePhases.includes(state.phase)) $("step-nominations").classList.add("current");
         else $("step-nominations").classList.add("complete");
         if (["draft", "next-draft", "active", "closed"].includes(state.phase)) $("step-voting").classList.add("current");
-        if (["released", "decided", "complete"].includes(state.phase)) $("step-voting").classList.add("complete");
-        if (["released", "decided", "awaiting-response", "declined", "replacement-roster"].includes(state.phase)) $("step-decisions").classList.add("current");
+        if (["closed", "elected-pending-confirmation", "complete"].includes(state.phase)) $("step-voting").classList.add("complete");
+        if (["closed", "elected-pending-confirmation"].includes(state.phase)) $("step-decisions").classList.add("current");
         if (state.phase === "complete") $("step-decisions").classList.add("complete");
         if (state.phase === "complete") $("step-complete").classList.add("current");
-        if (["released", "decided", "complete"].includes(state.phase)) $("decision-heading").textContent = state.round > 1 ? "Confirm elected candidate" : "Choose candidates to advance";
-        $("decision-help").textContent = state.round > 1 ? "Confirm the highest-ranked candidate as elected, then record their response." : "Review vote totals and select candidates to advance.";
-        $("decision-controls").hidden = state.phase !== "released";
+        $("decision-heading").textContent = `Round ${state.round} · Candidate decisions`;
+        $("decision-help").textContent = "Choose one action for every candidate. Elect at least one candidate or advance at least two; otherwise, correct your choices to continue.";
+        $("decision-controls").hidden = state.phase !== "closed";
+        $("saved-advance-list").replaceChildren(...state.savedAdvanceCandidates.map((name) => listItem(name)));
+        $("saved-advance-list").hidden = state.savedAdvanceCandidates.length === 0;
+        $("elected-candidate-list").replaceChildren(...state.electedCandidates.map((name) => listItem(name, "Elected")));
+        $("elected-candidate-list").hidden = state.electedCandidates.length === 0;
+        const showSavedRoster = state.phase !== "complete" && (state.savedAdvanceCandidates.length > 0 || state.electedCandidates.length > 0);
+        $("elected-confirmation").hidden = !showSavedRoster;
+        $("saved-roster-title").textContent = state.phase === "elected-pending-confirmation" ? "Elected candidates" : `Round ${state.round} roster`;
+        $("saved-roster-copy").textContent = state.phase === "elected-pending-confirmation" ? "Confirm these elected candidates to complete the position." : "Candidates marked Advance are included in this draft.";
+        $("elected-candidates-heading").hidden = state.electedCandidates.length === 0;
+        $("confirm-elected-row").hidden = state.phase !== "elected-pending-confirmation";
         $("response-candidate").textContent = state.winner ? `${state.winner} was elected in round ${state.round}. Record the candidate's response.` : "Select a candidate decision first.";
         $("candidate-accept").hidden = state.phase !== "awaiting-response";
         $("candidate-decline").hidden = state.phase !== "awaiting-response";
@@ -1210,14 +1220,12 @@
         const topTie = ranked.length > 1 && ranked[0].votes === ranked[1].votes;
         $("runner-up-row").hidden = ranked.length < 1;
         $("invite-runner-up").textContent = topTie ? `Tie at ${ranked[0].votes} votes · Start tie-break poll` : ranked[0] ? `Invite ${ranked[0].name} (${ranked[0].votes} votes)` : "Invite next-highest candidate";
-        const stateLabels = { "intake-setup": "Intake not open", "intake-active": "Intake open", "intake-submitted": "Intake open", "intake-review": "Nomination consolidation", "nominations-confirmed": "List confirmed", draft: "Draft", "next-draft": "Draft", active: "Voting open", closed: "Closed · Unreleased", released: "Results released", decided: "Decisions saved", "awaiting-response": "Awaiting response", declined: "Candidate declined", "replacement-roster": "Replacement roster", complete: "Position complete" };
+        const stateLabels = { "intake-setup": "Intake not open", "intake-active": "Intake open", "intake-submitted": "Intake open", "intake-review": "Nomination consolidation", "nominations-confirmed": "List confirmed", draft: "Draft", "next-draft": "Draft", active: "Voting open", closed: "Voting closed", "elected-pending-confirmation": "Confirm elected candidates", complete: "Position complete" };
         $("global-state").textContent = intakePhases.includes(state.phase) ? `Nominations · ${stateLabels[state.phase]}` : `Round ${state.round} · ${stateLabels[state.phase]}`;
         $("nomination-profile-count").textContent = state.nominationSubmitted ? "1" : "0";
         $("close-intake").disabled = !state.nominationSubmitted;
-        const displayedNames = ["intake-active", "intake-submitted", "intake-review", "nominations-confirmed", "nominations-shared"].includes(state.phase) ? state.nominees : intakePhases.includes(state.phase) ? [] : state.round === 1 ? state.candidates : state.candidates.slice(0, 2);
-        renderList("admin-roster", displayedNames.map((name) => ({ name })));
-        $("admin-roster").hidden = ["intake-setup", "intake-active", "intake-submitted"].includes(state.phase);
-        renderList("admin-preview", results(), true);
+        renderList("admin-live-results", results(), true);
+        $("admin-live-results").hidden = state.phase !== "active";
         renderDecisions();
         renderReplacementCandidates();
         renderAdminWorkingNames();
@@ -1230,35 +1238,34 @@
         const nomination = ["intake-active", "intake-submitted"].includes(state.phase);
         const open = state.phase === "active";
         const nominationViewer = ["intake-review", "nominations-confirmed", "nominations-shared"].includes(state.phase) && state.participantListVisible;
-        const neutral = ["intake-review", "nominations-confirmed", "nominations-shared", "closed", "released", "decided", "draft", "next-draft"].includes(state.phase) && !nominationViewer;
-        const released = state.phase === "released" || state.phase === "decided";
+        const showLiveResults = state.presentationVisible && ["active", "closed"].includes(state.phase);
+        const neutral = ["intake-review", "nominations-confirmed", "nominations-shared", "closed", "elected-pending-confirmation", "draft", "next-draft"].includes(state.phase) && !nominationViewer && !showLiveResults;
         const complete = state.phase === "complete";
         $("ballot-content").hidden = !open;
         $("voter-neutral").hidden = !neutral || nominationViewer;
-        $("voter-results").hidden = !released;
+        $("voter-live-results").hidden = !showLiveResults;
         $("voter-complete").hidden = !complete;
         $("voter-stage-label").textContent = nomination ? "Nomination intake open" : state.phase === "intake-setup" ? "Nomination intake not open" : state.phase === "active" ? `Round ${state.round} · Voting open` : nominationViewer ? "Nomination list shared" : ["intake-review", "nominations-confirmed", "nominations-shared"].includes(state.phase) ? "Nomination list unavailable" : state.phase === "draft" || state.phase === "next-draft" ? "Not open" : state.phase === "complete" ? "Position complete" : `Round ${state.round} · Closed`;
         $("ballot-status").textContent = open ? "Voting open" : "Not open";
         $("ballot-instruction").textContent = open ? `Choose exactly ${selectedCount()} ${selectedCount() === 1 ? "candidate" : "candidates"}. You can replace your ballot while voting is open.` : "The ballot will appear here when voting opens.";
-        $("neutral-title").textContent = ["intake-review", "nominations-confirmed", "nominations-shared"].includes(state.phase) ? "Nomination list not shared" : released ? "Results are available" : "No current participation task";
-        $("neutral-copy").textContent = ["intake-review", "nominations-confirmed", "nominations-shared"].includes(state.phase) ? "The administrator has not shared the consolidated list yet." : released ? "The current round's aggregate totals have been released." : state.phase === "closed" ? "This round is closed. Results are not released." : "There is no nomination or voting task available at this stage.";
-        $("voter-results-title").textContent = `Chair · Round ${state.round}`;
-        $("voter-elected-name").textContent = state.winner;
-        renderList("voter-result-list", results(), true);
+        $("neutral-title").textContent = ["intake-review", "nominations-confirmed", "nominations-shared"].includes(state.phase) ? "Nomination list not shared" : "No current participation task";
+        $("neutral-copy").textContent = ["intake-review", "nominations-confirmed", "nominations-shared"].includes(state.phase) ? "The administrator has not shared the consolidated list yet." : state.phase === "closed" ? "Voting is closed. The administrator is reviewing the round." : "There is no nomination or voting task available at this stage.";
+        $("voter-elected-name").textContent = state.electedCandidates.join(", ") || state.winner;
+        renderList("voter-live-result-list", results(), true);
       }
       function renderPresentation() {
         const intakeOpen = ["intake-active", "intake-submitted"].includes(state.phase);
         const nominationViewer = state.participantListVisible && ["intake-review", "nominations-confirmed", "nominations-shared"].includes(state.phase);
         const showingNominations = state.presentationVisible && [...["intake-active", "intake-submitted"], ...(nominationViewer ? ["intake-review", "nominations-confirmed", "nominations-shared"] : [])].includes(state.phase);
-        const showResults = state.phase === "released" || state.phase === "decided";
+        const showResults = state.presentationVisible && ["active", "closed"].includes(state.phase);
         const completed = state.phase === "complete";
         const visible = state.presentationVisible;
         $("presentation-list").hidden = !visible || (!showingNominations && !showResults && !completed);
         $("presentation-change-log").hidden = !visible || !showingNominations || state.nominationChanges.length === 0;
         $("presentation-empty").hidden = visible && (showingNominations || showResults || completed);
         $("presentation-title").textContent = !visible ? "Presentation hidden" : completed ? "Position complete" : showResults ? `Voting results · Round ${state.round}` : showingNominations && intakeOpen ? "Nomination Intake · Incoming names" : showingNominations ? "Nomination Intake Consolidation" : "Welcome";
-        $("presentation-subtitle").textContent = !visible ? "The display was hidden by the administrator." : completed ? "The elected outcome is confirmed." : showResults ? "Closed and explicitly revealed · Representative mock totals" : showingNominations && intakeOpen ? "Incoming names · Room display only" : showingNominations ? "Confirmed changes · Read-only shared list" : "The election presentation is ready.";
-        $("presentation-empty").textContent = state.phase === "active" ? "Voting is open. The room display is hidden to protect ballot privacy." : state.phase === "closed" ? "Voting is closed. Results remain hidden until the admin reveals them." : "The audience presentation is off. Turn it on to show authorized content to the room.";
+        $("presentation-subtitle").textContent = !visible ? "The display was hidden by the administrator." : completed ? "The elected outcome is confirmed." : showResults ? state.phase === "active" ? "Live aggregate totals · Current round" : "Final aggregate totals · Current round" : showingNominations && intakeOpen ? "Incoming names · Room display only" : showingNominations ? "Confirmed changes · Read-only shared list" : "The election presentation is ready.";
+        $("presentation-empty").textContent = state.phase === "active" ? "Voting is open. The audience presentation is hidden." : state.phase === "closed" ? "Voting is closed. The current results are not being presented." : "The audience presentation is off. Turn it on to show authorized content to the room.";
         $("presentation-label").textContent = `Spring election · Chair${showResults ? ` · Round ${state.round}` : ""}`;
         if (visible && showingNominations) {
           renderList("presentation-list", state.nominees.map((name) => ({ name })));
@@ -1268,8 +1275,8 @@
         }
         if (visible && showResults) renderList("presentation-list", results(), true);
         if (visible && completed) {
-          const li = listItem(state.winner, "Elected");
-          $("presentation-list").replaceChildren(li);
+          const elected = state.electedCandidates.length ? state.electedCandidates : [state.winner];
+          $("presentation-list").replaceChildren(...elected.map((name) => listItem(name, "Elected")));
         }
       }
 
@@ -1382,30 +1389,44 @@
         update();
       });
       $("close-voting").addEventListener("click", () => { state.phase = "closed"; state.released = false; update(); });
-      $("release-results").addEventListener("click", () => { state.phase = "released"; state.released = true; state.presentationVisible = true; update(); });
       $("save-decisions").addEventListener("click", () => {
-        state.decisions = [...$("decision-controls").querySelectorAll('input:checked')].map((input) => input.value);
-        if (!state.decisions.length) {
-          $("decision-help").textContent = "Select at least one mock decision to continue.";
+        const missingDecision = state.candidates.find((candidate) => !["elect", "advance", "remove"].includes(state.decisions[candidate]));
+        if (missingDecision) {
+          $("decision-help").textContent = `Choose Elect, Advance, or Remove for ${missingDecision} before saving.`;
+          return;
+        }
+        const advancing = state.candidates.filter((candidate) => state.decisions[candidate] === "advance");
+        const newlyElected = state.candidates.filter((candidate) => state.decisions[candidate] === "elect");
+        if (newlyElected.length === 0 && advancing.length < 2) {
+          $("decision-help").textContent = "Elect at least one candidate or advance at least two candidates. Your choices are still here.";
           $("decision-help").focus?.();
           return;
         }
-        if (state.round === 2) {
-          state.winner = state.decisions[0];
-          state.phase = "awaiting-response";
-        } else {
-          state.phase = "decided";
+        state.decisionHistory.push(state.candidates.map((name) => ({ name, action: state.decisions[name], round: state.round })));
+        state.savedAdvanceCandidates = [...advancing];
+        state.electedCandidates = [...new Set([...state.electedCandidates, ...newlyElected])];
+        state.winner = newlyElected.at(-1) || state.winner;
+        if (advancing.length > 0) {
+          state.candidates = advancing;
+          state.round += 1;
+          state.phase = "next-draft";
+          state.selectionCount = "1";
+          state.selected = [];
+          state.submitted = false;
+          state.simulatedBallots = [];
+          state.decisions = {};
+        } else if (state.electedCandidates.length > 1) {
+          state.phase = "elected-pending-confirmation";
+          state.decisions = {};
+        } else if (state.electedCandidates.length === 1) {
+          state.phase = "complete";
+          state.decisions = {};
         }
         update();
       });
-      $("next-round").addEventListener("click", () => {
-        state.candidates = [...state.decisions];
-        state.round = 2;
-        state.phase = "next-draft";
-        state.selected = [];
-        state.submitted = false;
-        state.simulatedBallots = [];
-        state.decisions = [];
+      $("confirm-elected").addEventListener("click", () => {
+        if (state.phase !== "elected-pending-confirmation" || state.electedCandidates.length < 2) return;
+        state.phase = "complete";
         update();
       });
       $("candidate-accept").addEventListener("click", () => {

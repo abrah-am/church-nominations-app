@@ -11,7 +11,7 @@
 - A failed or cancelled start leaves the current presentation visibility unchanged; the presentation is hidden only when the poll-start transition succeeds.
 - Once the poll is active, reopening or reconnecting the presentation cannot restore stale nomination content or prior-round results as current content.
 - The participant session link resolves to the active ballot during voting and never shows results or nomination content as the current phase. Existing ballot confidentiality rules remain unchanged.
-- Closing the poll leaves the presentation neutral until the existing explicit voting-result reveal action is completed. This story does not auto-reveal results.
+- Successful poll start still hides and clears prior presentation content. While the poll is active, the admin may enable the Audience Presentation control to show current aggregate totals on both viewer surfaces, or disable it to clear them. Closing ends ballot access and makes final totals available to the admin without a separate reveal action.
 - Existing poll reopen behavior continues to clear current results; the presentation remains hidden until the administrator explicitly shows it again.
 - Behavior is enforced server-side and tested for normal start, fresh reset/start, cancelled/failed start, hidden state, and stale viewer reconnect. UI-only hiding is insufficient.
 - Hide/clear is tenant-scoped and does not expose poll status or results through presentation capabilities, caches, event streams, or errors.
@@ -20,8 +20,8 @@
 Presentation lifecycle safety on successful voting-poll start. Depends on E4.1 round-start confirmation, E4.5 fresh-attempt behavior, E6.8 presentation, E6.10 access policy, and the round-start API contract. Coordinate with E6.13 nomination publication so an active poll supersedes the nomination viewer snapshot.
 
 ## Explicitly Out of Scope
-- Automatically revealing poll results after close.
-- Changing the Audience presentation control or nomination publication behavior.
+- Changing the Audience Presentation setting or its shared participant/presentation visibility contract (covered by PD-019 and E6.8/E6.10/E6.11).
+- Changing the nomination publication behavior.
 - Hiding the presentation merely because an administrator opened a draft or cancelled the start confirmation.
 - Treating reopening an existing poll as a fresh poll start; existing reopen-clearing policy still applies.
 

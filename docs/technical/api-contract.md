@@ -6,9 +6,9 @@ This contract records the E6.10 boundary conditions for E6.8 and E6.11. It does 
 
 ## Separate Capabilities
 
-- **Participant session link:** An unexpired, forwardable bearer capability scoped to exactly one election session. An authorized admin may revoke it; it becomes unavailable when its session ends. It resolves only that session's server-authorized current nomination/voting phase or viewer state. During an active poll it presents the voter ballot; after close it transitions to neutral viewer mode until explicit reveal.
+- **Participant session link:** An unexpired, forwardable bearer capability scoped to exactly one election session. An authorized admin may revoke it; it becomes unavailable when its session ends. It resolves only that session's server-authorized current nomination/voting phase or viewer state. During an active poll it presents the voter ballot without totals by default. When the authenticated admin enables **Show audience presentation**, it may also receive the current aggregate snapshot. After close it transitions out of ballot mode; viewer totals remain governed by the presentation control.
 - **Presentation view:** A separate, read-only view opened through an authenticated admin action, optionally in a new tab. Presentation show/hide/end is admin-controlled and independent of participant-link phase resolution. It does not use or expose the participant capability.
-- **Viewer capability:** Read-only access to the revealed content of one participant or presentation session. Before reveal, the viewer sees a neutral state; after reveal, it receives only the approved current snapshot. A viewer cannot invoke admin mutations, reveal/hide/end controls, or access other sessions. “Viewer” is not a third authenticated application role; the presentation session authorization mechanism must be defined by its implementation story.
+- **Viewer capability:** Read-only access to approved content of one participant or presentation session. When presentation is off, the viewer sees a neutral voting-results state; when on, it receives only the approved current aggregate snapshot. The admin-only presentation control governs both viewer surfaces. A viewer cannot invoke admin mutations or presentation controls, or access other sessions. “Viewer” is not a third authenticated application role; the presentation session authorization mechanism must be defined by its implementation story.
 - Neither capability authorizes admin mutations, another session, historical reports, or the other's controls. All tenant and lifecycle checks are server-side.
 
 ## Participant Phase Resolution
@@ -16,15 +16,16 @@ This contract records the E6.10 boundary conditions for E6.8 and E6.11. It does 
 | Server state | Participant response |
 | --- | --- |
 | Current nomination intake is active | Current position's nomination intake |
-| Current poll is active | Current poll ballot; no totals, participation status, or voter identity |
-| Current poll is closed and unrevealed | Neutral read-only viewer mode; no totals, ballot activity, or result data |
-| Current poll is closed and explicitly revealed | Candidate names and aggregate vote totals for that round only |
-| Current poll is reopened | Generic unavailable/inactive response; prior results are not current |
+| Current poll is active; presentation off | Current poll ballot; no totals, participation status, or voter identity |
+| Current poll is active; presentation on | Current poll ballot plus candidate names and current aggregate totals only |
+| Current poll is closed; presentation off | Neutral read-only viewer mode; no totals, ballot activity, or result data |
+| Current poll is closed; presentation on | Candidate names and final aggregate vote totals for that round only |
+| Current poll is reopened | Current poll ballot; previously closed totals are cleared until presentation is enabled again |
 | No active phase, session ended, link revoked, or unauthorized | Same generic unavailable response; do not disclose whether session, ballot, or results exist |
 
-When the poll closes, the participant leaves voter/ballot mode and enters viewer mode. This viewer mode is neutral until explicit admin reveal; the authenticated admin's private result preview is not returned through participant or presentation viewer paths. The resolver must never fall back to a prior phase, another session, a historical poll, or cached results. A subsequent close after reopen does not republish results without another explicit reveal.
+When the poll closes, the participant leaves voter/ballot mode and enters viewer mode. The admin receives final aggregate results without a separate reveal operation. Viewer mode shows totals only while presentation visibility is enabled; hiding clears the projection. The resolver must never fall back to another session, a historical poll, or stale cached results. Reopening clears closed results as current viewer content; the same control may publish live totals again.
 
-The authenticated admin result-review path remains separate from the participant and presentation viewer paths. Closing may make closed-poll results available to the admin for private preview; it must not change viewer content or reveal state.
+The authenticated admin result path is separate from participant and presentation viewer paths. The admin may view live aggregate totals during an active poll and final totals after closure. Viewer result access depends on admin-controlled presentation visibility. No viewer route may expose the admin-only candidate decisions.
 
 ## Ballot Profile Credential
 
@@ -38,7 +39,7 @@ The authenticated admin result-review path remains separate from the participant
 
 - Require an authenticated, tenant-authorized admin action to open or control presentation visibility. The audience view remains read-only; its show/hide/end actions are not available from that surface.
 - The viewer read path must not authorize or route to nomination write operations. Keep admin credentials and mutation capabilities out of the viewer context.
-- Display only server-confirmed, approved content. For a revealed round, use the same aggregate snapshot as the participant link: candidate names and aggregate vote totals only.
+- Display only server-confirmed, approved content. When voting-result presentation is enabled, use the same aggregate snapshot as the participant link: candidate names and aggregate vote totals only. Turning it off clears both viewer projections.
 - Do not expose participation counts/status, voter identities, individual ballots, recommendations, candidate decisions, audit details, or historical results.
 - Hiding, ending, changing context, or losing authoritative connectivity clears presented content. Reopening a poll invalidates its results as current content in both presentation and participant views.
 - Follow E6.9's policy: removed nominations leave the active list and are represented in the admin Removed section. Persist append-only nomination change events for confirmed corrections (before/after), removals (including selected reason such as duplicate or declined), and restorations. After explicit reveal, the separate read-only presentation tab receives the confirmed active list and these events live. Do not expose submitter/device identity, admin account email, credentials, or unrelated audit details. Audit presentation start/hide/end without logging individual viewers or link credentials. Retention periods remain under PD-005/PD-006/E8.2.
@@ -48,14 +49,14 @@ The authenticated admin result-review path remains separate from the participant
 - Scope every participant capability to one session and enforce tenant ownership on every request.
 - Return indistinguishable generic unavailable behavior for absent, ended, revoked, and unauthorized session capabilities.
 - Prevent caches from serving results as current after reopen, phase change, revocation, or session end.
-- Verify no open poll response contains aggregate totals; verify no participant response contains admin or historical data.
+- Verify admin aggregate responses contain no voter identity or ballot-level choice data. Verify participant/presentation totals are absent while presentation is off and present only as candidate aggregates while it is on; neither viewer response contains admin decisions or historical data.
 - Verify presentation routes cannot be loaded or controlled through the participant capability and cannot mutate election state.
 
 These are acceptance/security invariants for dependent stories, not a completed implementation review of routes or code. Each implementation story must define concrete endpoint authorization, revocation enforcement, cache controls, and persistence mechanisms, then verify them with focused tests and review.
 
 ## Nomination Reveal and Shared List (E6.9)
 
-**Revised Product Owner direction, 2026-11-02; implementation contract review pending (PD-017/PD-018):** During open intake, the admin may enable the room presentation to show incoming names live; the participant session link must not show open-intake names. If presentation is on at intake closure, it transitions to the closed list and the participant session is published; otherwise post-close Show publishes to both. Hide after closure clears/retracts the list from both viewer surfaces; Show republishes the current server-confirmed list. There is no separate nomination reveal button. Elected outcomes appear on both current-session viewer surfaces, without historical access. Voting results retain their separate explicit reveal action. A successful poll start supersedes nomination content and must hide/clear presentation under E4.7. The detailed operation/API semantics below still describe current implementation and must be reconciled before revised requirements are implemented.
+**Revised Product Owner direction, 2026-11-02 and 2026-11-04; implementation contract review pending (PD-017/PD-018/PD-019):** During open intake, the admin may enable the room presentation to show incoming names live; the participant session link must not show open-intake names. If presentation is on at intake closure, it transitions to the closed list and the participant session is published; otherwise post-close Show publishes to both. Hide after closure clears/retracts the list from both viewer surfaces; Show republishes the current server-confirmed list. There is no separate nomination reveal button. Elected outcomes appear on both current-session viewer surfaces, without historical access. For voting, the authenticated admin sees live aggregate totals; the same Audience Presentation switch governs totals on participant and room viewer surfaces. Closing ends ballot access and requires no separate results reveal. A successful poll start supersedes nomination content and must initially hide/clear presentation under E4.7; the admin may enable it again during voting. The detailed operation/API semantics below still describe aspects of current implementation and must be reconciled before revised requirements are implemented.
 
 - Admin nomination GET/SSE returns intake status, name limit, contributor-profile count, reveal flag, and list revision. Before reveal, submissions, proposed-entry count, shared rows, and consolidated names are empty/absent; stream announcements must never include candidate names.
 - Closing intake stops public submissions and creates the shared list for authenticated admin review. Admin responses show the names after close, while the presentation projection remains redacted.
