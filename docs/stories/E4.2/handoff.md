@@ -4,7 +4,7 @@
 
 - Implemented the focused active-voting admin workspace and active cancellation behavior for the local POC.
 - Product Owner approved scope and implementation plan on 2026-11-03.
-- Product Owner accepted E4.2 on 2026-11-04. PR is pending; mark the backlog item Completed after merge.
+- Product Owner accepted E4.2 on 2026-11-04. PR [#29](https://github.com/abrah-am/church-nominations-app/pull/29) is open against `main`; mark the backlog item Completed after merge.
 - Automatic voting-result publication to Audience/participant viewers is deferred to E6.8/E6.11. Close voting and explicit admin reveal remain separate.
 
 ## Delivered
