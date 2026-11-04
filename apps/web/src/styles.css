@@ -258,10 +258,13 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .workflow-stage-group.is-intake-open .guided-workflow { margin: 0; padding: 0 0 14px; border: 0; border-radius: 0; background: transparent; }
 .workflow-stage-group.is-intake-closed { margin-bottom: 0; padding: 18px 20px 0; border: 1px solid #cbd8cc; border-bottom: 0; border-radius: 4px 4px 0 0; background: #fff; }
 .workflow-stage-group.is-intake-closed .guided-workflow { margin: 0; padding: 0 0 14px; border: 0; border-radius: 0; background: transparent; }
+.workflow-stage-group.is-intake-closed .guided-workflow.is-voting-active { padding-bottom: 0; }
+.workflow-stage-group.is-intake-closed.is-voting-active { padding-bottom: 0; }
 .workflow-stage-group.is-intake-closed .workflow-presentation-control { display: none; }
 .workflow-stage-group.is-intake-closed.is-round-setup-primary { margin-bottom: 0; padding-bottom: 0; border-bottom: 0; border-radius: 4px 4px 0 0; }
 .position-workflow-grid.is-intake-closed { grid-template-columns: minmax(0, 1fr); gap: 0; }
 .position-workflow-grid.is-intake-closed .position-workflow-main { width: 100%; }
+.position-workflow-grid.is-intake-closed.is-voting-active { margin-top: 0; }
 .position-workflow-grid.is-round-setup-primary { grid-template-columns: minmax(0, 1fr); gap: 0; }
 .position-workflow-grid.is-round-setup-primary .position-workflow-main { width: 100%; }
 .closed-review-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 18px; padding-top: 13px; border-top: 1px solid var(--line); }
@@ -424,6 +427,11 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .confirmation-label input { width: 17px; min-height: 17px; flex: 0 0 auto; margin: 1px 0 0; accent-color: var(--green); }
 .confirmation-label span { font-size: 12px; }
 .voting-round-configuration { max-width: 100%; margin-top: 30px; padding-top: 23px; border-top: 1px solid var(--line); }
+.voting-round-configuration.is-voting-active { margin-top: 0; padding: 0 20px 18px; border: 1px solid #cbd8cc; border-top: 0; border-radius: 0 0 4px 4px; background: #fff; }
+.active-voting-card { display: grid; width: 100%; gap: 14px; padding: 14px 0 0; border-top: 1px solid var(--line); }
+.active-voting-card .section-heading { margin: 0; }
+.active-voting-card .section-heading h3 { margin: 0; font-size: 1rem; }
+.active-voting-actions { display: flex; flex-wrap: wrap; gap: 9px; }
 .voting-round-configuration.is-first-round-setup { width: 100%; margin-top: 0; padding: 18px 24px 24px; border: 1px solid #cbd8cc; border-top: 0; border-radius: 0 0 4px 4px; background: #fff; }
 .voting-round-configuration.is-first-round-setup > summary { display: none; }
 .voting-round-configuration .section-heading { margin-bottom: 14px; }
