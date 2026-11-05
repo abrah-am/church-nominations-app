@@ -7,6 +7,7 @@ import {
 	VotingRoundProgress,
 	VotingRoundResult,
 } from '../../api/rounds';
+import VotingLiveResults from './VotingLiveResults';
 
 export function AggregateCandidateResults({ result, label }: { result: VotingRoundAggregateResults; label: string }) {
 	const candidates = [...result.candidates].sort((first, second) =>
@@ -119,7 +120,7 @@ export function ActiveVotingStage({
 		</div>
 		{!aggregate && !aggregateError && <p className="form-note" role="status">Loading live results…</p>}
 		{aggregateError && <p className="form-note" role="alert">{aggregate ? 'Live totals may be out of date.' : 'Live results are temporarily unavailable.'} Retrying automatically.</p>}
-		{aggregate && <AggregateCandidateResults result={aggregate} label="Live aggregate candidate results" />}
+		{aggregate && <VotingLiveResults result={aggregate} label="Live aggregate candidate results" />}
 		<div className="active-voting-actions">
 			<button className="danger-button" type="button" disabled={lifecycleBusy} onClick={onCancel}>Cancel active voting</button>
 			<button className="primary-button" type="button" disabled={lifecycleBusy} onClick={onClose}>Close voting</button>

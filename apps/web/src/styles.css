@@ -263,7 +263,11 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .workflow-stage-group.is-intake-closed .workflow-presentation-control { display: none; }
 .workflow-stage-group.is-intake-closed.is-round-setup-primary { margin-bottom: 0; padding-bottom: 0; border-bottom: 0; border-radius: 4px 4px 0 0; }
 .position-workflow-grid.is-intake-closed { grid-template-columns: minmax(0, 1fr); gap: 0; }
-.position-workflow-grid.is-intake-closed .position-workflow-main { width: 100%; }
+.position-workflow-grid.is-intake-closed .position-workflow-main { width: 100%; overflow: hidden; border: 1px solid #cbd8cc; border-radius: 4px; background: #fff; }
+.position-workflow-grid.is-intake-closed .position-workflow-main > .consolidation-details { margin: 0; padding: 0 20px 12px; border: 0; border-radius: 0; background: transparent; }
+.position-workflow-grid.is-intake-closed .position-workflow-main > .voting-round-configuration { width: 100%; max-width: none; margin: 0; padding: 18px 20px 24px; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; }
+.position-workflow-grid.is-intake-closed .position-workflow-main > .voting-round-configuration.is-voting-active { padding: 18px 20px 18px; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; }
+.position-workflow-grid.is-intake-closed .position-workflow-main > .voting-round-configuration.is-first-round-setup { padding: 18px 20px 24px; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; }
 .position-workflow-grid.is-intake-closed.is-voting-active { margin-top: 0; }
 .position-workflow-grid.is-round-setup-primary { grid-template-columns: minmax(0, 1fr); gap: 0; }
 .position-workflow-grid.is-round-setup-primary .position-workflow-main { width: 100%; }

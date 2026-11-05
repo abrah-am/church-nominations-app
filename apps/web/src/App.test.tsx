@@ -242,8 +242,9 @@ describe('voting round navigation', () => {
     expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/round-1/aggregate-results')).every(([, options]) => Boolean(options?.headers?.Authorization))).toBe(true);
 
     fireEvent.click(screen.getByRole('button', { name: 'Close voting' }));
-    expect(await screen.findByRole('region', { name: 'Final aggregate candidate results for round 1' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Final aggregate candidate results for round 1' })).toHaveTextContent('4 votes · 133%');
+    const closedDecisions = await screen.findByRole('region', { name: 'Round 1 candidate decisions' });
+    expect(within(closedDecisions).getByText('Riley Chen').parentElement).toHaveTextContent('4 votes · 133%');
+    expect(within(closedDecisions).queryByRole('progressbar')).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/round-1/reveal'))).toBe(false);
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/round-1/close') && String(url).startsWith('http://localhost:8080/api/elections/'))).toBe(true);
     intervalSpy.mockRestore();
@@ -512,7 +513,7 @@ describe('voting round navigation', () => {
 
     expect(await screen.findByText('Unavailable')).toBeInTheDocument();
     expect(screen.getByText('The connected API did not provide this count. Restart or update the API, then reload nominations.')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Collect nominations' })).toBeInTheDocument();
+    expect(screen.getByText('Share the nomination link, monitor profile submissions, and close intake when ready.')).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'Open nomination intake' })).getByRole('heading', { name: 'Nomination intake is open' })).toBeInTheDocument();
     const openIntakeView = screen.getByRole('region', { name: 'Open nomination intake' });
     const openNames = within(openIntakeView).getByRole('list', { name: 'Submitted nomination names' });
@@ -570,7 +571,7 @@ describe('voting round navigation', () => {
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: 'Continue election: Treasurer' }));
 
-    expect(await screen.findByRole('heading', { name: 'Prepare round 1' })).toBeInTheDocument();
+    expect(await screen.findByText('Review the confirmed list and configure how many names each ballot can select.')).toBeInTheDocument();
     const workflow = screen.getByRole('region', { name: 'Position workflow progress' });
     expect(within(workflow).getByRole('listitem', { current: 'step' })).toHaveTextContent('Voting rounds');
     expect(within(workflow).getByText('2 of 4')).toBeInTheDocument();
@@ -790,7 +791,7 @@ describe('election administration', () => {
     const workflowTask = screen.getByRole('region', { name: 'Position workflow progress' });
     expect(within(workflowTask).getByText('Position workflow')).toBeInTheDocument();
     expect(within(workflowTask).getByRole('heading', { name: 'Director' })).toBeInTheDocument();
-    expect(within(workflowTask).getByRole('heading', { name: 'Set up nomination intake' })).toBeInTheDocument();
+    expect(within(workflowTask).getByText('Set the name limit and create an intake link for this position.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit election' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Manage nominations' })).not.toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Election workflow breadcrumb' })).toHaveTextContent(/Grace Church\s*\/\s*Elections 2026\s*\/\s*Finance\s*-\s*Director/);
@@ -800,9 +801,14 @@ describe('election administration', () => {
     expect(within(accessCards).getByText(/A participant session link is not available until its phase opens/)).toBeInTheDocument();
     expect(within(accessCards).getByRole('switch', { name: 'Show audience presentation' })).toBeDisabled();
     expect(within(accessCards).getByRole('button', { name: 'Open presentation' })).toBeDisabled();
-    expect(screen.getByText('Not open')).toBeInTheDocument();
+    expect(within(workflowTask).queryByText('Not open')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create intake' })).toBeInTheDocument();
     expect(screen.getByLabelText('Maximum names per visitor')).toBeInTheDocument();
+    const intakeSetup = screen.getByRole('region', { name: 'Nomination intake setup' });
+    expect(within(intakeSetup).getByRole('heading', { name: 'Nomination intake' })).toBeInTheDocument();
+    expect(within(intakeSetup).getByRole('heading', { name: 'Names not yet submitted' })).toBeInTheDocument();
+    expect(within(intakeSetup).getByText('No candidates yet.')).toBeInTheDocument();
+    expect(within(intakeSetup).getByText('1 opening')).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Election positions' })).not.toBeInTheDocument();
     const progress = screen.getByRole('region', { name: 'Position workflow progress' });
     expect(within(progress).getAllByRole('listitem').map((step) => step.querySelector('span:nth-child(2)')?.textContent)).toEqual([
@@ -839,7 +845,7 @@ describe('election administration', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Start nominations: Director' }));
 
     const workflow = await screen.findByRole('region', { name: 'Position workflow progress' });
-    expect(within(workflow).getByRole('heading', { name: 'Monitor voting' })).toBeInTheDocument();
+    expect(within(workflow).getByText('Track participation and review live aggregate totals.')).toBeInTheDocument();
     expect(within(workflow).queryByText('Voting open')).not.toBeInTheDocument();
     expect(within(workflow).getByRole('listitem', { current: 'step' })).toHaveTextContent('Voting rounds');
   });
@@ -1614,7 +1620,7 @@ describe('election administration', () => {
     expect(screen.getByRole('button', { name: 'Keep intake open' })).toHaveFocus();
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Close nominations?' })).getByRole('button', { name: 'Close nominations' }));
     expect(await screen.findByRole('region', { name: 'Closed nomination review' })).toHaveTextContent('2 current profile submissions');
-    expect(within(screen.getByRole('region', { name: 'Position workflow progress' })).getByRole('heading', { name: 'Review and consolidate' })).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Position workflow progress' })).getByText('Review proposed names, correct spellings, remove duplicates, then confirm the consolidated list.')).toBeInTheDocument();
     expect(document.querySelector('.position-workflow-grid')).toHaveClass('is-intake-closed');
     expect(screen.queryByRole('complementary', { name: 'People on the ballot' })).not.toBeInTheDocument();
     const closedStatus = screen.getByText('Nominations are closed. Review and consolidate the names, then confirm the list.');
@@ -1626,7 +1632,7 @@ describe('election administration', () => {
     expect(within(closedSharedList).getByLabelText('Correct Riley Chen')).toHaveValue('Riley Chen');
     expect(screen.queryByRole('list', { name: 'Submitted names' })).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/rounds'))).toBe(true);
-    expect(within(screen.getByRole('region', { name: 'Position workflow progress' })).getByRole('heading', { name: 'Review and consolidate' })).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Position workflow progress' })).getByText('Review proposed names, correct spellings, remove duplicates, then confirm the consolidated list.')).toBeInTheDocument();
     expect(screen.getByRole('list', { name: 'Shared nomination list' })).toBeInTheDocument();
     const sharedList = screen.getByRole('list', { name: 'Shared nomination list' });
     expect(within(sharedList).getByLabelText('Correct Morgan Diaz')).toHaveValue('Morgan Diaz');
@@ -1790,14 +1796,15 @@ describe('election administration', () => {
     expect(screen.getByRole('region', { name: 'Round 1 candidate decisions' })).toBeInTheDocument();
     expect(document.querySelector('#round-round-1.round-details')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reveal results' })).not.toBeInTheDocument();
-    expect(within(currentRoundDecisions).getAllByText('9 votes · 60%')).toHaveLength(2);
-    expect(within(currentRoundDecisions).getAllByText('6 votes · 40%')).toHaveLength(2);
+    expect(within(currentRoundDecisions).getAllByText('9 votes · 60%')).toHaveLength(1);
+    expect(within(currentRoundDecisions).getAllByText('6 votes · 40%')).toHaveLength(1);
+    expect(within(currentRoundDecisions).queryByRole('progressbar')).not.toBeInTheDocument();
     expect(screen.getByText('No candidates are ready for the next round. Mark at least two candidates Advanced in the closed round to continue.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save round setup' })).not.toBeInTheDocument();
     expect(within(currentRoundDecisions).getByRole('group', { name: 'Decision for Riley Chen' })).toBeInTheDocument();
     expect(within(currentRoundDecisions).getByRole('group', { name: 'Decision for Morgan Diaz' })).toBeInTheDocument();
-    expect(within(currentRoundDecisions).getAllByText('9 votes · 60%')).toHaveLength(2);
-    expect(within(currentRoundDecisions).getAllByText('6 votes · 40%')).toHaveLength(2);
+    expect(within(currentRoundDecisions).getAllByText('9 votes · 60%')).toHaveLength(1);
+    expect(within(currentRoundDecisions).getAllByText('6 votes · 40%')).toHaveLength(1);
     expect(screen.getByText('No candidates are ready for the next round. Mark at least two candidates Advanced in the closed round to continue.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save round setup' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Riley Chen')).not.toBeInTheDocument();
@@ -1807,13 +1814,13 @@ describe('election administration', () => {
         const morganDecision = screen.getByRole('group', { name: 'Decision for Morgan Diaz' });
         expect(within(rileyDecision).getByRole('button', { name: 'Elect', pressed: false })).toBeInTheDocument();
         expect(within(rileyDecision).getByRole('button', { name: 'Advance', pressed: false })).toBeInTheDocument();
-        expect(within(rileyDecision).getByRole('button', { name: 'Remove', pressed: false })).toBeInTheDocument();
+        expect(within(rileyDecision).getByRole('button', { name: 'Eliminate', pressed: false })).toBeInTheDocument();
         fireEvent.click(within(rileyDecision).getByRole('button', { name: 'Advance' }));
         fireEvent.click(within(morganDecision).getByRole('button', { name: 'Advance' }));
         fireEvent.click(screen.getByRole('button', { name: 'Save decisions' }));
         expect(await screen.findByText('Candidate decisions saved.')).toBeInTheDocument();
         expect(screen.queryByRole('region', { name: 'Round 1 candidate decisions' })).not.toBeInTheDocument();
-        expect(screen.getByRole('heading', { name: 'Prepare the next round · Round 2' })).toBeInTheDocument();
+        expect(screen.getByText('Review the candidates marked Advance and configure the next round.')).toBeInTheDocument();
         expect(screen.getByRole('list', { name: 'Candidates advancing to this round' })).toHaveTextContent('Riley Chen');
         expect(screen.getByRole('list', { name: 'Candidates advancing to this round' })).toHaveTextContent('Morgan Diaz');
         expect(screen.getByRole('list', { name: 'Candidates advancing to this round' })).toHaveTextContent('Riley ChenMorgan Diaz');
@@ -2244,21 +2251,19 @@ describe('election administration', () => {
     await signIn();
     fireEvent.click(await screen.findByRole('button', { name: /Finance/ }));
     await waitForPositionHydration();
-    const roundDetails = (await screen.findByRole('list', { name: 'Voting rounds' })).querySelector('details');
-    fireEvent.click(roundDetails?.querySelector('summary') as HTMLElement);
-
-    expect(await within(roundDetails as HTMLElement).findAllByText(/Suggested: Advance\./)).toHaveLength(2);
-    const resultList = within(roundDetails as HTMLElement).getByRole('list', { name: 'Aggregate candidate votes for round 1' });
+    const roundOneDecisions = await screen.findByRole('region', { name: 'Round 1 candidate decisions' });
+    expect(await within(roundOneDecisions).findAllByText(/Suggested: Advance\./)).toHaveLength(2);
+    const resultList = within(roundOneDecisions).getByRole('list', { name: 'Aggregate candidate votes for round 1' });
     expect(Array.from(resultList.querySelectorAll('.round-result-candidate-heading strong')).map((candidate) => candidate.textContent)).toEqual([
       'Alex Kim', 'Zoe Patel', 'Morgan Diaz', 'Riley Chen',
     ]);
-    const decisionGroup = within(roundDetails as HTMLElement).getByRole('group', { name: 'Decision for Alex Kim' });
+    const decisionGroup = within(roundOneDecisions).getByRole('group', { name: 'Decision for Alex Kim' });
     expect(within(decisionGroup).getByRole('button', { name: 'Elect' })).toBeInTheDocument();
     expect(within(decisionGroup).getByRole('button', { name: 'Advance' })).toBeInTheDocument();
-    expect(within(decisionGroup).getByRole('button', { name: 'Remove' })).toBeInTheDocument();
-    fireEvent.click(within(decisionGroup).getByRole('button', { name: 'Remove' }));
+    expect(within(decisionGroup).getByRole('button', { name: 'Eliminate' })).toBeInTheDocument();
+    fireEvent.click(within(decisionGroup).getByRole('button', { name: 'Eliminate' }));
     expect(fetchMock.mock.calls.filter(([, options]) => options?.method === 'PUT')).toHaveLength(0);
-    expect(screen.getByRole('button', { name: 'Save decisions' })).toBeInTheDocument();
+    expect(within(roundOneDecisions).getByRole('button', { name: 'Save decisions' })).toBeInTheDocument();
   });
 
   it('shows an empty shared list to admins before presentation reveal', async () => {

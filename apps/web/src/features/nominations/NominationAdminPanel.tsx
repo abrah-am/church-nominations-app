@@ -40,9 +40,9 @@ import {
 } from '../../api/voting';
 import { AudiencePresentationCard } from '../../components/AudiencePresentationCard';
 import { ParticipantSessionLinkCard } from '../../components/ParticipantSessionLinkCard';
-import RoundPollSetup from './RoundPollSetup';
-import { ActiveVotingStage, AggregateCandidateResults, ClosedNominationReviewStage, ClosedRoundDecisionsStage, OpenNominationIntakeStage } from './NominationWorkflowStages';
-import { getCandidateRecommendation } from '../elections/candidateRecommendations';
+import NominationAdminPanelHeader from './NominationAdminPanelHeader';
+import NominationIntakeComponent from './NominationIntake';
+import NominationVoting from './NominationVoting';
 
 export type NominationAdminPanelProps = {
 	credentials: string;
@@ -886,7 +886,9 @@ export default function NominationAdminPanel({ credentials, electionId, position
 		const mostRecentCount = [...rounds]
 			.filter((item) => Number.isInteger(item.expectedVoterCount) && Number(item.expectedVoterCount) > 0)
 			.sort((first, second) => second.roundNumber - first.roundNumber)[0]?.expectedVoterCount;
-		setExpectedVoterCount((round.resetCount ?? 0) > 0 ? '' : String(mostRecentCount ?? 1));
+		setExpectedVoterCount((current) => Number.isInteger(Number(current)) && Number(current) > 0
+			? current
+			: (round.resetCount ?? 0) > 0 ? '' : String(mostRecentCount ?? 1));
 		setStartRoundId(round.id);
 		setRoundsError('');
 	}
@@ -1105,6 +1107,66 @@ export default function NominationAdminPanel({ credentials, electionId, position
 							: positionProgressStatus === 'RESULTS_REVEALED' || positionProgressStatus === 'CANDIDATES_ADVANCED' ? 'In progress'
 								: positionProgressStatus === 'COMPLETE' ? 'Complete' : 'Status unavailable'
 		: intake.status === 'OPEN' ? 'Open' : intake.revealed ? 'Revealed' : 'Closed';
+		const intakeWorkflowProps = {
+			positionName,
+			openingCount,
+			isExpanded,
+			isLoading,
+			error,
+			streamStatus,
+			intake,
+			nameLimit,
+			onNameLimitChange: (value: string) => { setNameLimit(value); updateDraftState(value !== '5'); },
+			onCreateIntake: createIntake,
+			onRetryIntake: () => { setIntakeLoadAttempt((attempt) => attempt + 1); },
+			onCloseIntake: () => setCloseDialogOpen(true),
+			onConfirmConsolidatedList: () => { void confirmConsolidatedList(); },
+			closeDialogOpen,
+			keepIntakeOpenRef,
+			closeButtonRef,
+			onCancelClose: () => setCloseDialogOpen(false),
+			closeDialogError: error,
+			onConfirmClose: () => { void closeIntake(); },
+			submissionNames: openSubmissionNames,
+			closeTriggerRef,
+			closedStatusRef,
+			sharedListSectionRef,
+			sharedListDraft,
+			removedEntries,
+			sharedListDirty,
+			sharedListError,
+			sharedListConflict,
+			sharedListEditing,
+			removalEntry,
+			removalReason,
+			removalDetail,
+			removeDialogRef,
+			hasActiveRound,
+			roundsReady,
+			roundsLoading,
+			firstRoundSetupVisible,
+			prepareRoundButtonRef,
+			roundsCount: rounds.length,
+			changeEvents: confirmedChangeEvents,
+			onUpdateSharedRow: updateSharedRow,
+			onSaveSharedList: (entryId?: string) => { void saveSharedList(entryId); },
+			onRemoveSharedEntry: (entry: SharedNominationEntry) => { void removeSharedEntry(entry); },
+			onRestoreRemovedEntry: (entry: RemovedNominationEntry) => { void restoreRemovedEntry(entry); },
+			onReloadSharedList: () => { void reloadSharedList(); },
+			onRemovalReasonChange: setRemovalReason,
+			onRemovalDetailChange: setRemovalDetail,
+			onCancelRemoval: () => setRemovalEntry(null),
+			onConfirmRemoval: () => { void confirmRemoveSharedEntry(); },
+			onEditSharedList: () => setSharedListEditing(true),
+			onSharedListEditingChange: setSharedListEditing,
+			onPrepareRound: () => {
+				const initialCount = String(Math.min(2, confirmedNames.length));
+				setSelectionCount(initialCount);
+				setSelectionCountBaseline(initialCount);
+				setFirstRoundPrepared(true);
+				setSharedListEditing(false);
+			},
+		};
 	return (
 		<section className="nomination-admin" aria-labelledby="nomination-admin-title">
 			<nav className="position-workflow-breadcrumb" aria-label="Election workflow breadcrumb">
@@ -1146,427 +1208,81 @@ export default function NominationAdminPanel({ credentials, electionId, position
 				</AudiencePresentationCard>
 			</section>
 			<div className={`workflow-stage-group${!intake ? ' is-intake-setup' : ''}${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}${firstRoundSetupVisible ? ' is-round-setup-primary' : ''}${hasActiveRound ? ' is-voting-active' : ''}`}>
-			<section className={`guided-workflow${hasActiveRound ? ' is-voting-active' : ''}`} aria-label="Position workflow progress">
-				{!hasActiveRound && <div className="guided-workflow-task" aria-live="polite" aria-atomic="true">
-					<p className="eyebrow">Position workflow</p>
-					<h2 className="workflow-position-name" id="nomination-admin-title">{positionName}</h2>
-					<p className="workflow-task-kicker">Current task</p>
-					<div className="workflow-task-heading-row"><h3>{currentWorkflowTask.title}</h3>{workflowStatus !== 'Voting open' && <span className={`row-status ${workflowStatus === 'Not open' || (intake?.status === 'CLOSED' && !intake.revealed) ? 'closed-status' : ''}`}>{workflowStatus}</span>}</div>
-					<p>{currentWorkflowTask.description}</p>
-					<span className="sr-only">Workflow step {currentWorkflowTask.stage + 1} of {workflowSteps.length}.</span>
-				</div>}
-				<div className="guided-workflow-progress">
-					<div className="workflow-progress-meta"><span>Election progress</span><span>{currentWorkflowTask.stage + 1} of {workflowSteps.length}</span></div>
-					<div className="workflow-progress-bar" aria-hidden="true">
-						{workflowSteps.map((step, index) => <span className={index <= currentWorkflowTask.stage ? 'is-reached' : ''} key={step} />)}
+				<section className={`guided-workflow${hasActiveRound ? ' is-voting-active' : ''}`} aria-label="Position workflow progress">
+					<div aria-live="polite" aria-atomic="true">
+						<NominationAdminPanelHeader
+							title={positionName}
+							subtitle={currentWorkflowTask.description}
+							currentTask={currentWorkflowTask.title}
+							status={workflowStatus}
+							statusClassName={workflowStatus === 'Not open' || (intake?.status === 'CLOSED' && !intake.revealed) ? 'closed-status' : ''}
+							currentStep={currentWorkflowTask.stage}
+							steps={workflowSteps}
+						/>
 					</div>
-					<ol className="workflow-step-list">
-						{workflowSteps.map((step, index) => (
-							<li className={index < currentWorkflowTask.stage ? 'is-complete' : index === currentWorkflowTask.stage ? 'is-current' : 'is-upcoming'} aria-current={index === currentWorkflowTask.stage ? 'step' : undefined} key={step}>
-								<span className="workflow-step-marker" aria-hidden="true">{index < currentWorkflowTask.stage ? '✓' : index + 1}</span>
-								<span>{step}</span>
-								<span className="sr-only">{index < currentWorkflowTask.stage ? 'Complete' : index === currentWorkflowTask.stage ? 'Current step' : 'Upcoming'}</span>
-							</li>
-						))}
-					</ol>
-				</div>
-			</section>
-			{isExpanded && isLoading && <p className="state-message" role="status">Loading nomination intake…</p>}
-			{error && <p className="error-message" role="alert">{error}</p>}
-			{streamStatus && <p className="state-message" role="status">{streamStatus}</p>}
-			{isExpanded && !isLoading && !intake && !error && (
-				<form className="intake-create" onSubmit={createIntake}>
-					<h3>Nomination intake</h3>
-					<p className="form-note">People can submit proposed names for {positionName} using a position-specific link. Their submissions remain anonymous to administrators.</p>
-					<label htmlFor="nomination-name-limit">Maximum names per visitor</label>
-					<div className="intake-controls">
-						<input id="nomination-name-limit" type="number" min="1" step="1" value={nameLimit} onChange={(event) => { setNameLimit(event.target.value); updateDraftState(event.target.value !== '5'); }} required />
-						<button className="primary-button" type="submit" disabled={isLoading}>Create intake</button>
-					</div>
-				</form>
-			)}
-			{isExpanded && !isLoading && !intake && error && (
-				<button className="secondary-button" type="button" onClick={() => { setIntakeLoadAttempt((attempt) => attempt + 1); }}>Retry loading nominations</button>
-			)}
-			{!intake && !isLoading && !error && <aside className="position-roster-panel" aria-labelledby="position-roster-title">
-				<p className="eyebrow">Nomination intake</p>
-				<h3 id="position-roster-title">Names not yet submitted</h3>
-				<p>Submitted names are not shown to the audience before consolidation is confirmed and the presentation is shown.</p>
-				<div className="position-roster-empty">No candidates yet.</div>
-				<span className="position-opening-count">{openingCount} {openingCount === 1 ? 'opening' : 'openings'}</span>
-			</aside>}
-			{isExpanded && !isLoading && intake?.status === 'CLOSED' && rounds.length === 0 && !firstRoundSetupVisible && !hasActiveRound && (
-				<ClosedNominationReviewStage intake={intake} sharedListDirty={sharedListDirty} sharedListDraft={sharedListDraft} isLoading={isLoading} statusRef={closedStatusRef} onConfirm={() => { void confirmConsolidatedList(); }} />
-			)}
-			{isExpanded && !isLoading && intake?.status === 'OPEN' && (
-				<OpenNominationIntakeStage intake={intake} names={openSubmissionNames} closeTriggerRef={closeTriggerRef} isLoading={isLoading} onClose={() => setCloseDialogOpen(true)} />
-			)}
+				</section>
+			<NominationIntakeComponent {...intakeWorkflowProps} view="stage" />
 			</div>
 			<div className={`position-workflow-grid${!intake ? ' is-intake-setup' : ''}${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}${firstRoundSetupVisible ? ' is-round-setup-primary' : ''}${hasActiveRound ? ' is-voting-active' : ''}`}>
 				<div className="position-workflow-main">
-			{closeDialogOpen && (
-				<div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCloseDialogOpen(false); }}>
-					<section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="close-nominations-title" aria-describedby="close-nominations-description">
-						<h3 id="close-nominations-title">Close nominations?</h3>
-						<p id="close-nominations-description">The public link will stop accepting changes. You can review and consolidate submitted names before confirming the list.</p>
-						{isLoading && <p role="status">Closing nominations…</p>}
-						{error && <p className="error-message" role="alert">{error}</p>}
-						<div className="dialog-actions">
-							<button ref={keepIntakeOpenRef} className="secondary-button" type="button" disabled={isLoading} onClick={() => setCloseDialogOpen(false)}>Keep intake open</button>
-							<button ref={closeButtonRef} className="danger-button" type="button" disabled={isLoading} onClick={() => { void closeIntake(); }}>Close nominations</button>
-						</div>
-					</section>
-				</div>
-			)}
-			{removalEntry && (
-				<div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !isLoading) setRemovalEntry(null); }}>
-					<section ref={removeDialogRef} className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="remove-nomination-title">
-						<h3 id="remove-nomination-title">Remove {removalEntry.name}?</h3>
-						<label htmlFor="nomination-removal-reason">Reason</label>
-						<select id="nomination-removal-reason" value={removalReason} onChange={(event) => setRemovalReason(event.target.value as NominationRemovalReason)}>
-							<option value="DUPLICATE">Duplicate</option><option value="DECLINED">Declined</option><option value="OTHER">Other</option>
-						</select>
-						{removalReason === 'OTHER' && <label htmlFor="nomination-removal-detail">Details<input id="nomination-removal-detail" value={removalDetail} onChange={(event) => setRemovalDetail(event.target.value)} required /></label>}
-						{sharedListError && <p className="error-message" role="alert">{sharedListError}</p>}
-						{sharedListConflict && <button className="secondary-button" type="button" disabled={isLoading} onClick={() => { void reloadSharedList(); }}>Reload latest saved list</button>}
-						<div className="dialog-actions"><button className="secondary-button" type="button" disabled={isLoading} onClick={() => setRemovalEntry(null)}>Cancel</button><button className="danger-button" type="button" disabled={isLoading || (removalReason === 'OTHER' && !removalDetail.trim())} onClick={() => { void confirmRemoveSharedEntry(); }}>Confirm removal</button></div>
-					</section>
-				</div>
-			)}
-			{isExpanded && !isLoading && intake?.status === 'CLOSED' && intake.listCreated && rounds.length === 0 && !firstRoundSetupVisible && !hasActiveRound && (
-				<section ref={sharedListSectionRef} className="workflow-details consolidation-details">
-					<div className="consolidation-list-heading">
-						<h3>{intake.revealed ? 'Consolidated list' : 'Review and consolidate'}</h3>
-						<span>{sharedListDraft.filter((entry) => entry.active).length} candidates</span>
-					</div>
-					<div className="consolidation-complete">
-						{(!intake.revealed || sharedListEditing) ? <ol className="member-list shared-nomination-list" aria-label="Shared nomination list">
-							{sharedListDraft.map((entry) => {
-								const savedName = intake.sharedList.find((savedEntry) => savedEntry.id === entry.id)?.name;
-								const rowDirty = entry.active && savedName !== entry.name;
-								return <li key={entry.id} className="shared-nomination-row">
-									<label className="sr-only" htmlFor={`shared-nomination-${entry.id}`}>Correct {savedName ?? entry.name}</label>
-									<input id={`shared-nomination-${entry.id}`} value={entry.name} onChange={(event) => updateSharedRow(entry.id, { name: event.target.value })} disabled={hasActiveRound || !entry.active} />
-									{entry.active && <>
-										<button className="icon-button shared-nomination-save" type="button" aria-label={`Save ${savedName ?? entry.name}`} title="Save name" disabled={isLoading || hasActiveRound || !rowDirty || !entry.name.trim()} onClick={() => { void saveSharedList(entry.id); }}>
-											<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 3h12l4 4v14H3V3h2Zm2 0v6h10V3M7 21v-8h10v8M9 15h6" /></svg>
-										</button>
-										<button className="icon-button shared-nomination-remove" type="button" aria-label={`Remove ${entry.name}`} title="Remove name" disabled={isLoading || hasActiveRound || sharedListDirty} onClick={() => { void removeSharedEntry(entry); }}>
-											<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 14H7L6 7m4 3v7m4-7v7" /></svg>
-										</button>
-									</>}
-								</li>;
-							})}
-						</ol> : <ol className="member-list shared-nomination-list" aria-label="Confirmed consolidated list">
-							{sharedListDraft.filter((entry) => entry.active).map((entry) => <li key={entry.id}><span className="shared-nomination-name">{entry.name}</span></li>)}
-						</ol>}
-						{removedEntries.length > 0 && <details className="removed-nomination-section">
-							<summary>Removed ({removedEntries.length})</summary>
-							{(
-								<ul className="member-list" aria-label="Removed nominations">
-									{removedEntries.map((entry) => <li key={entry.auditEventId}>
-										<span className="shared-nomination-name">{entry.name}</span>
-										<button className="icon-button shared-nomination-restore" type="button" aria-label={`Restore ${entry.name}`} title="Restore name" disabled={isLoading || !roundsReady || roundsLoading || hasActiveRound || sharedListDirty} onClick={() => { void restoreRemovedEntry(entry); }}><span aria-hidden="true">↶</span></button>
-									</li>)}
-								</ul>
-							)}
-						</details>}
-						{sharedListError && !removalEntry && <p className="error-message" role="alert">{sharedListError}</p>}
-						{sharedListDirty && <div className="shared-list-recovery"><p className="form-note">Unsaved edits are kept here and are not visible on the presentation.</p><button className="primary-button" type="button" disabled={isLoading || hasActiveRound} onClick={() => { void saveSharedList(); }}>{isLoading ? 'Saving…' : 'Save changes'}</button>{sharedListConflict && <button className="secondary-button" type="button" disabled={isLoading} onClick={() => { void reloadSharedList(); }}>Reload latest saved list</button>}</div>}
-						{sharedListConflict && !sharedListDirty && !removalEntry && <button className="secondary-button" type="button" disabled={isLoading} onClick={() => { void reloadSharedList(); }}>Reload latest saved list</button>}
-						{hasActiveRound && <p className="form-note">Shared-list editing is unavailable while voting is active.</p>}
-						{confirmedChangeEvents.length > 0 && <details className="admin-change-history"><summary>Confirmed change history ({confirmedChangeEvents.length})</summary><ol>{confirmedChangeEvents.map((event) => <li key={event.id}><span>{event.action === 'CORRECTED' ? `${event.beforeName} → ${event.afterName}` : event.action === 'REMOVED' ? `${event.beforeName} removed · ${event.removalReason ?? 'Other'}${event.reasonDetail ? `: ${event.reasonDetail}` : ''}` : `${event.afterName ?? event.beforeName} restored`}</span><small>{event.actorLabel} · {new Date(event.occurredAt).toLocaleString()}</small></li>)}</ol></details>}
-						{intake.revealed && !sharedListEditing && !hasActiveRound && <div className="form-actions">
-							<button className="secondary-button" type="button" onClick={() => setSharedListEditing(true)}>Edit consolidated list</button>
-							{rounds.length === 0 && <button ref={prepareRoundButtonRef} className="primary-button" type="button" onClick={() => {
-								const initialCount = String(Math.min(2, confirmedNames.length));
-								setSelectionCount(initialCount);
-								setSelectionCountBaseline(initialCount);
-								setFirstRoundPrepared(true);
-								setSharedListEditing(false);
-							}}>Prepare round 1</button>}
-						</div>}
-						{intake.revealed && sharedListEditing && !sharedListDirty && <button className="secondary-button" type="button" onClick={() => setSharedListEditing(false)}>Done editing</button>}
-					</div>
-				</section>
-			)}
-			{isExpanded && (hasActiveRound || hasSavedSnapshot && (rounds.length > 0 || firstRoundPrepared)) && (
-				<details className={`workflow-details voting-round-configuration${firstRoundSetupVisible ? ' is-first-round-setup' : ''}${hasActiveRound ? ' is-voting-active' : ''}`} open>
-					<summary hidden={firstRoundSetupVisible || hasActiveRound}>Voting round configuration <span>{rounds.length} {rounds.length === 1 ? 'round' : 'rounds'} · {draftRoundId ? 'Draft ready' : 'Setup'}</span></summary>
-						<section aria-labelledby="voting-round-title">
-							{hasActiveRound && activeRound && <ActiveVotingStage
-								round={activeRound}
-								progress={roundProgress[activeRound.id]}
-								aggregate={roundAggregateResults[activeRound.id]}
-								aggregateError={Boolean(aggregateRefreshErrors[activeRound.id])}
-								lifecycleBusy={roundLifecycleBusy}
-								onCancel={() => setResetRoundId(activeRound.id)}
-								onClose={() => { void closeRound(activeRound); }}
-							/>}
-							{!hasActiveRound && !firstRoundSetupVisible && latestRound?.status !== 'DRAFT' && !latestClosedRound && <div className="section-heading">
-								<div><h3 id="voting-round-title">Voting round configuration</h3><p>{latestRound ? 'Candidates marked Advanced in the preceding round continue automatically.' : 'The consolidated list is the complete candidate roster for this poll.'}</p></div>
-							</div>}
-					{roundsError && !roundsLoading && !roundsReady && <button className="secondary-button" type="button" onClick={() => setRoundsLoadAttempt((attempt) => attempt + 1)}>Retry loading rounds</button>}
-					{!roundsLoading && roundsReady && (
-						<>
-									{showClosedRoundDecisions && latestClosedRound && <ClosedRoundDecisionsStage
-										round={latestClosedRound}
-										result={roundResults[latestClosedRound.id]}
-										aggregate={roundAggregateResults[latestClosedRound.id]}
-										decisionDrafts={decisionDrafts}
-										setDecisionDrafts={setDecisionDrafts}
-										onSave={() => { void saveCandidateDecisions(latestClosedRound.id); }}
-										onReopen={() => setReopenRoundId(latestClosedRound.id)}
-										onReset={() => setResetRoundId(latestClosedRound.id)}
-										canReset={!rounds.some((round) => round.roundNumber > latestClosedRound.roundNumber)}
-										lifecycleBusy={roundLifecycleBusy}
-									/>}
-									{rounds.some((round) => round.status !== 'ACTIVE' && round.id !== latestClosedRound?.id) && !hasActiveRound && !firstRoundSetupVisible && latestRound?.status !== 'DRAFT' && (
-								<ul className="voting-round-list" aria-label="Voting rounds">
-												{rounds.filter((round) => round.status !== 'ACTIVE' && round.id !== latestClosedRound?.id).map((round) => (
-										<li className="voting-round-item" key={round.id}>
-											<details id={`round-${round.id}`} className={`workflow-details round-details${round.status === 'ACTIVE' ? ' round-details-active' : ''}${round.status === 'CLOSED' && round.id === latestClosedRound?.id ? ' round-details-current-decisions' : ''}`} name="voting-rounds" open={round.status === 'CLOSED' && round.id === latestClosedRound?.id}>
-												<summary><span>Round {round.roundNumber}</span><span>{round.status === 'DRAFT' ? 'Draft' : round.status === 'ACTIVE' ? 'Voting active now' : 'Closed'} · {round.candidates.length} candidates</span></summary>
-												<div className="round-detail-content">
-											<div className="voting-round-heading">
-												<h4>Round {round.roundNumber}</h4>
-												<span className={`row-status ${round.status === 'CLOSED' ? 'closed-status' : ''}`}>{round.status === 'DRAFT' ? 'Draft' : round.status === 'ACTIVE' ? 'Active' : 'Closed'}</span>
-											</div>
-													{round.status === 'DRAFT' ? (
-													<>{round.roundNumber > 1 && <button className="primary-button" type="button" disabled={roundLifecycleBusy || round.selectionCount === null} onClick={() => openStartDialog(round)}>Start voting</button>}{round.roundNumber === 1 && firstRoundDraftStale && <p className="form-note">The shared list changed after this draft was saved. Update the draft roster before starting.</p>}</>
-											) : round.accessToken && (
-												<>
-													<label className="share-label" htmlFor={`voting-share-${round.id}`}>Public voting link</label>
-													<div className="intake-controls share-controls">
-														<input id={`voting-share-${round.id}`} value={`${window.location.origin}/vote/${encodeURIComponent(round.accessToken)}`} readOnly onFocus={(event) => event.currentTarget.select()} />
-														<button className="secondary-button" type="button" onClick={() => copyVotingLink(round)}>{copiedRoundId === round.id ? 'Copied' : 'Copy link'}</button>
-													</div>
-												</>
-											)}
-															{round.status === 'CLOSED' && roundAggregateResults[round.id] && !roundResults[round.id] && <AggregateCandidateResults result={roundAggregateResults[round.id]} label={`Final aggregate candidate results for round ${round.roundNumber}`} />}
-																			{round.status === 'CLOSED' && <button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setReopenRoundId(round.id)}>Reopen voting</button>}
-																			{round.status === 'CLOSED' && !rounds.some((item) => item.roundNumber > round.roundNumber) && <button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setResetRoundId(round.id)}>Reset round</button>}
-																			{(round.resetCount ?? 0) > 0 && <p className="form-note">Reset count: {round.resetCount}</p>}
-											{round.status === 'CLOSED' && roundResults[round.id] && (() => {
-												const result = roundResults[round.id];
-												return (
-													<details className="workflow-details result-details" open>
-														<summary>Final results <span>{result.ballotsCast} / {result.expectedVoterCount} ballots</span></summary>
-													<section className="round-results" aria-labelledby={`round-results-title-${round.id}`}>
-														<div className="section-heading"><div><h4 id={`round-results-title-${round.id}`}>Final results</h4><p>Aggregate totals only. Ballot choices are not shown.</p></div></div>
-														<dl className="round-result-summary">
-															<div><dt>Ballots cast</dt><dd>{result.ballotsCast} / {result.expectedVoterCount}</dd></div>
-															<div><dt>Majority threshold</dt><dd>{result.majorityThreshold}</dd></div>
-														</dl>
-														<ul className="round-result-candidates" aria-label={`Aggregate candidate votes for round ${round.roundNumber}`}>
-																				{[...result.candidates]
-																.sort((first, second) => second.votes - first.votes || first.name.localeCompare(second.name))
-																.map((candidate) => {
-																				const draft = decisionDrafts[candidate.id];
-																				const selectedDecision = draft?.decision ?? candidate.decision ?? null;
-																const isEliminated = candidate.decision === 'ELIMINATED';
-																const isElected = candidate.decision === 'ELECTED';
-																const electedCount = rounds
-																	.filter((priorRound) => priorRound.roundNumber < round.roundNumber)
-																	.flatMap((priorRound) => roundResults[priorRound.id]?.candidates ?? [])
-																	.filter((roundCandidate) => roundCandidate.decision === 'ELECTED').length;
-																const majorityCandidateCount = result.candidates
-																	.filter((roundCandidate) => roundCandidate.votes >= result.majorityThreshold).length;
-																const recommendation = getCandidateRecommendation(
-																	candidate.votes,
-																	result.majorityThreshold,
-																	openingCount,
-																	electedCount,
-																	majorityCandidateCount,
-																	round.roundNumber > 1 && round.selectionCount === 1,
-																	Math.min(...result.candidates.map((roundCandidate) => roundCandidate.votes)),
-																	round.selectionCount ?? 1,
-																);
-																return (
-																	<li className={isEliminated ? 'candidate-outcome candidate-eliminated' : isElected ? 'candidate-outcome candidate-elected' : candidate.decision === 'ADVANCED' ? 'candidate-outcome candidate-advanced' : 'candidate-outcome'} key={candidate.id}>
-																		<div className="round-result-candidate-heading">
-																			<strong>{candidate.name}</strong><span>{candidate.votes} {candidate.votes === 1 ? 'vote' : 'votes'}</span>
-																		</div>
-																		<p className="candidate-recommendation" role="note"><strong>Recommendation:</strong> {recommendation}</p>
-																		{candidate.decision && (
-																			<p className="candidate-decision-current">
-																				Current decision: <strong>{candidate.decision}</strong>{candidate.decisionReason ? `: ${candidate.decisionReason}` : ''}
-																				{candidate.decisionBy && <> <span>By {candidate.decisionBy}</span></>}
-																				{candidate.decisionAt && <> <time dateTime={candidate.decisionAt}>{new Date(candidate.decisionAt).toLocaleString()}</time></>}
-																			</p>
-																		)}
-																						<div className="candidate-actions" role="group" aria-label={`Decision for ${candidate.name}`}>
-																							{([
-																							['ELECTED', 'Elect'],
-																							['ADVANCED', 'Advance'],
-																							['ELIMINATED', 'Remove'],
-																						] as const).map(([decision, label]) => <button
-																							key={decision}
-																							type="button"
-																							className={`candidate-action${selectedDecision === decision ? ' is-selected' : ''}`}
-																							aria-pressed={selectedDecision === decision}
-																							disabled={Boolean(savingDecisionCandidateId)}
-																							onClick={() => setDecisionDrafts((current) => ({
-																								...current,
-																								[candidate.id]: { decision, reason: current[candidate.id]?.reason ?? candidate.decisionReason ?? '' },
-																							}))}
-																						>{label}</button>)}
-																						</div>
-																	</li>
-																);
-															})}
-														</ul>
-														<div className="form-actions">
-															<button className="primary-button" type="button" disabled={Boolean(savingDecisionCandidateId)} onClick={() => { void saveCandidateDecisions(round.id); }}>
-																{savingDecisionCandidateId === round.id ? 'Saving…' : 'Save decisions'}
-															</button>
-														</div>
-													</section>
-													</details>
-												);
-											})()}
-												</div>
-											</details>
-										</li>
-									))}
-								</ul>
-							)}
-							{draftRoundId && !firstRoundSetupVisible && (() => {
-								const draft = rounds.find((round) => round.id === draftRoundId);
-								return draft ? (
-									<p className="state-message saved-round-summary" role="status">
-										Draft round {draft.roundNumber}: allows {draft.selectionCount} {draft.selectionCount === 1 ? 'selection' : 'selections'} from {draft.candidates.length} candidates.
-									</p>
-								) : null;
-							})()}
-							{firstRoundSetupVisible && !hasActiveRound ? (
-								<RoundPollSetup
-									roundNumber={1}
-									candidateNames={candidateOptions}
-									selectionCount={selectionCount}
-									isSaving={roundsSaving}
-									isLoading={roundsLoading}
-									hasSavedDraft={draftRound?.roundNumber === 1 && draftRound.status === 'DRAFT'}
-									resetCount={draftRound?.resetCount ?? 0}
-									canStart={Boolean(Number.isInteger(Number(selectionCount)) && Number(selectionCount) >= 1 && Number(selectionCount) <= candidateOptions.length && !roundsSaving && !roundsLoading && !firstRoundDraftStale)}
-									error={roundsError}
-									success={roundsSuccess}
-									cancelDraftLabel="Cancel and rebuild draft"
-									onSelectionCountChange={(value) => { setSelectionCount(value); updateDraftState(value !== selectionCountBaseline); }}
-									onStart={(event, trigger) => { startDialogTriggerRef.current = trigger; void saveAndOpenStartDialog(event); }}
-									onCancel={() => { void cancelAndRebuildFirstRound(); }}
-								/>
-							) : hasActiveRound ? (
-								<p className="state-message" role="status">Voting remains open until you close it. Afterward, choose an outcome for each candidate and save the decisions.</p>
-												) : draftRoundId || rounds.length === 0 || candidateOptions.length > 0 ? (
-								<form className="round-configuration-form" onSubmit={saveRoundConfiguration}>
-									<div className="round-candidate-roster">
-										<span className="summary-label">{latestRound ? 'Candidates advancing to this round' : 'Candidates in this poll'}</span>
-										<ul aria-label={latestRound ? 'Candidates advancing to this round' : 'Candidates in this poll'}>
-											{candidateOptions.map((name) => <li key={name}>{name}</li>)}
-										</ul>
-										{!latestClosedRound && !hasActiveRound && (
-											<button className="secondary-button" type="button" onClick={editSharedList}>Edit candidate list</button>
-										)}
-									</div>
-									<label className="round-selection-count" htmlFor="round-selection-count">How many names can each ballot select?</label>
-									<div className="round-selection-stepper" role="group" aria-label="Selections allowed per ballot">
-										<button className="round-selection-step" type="button" aria-label="Decrease selections per ballot" disabled={roundsSaving || Number(selectionCount) <= 1} onClick={() => {
-											const next = String(Math.max(1, Number(selectionCount || 1) - 1));
-											setSelectionCount(next);
-											updateDraftState(next !== selectionCountBaseline);
-										}}>−</button>
-										<input
-											id="round-selection-count"
-											type="number"
-											min="1"
-											max={candidateOptions.length}
-											step="1"
-											inputMode="numeric"
-											aria-describedby="round-selection-count-help"
-											value={selectionCount}
-											onChange={(event) => { setSelectionCount(event.target.value); updateDraftState(event.target.value !== selectionCountBaseline); }}
-											required
-											disabled={roundsSaving}
-										/>
-										<button className="round-selection-step" type="button" aria-label="Increase selections per ballot" disabled={roundsSaving || Number(selectionCount) >= candidateOptions.length} onClick={() => {
-											const next = String(Math.min(candidateOptions.length, Number(selectionCount || 1) + 1));
-											setSelectionCount(next);
-											updateDraftState(next !== selectionCountBaseline);
-										}}>+</button>
-									</div>
-									<p className="form-note" id="round-selection-count-help">Choose from 1 to {candidateOptions.length}, the number of candidates in the confirmed list.</p>
-									<div className="form-actions">
-										<button className="primary-button" type="submit" disabled={roundsSaving || roundsLoading}>
-											{roundsSaving ? 'Saving…' : draftRoundId ? 'Save round setup' : 'Save round setup'}
-										</button>
-										{draftRound && draftRound.selectionCount !== null && <>
-											<button className="primary-button" type="button" disabled={roundsSaving || roundsLoading || draftRound.selectionCount === null || firstRoundDraftStale} onClick={() => openStartDialog(draftRound)}>Start voting</button>
-											{draftRound.roundNumber === 1 && <button className="secondary-button" type="button" disabled={roundsSaving || roundsLoading} onClick={() => { void cancelAndRebuildFirstRound(); }}>Cancel and rebuild draft</button>}
-										</>}
-									</div>
-								</form>
-							) : (
-								<p className="state-message" role="status">No candidates are ready for the next round. Mark at least two candidates Advanced in the closed round to continue.</p>
-							)}
-							{!firstRoundSetupVisible && !hasActiveRound && roundsSuccess && <p className="state-message" role="status" tabIndex={roundsSuccess.startsWith('Voting is active') ? -1 : undefined} ref={roundsSuccess.startsWith('Voting is active') ? startSuccessRef : undefined}>{roundsSuccess}</p>}
-							{startRoundId && (() => {
-								const round = rounds.find((item) => item.id === startRoundId);
-								if (!round) return null;
-								return (
-									<div className="dialog-backdrop">
-										<section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="start-voting-title" aria-describedby="start-voting-description">
-											<h3 id="start-voting-title">Start voting for round {round.roundNumber}?</h3>
-											{roundLifecycleBusy && <p className="state-message" role="status">Starting voting…</p>}
-											<p id="start-voting-description">Expected voter count: {Number.isInteger(Number(expectedVoterCount)) ? expectedVoterCount : 'not set'}. Confirm the count below; the round will become active immediately.</p>
-											{roundsError && <p className="error-message" role="alert">{roundsError}</p>}
-											<form onSubmit={startRound}>
-												<label htmlFor="expected-voter-count">Expected voter count</label>
-												<input ref={expectedVoterInputRef} id="expected-voter-count" type="number" min="1" step="1" value={expectedVoterCount} onChange={(event) => setExpectedVoterCount(event.target.value)} required autoFocus />
-												<div className="form-actions dialog-actions">
-													<button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setStartRoundId(null)}>Cancel</button>
-													<button className="primary-button" type="submit" disabled={roundLifecycleBusy}>{roundLifecycleBusy ? 'Starting…' : 'Confirm and start'}</button>
-												</div>
-											</form>
-										</section>
-									</div>
-								);
-							})()}
-							{reopenRoundId && (
-								<div className="dialog-backdrop">
-									<section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="reopen-voting-title" aria-describedby="reopen-voting-description">
-										<h3 id="reopen-voting-title">Reopen voting for round {rounds.find((round) => round.id === reopenRoundId)?.roundNumber}?</h3>
-										<p id="reopen-voting-description">Reopening makes the ballot available again. Voting stays open until an administrator closes it.</p>
-										<div className="form-actions dialog-actions">
-											<button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setReopenRoundId(null)}>Cancel</button>
-											<button className="primary-button" type="button" disabled={roundLifecycleBusy} onClick={confirmReopenRound}>{roundLifecycleBusy ? 'Reopening…' : 'Confirm reopen'}</button>
-										</div>
-									</section>
-								</div>
-							)}
-							{resetRoundId && (() => {
-								const round = rounds.find((item) => item.id === resetRoundId);
-								if (!round || (round.status !== 'CLOSED' && round.status !== 'ACTIVE')) return null;
-								const cancellingActiveRound = round.status === 'ACTIVE';
-								return (
-									<div className="dialog-backdrop">
-										<section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-round-title" aria-describedby="reset-round-description">
-											<h3 id="reset-round-title">{cancellingActiveRound ? 'Cancel active voting?' : 'Reset this round?'}</h3>
-											<p id="reset-round-description">This permanently deletes ballots and current decisions. The candidate roster stays in place. Selection count and expected voter count are cleared; configure them again to start from zero.</p>
-											{roundsError && <p className="error-message" role="alert">{roundsError}</p>}
-											<div className="form-actions dialog-actions">
-												<button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setResetRoundId(null)}>Cancel</button>
-												<button className="danger-button" type="button" disabled={roundLifecycleBusy} onClick={confirmResetRound}>{roundLifecycleBusy ? 'Cancelling…' : cancellingActiveRound ? 'Cancel active voting' : 'Reset round'}</button>
-											</div>
-										</section>
-									</div>
-								);
-							})()}
-						</>
-					)}
-					</section>
-				</details>
-			)}
+			<NominationIntakeComponent {...intakeWorkflowProps} view="editor" />
+			<NominationVoting
+				isExpanded={isExpanded}
+				hasActiveRound={hasActiveRound}
+				hasSavedSnapshot={hasSavedSnapshot}
+				firstRoundPrepared={firstRoundPrepared}
+				firstRoundSetupVisible={firstRoundSetupVisible}
+				firstRoundDraftStale={firstRoundDraftStale}
+				showClosedRoundDecisions={showClosedRoundDecisions}
+				openingCount={openingCount}
+				rounds={rounds}
+				activeRound={activeRound}
+				latestRound={latestRound}
+				latestClosedRound={latestClosedRound}
+				draftRound={draftRound}
+				draftRoundId={draftRoundId}
+				selectionCount={selectionCount}
+				selectionCountBaseline={selectionCountBaseline}
+				setSelectionCount={setSelectionCount}
+				selectionCandidates={candidateOptions}
+				roundsLoading={roundsLoading}
+				roundsReady={roundsReady}
+				roundsSaving={roundsSaving}
+				roundsError={roundsError}
+				roundsSuccess={roundsSuccess}
+				roundsLoadAttempt={() => setRoundsLoadAttempt((attempt) => attempt + 1)}
+				roundLifecycleBusy={roundLifecycleBusy}
+				roundProgress={roundProgress}
+				roundAggregateResults={roundAggregateResults}
+				aggregateRefreshErrors={aggregateRefreshErrors}
+				roundResults={roundResults}
+				decisionDrafts={decisionDrafts}
+				setDecisionDrafts={setDecisionDrafts}
+				savingDecisionCandidateId={savingDecisionCandidateId}
+				startRoundId={startRoundId}
+				setStartRoundId={setStartRoundId}
+				expectedVoterCount={expectedVoterCount}
+				setExpectedVoterCount={setExpectedVoterCount}
+				expectedVoterInputRef={expectedVoterInputRef}
+				startSuccessRef={startSuccessRef}
+				reopenRoundId={reopenRoundId}
+				setReopenRoundId={setReopenRoundId}
+				resetRoundId={resetRoundId}
+				setResetRoundId={setResetRoundId}
+				onDraftStateChange={updateDraftState}
+				onSaveRoundConfiguration={(event) => { void saveRoundConfiguration(event); }}
+				onSaveAndOpenStartDialog={(event, trigger) => { startDialogTriggerRef.current = trigger; void saveAndOpenStartDialog(event); }}
+				onSaveStartRound={(event) => { void startRound(event); }}
+				onOpenStartDialog={openStartDialog}
+				onCancelFirstRoundDraft={() => { void cancelAndRebuildFirstRound(); }}
+				onCloseRound={(round) => { void closeRound(round); }}
+				onSaveCandidateDecisions={(roundId) => { void saveCandidateDecisions(roundId); }}
+				onReopenRound={() => { void confirmReopenRound(); }}
+				onResetRound={() => { void confirmResetRound(); }}
+				onCopyVotingLink={(round) => { void copyVotingLink(round); }}
+				onEditCandidateList={editSharedList}
+				copiedRoundId={copiedRoundId}
+			/>
 				</div>
 			</div>
 		</section>
