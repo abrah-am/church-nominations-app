@@ -32,6 +32,13 @@ export type VotingRoundProgress = {
   expectedVoterCount: number;
 };
 
+export type VotingRoundAggregateResults = {
+  expectedVoterCount: number;
+  ballotsCast: number;
+  majorityThreshold: number;
+  candidates: Array<Pick<VotingRoundCandidate, 'id' | 'name'> & { votes: number }>;
+};
+
 export type CandidateDecisionRequest = {
   decision: CandidateDecision;
   reason?: string;
@@ -139,6 +146,10 @@ export function getVotingRoundResults(credentials: string, electionId: string, p
 
 export function getVotingRoundProgress(credentials: string, electionId: string, positionId: string, roundId: string): Promise<VotingRoundProgress> {
   return request<VotingRoundProgress>(`${roundPath(electionId, positionId, roundId)}/progress`, credentials);
+}
+
+export function getVotingRoundAggregateResults(credentials: string, electionId: string, positionId: string, roundId: string): Promise<VotingRoundAggregateResults> {
+  return request<VotingRoundAggregateResults>(`${roundPath(electionId, positionId, roundId)}/aggregate-results`, credentials);
 }
 
 export function revealVotingRound(credentials: string, electionId: string, positionId: string, roundId: string): Promise<VotingRoundResult> {

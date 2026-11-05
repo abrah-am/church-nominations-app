@@ -110,6 +110,13 @@ public class VotingRoundController {
         return rounds.results(electionId, positionId, roundId, principal.getName());
     }
 
+    @GetMapping("/{roundId}/aggregate-results")
+    public VotingRoundAggregateResultsResponse aggregateResults(
+            @PathVariable UUID electionId, @PathVariable UUID positionId, @PathVariable UUID roundId,
+            Principal principal) {
+        return rounds.aggregateResults(electionId, positionId, roundId, principal.getName());
+    }
+
     @PutMapping("/{roundId}/candidates/{candidateId}/decision")
     public VotingRoundResultsResponse decide(
             @PathVariable UUID electionId, @PathVariable UUID positionId, @PathVariable UUID roundId,

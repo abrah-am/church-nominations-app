@@ -20,16 +20,16 @@ import {
 	CandidateDecision,
 	RoundsApiError,
 	VotingRound,
+	VotingRoundAggregateResults,
 	VotingRoundProgress,
 	VotingRoundResult,
 	createVotingRound,
+	getVotingRoundAggregateResults,
 	getVotingRoundProgress,
 	getVotingRoundResults,
 	listVotingRounds,
 	deleteDraftVotingRound,
-	revealVotingRound,
 	saveCandidateDecision,
-	undoCandidateDecision,
 	updateVotingRound,
 } from '../../api/rounds';
 import {
@@ -38,10 +38,11 @@ import {
 	resetVotingRound,
 	startVotingRound,
 } from '../../api/voting';
-import { getCandidateRecommendation } from '../elections/candidateRecommendations';
 import { AudiencePresentationCard } from '../../components/AudiencePresentationCard';
 import { ParticipantSessionLinkCard } from '../../components/ParticipantSessionLinkCard';
 import RoundPollSetup from './RoundPollSetup';
+import { ActiveVotingStage, AggregateCandidateResults, ClosedNominationReviewStage, ClosedRoundDecisionsStage, OpenNominationIntakeStage } from './NominationWorkflowStages';
+import { getCandidateRecommendation } from '../elections/candidateRecommendations';
 
 export type NominationAdminPanelProps = {
 	credentials: string;
@@ -116,13 +117,12 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	const [expectedVoterCount, setExpectedVoterCount] = useState('1');
 	const [reopenRoundId, setReopenRoundId] = useState<string | null>(null);
 	const [resetRoundId, setResetRoundId] = useState<string | null>(null);
-	const [revealRoundId, setRevealRoundId] = useState<string | null>(null);
 	const [roundResults, setRoundResults] = useState<Record<string, VotingRoundResult>>({});
+	const [roundAggregateResults, setRoundAggregateResults] = useState<Record<string, VotingRoundAggregateResults>>({});
+	const [aggregateRefreshErrors, setAggregateRefreshErrors] = useState<Record<string, boolean>>({});
 	const [roundProgress, setRoundProgress] = useState<Record<string, VotingRoundProgress>>({});
-	const [unrevealedRoundIds, setUnrevealedRoundIds] = useState<string[]>([]);
-	const [decisionDrafts, setDecisionDrafts] = useState<Record<string, { decision: CandidateDecision; reason: string }>>({});
+	const [decisionDrafts, setDecisionDrafts] = useState<Record<string, { decision: CandidateDecision | null; reason: string }>>({});
 	const [savingDecisionCandidateId, setSavingDecisionCandidateId] = useState<string | null>(null);
-	const [electedCandidateId, setElectedCandidateId] = useState<string | null>(null);
 	const [roundLifecycleBusy, setRoundLifecycleBusy] = useState(false);
 	const [copiedRoundId, setCopiedRoundId] = useState<string | null>(null);
 	const lifecycleChangeRef = useRef(onLifecycleChange);
@@ -255,6 +255,10 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	const latestClosedRound = [...rounds]
 		.filter((round) => round.status === 'CLOSED')
 		.sort((first, second) => second.roundNumber - first.roundNumber)[0];
+	const latestRoundIsDraft = latestRound?.status === 'DRAFT';
+	const latestClosedResult = latestClosedRound ? roundResults[latestClosedRound.id] : undefined;
+	const decisionsComplete = Boolean(latestClosedResult?.candidates.every((candidate) => candidate.decision));
+	const showClosedRoundDecisions = Boolean(latestClosedRound && !hasActiveRound && !latestRoundIsDraft && !firstRoundSetupVisible && !decisionsComplete);
 	const latestRevealedRound = [...rounds]
 		.filter((round) => round.status === 'CLOSED' && roundResults[round.id])
 		.sort((first, second) => second.roundNumber - first.roundNumber)[0];
@@ -265,6 +269,13 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			.filter(Boolean)
 			.sort((first, second) => first.localeCompare(second, undefined, { sensitivity: 'base' }))
 		: [];
+	const candidateOptions = latestClosedRound
+		? (roundResults[latestClosedRound.id]?.candidates ?? [])
+			.filter((candidate) => candidate.decision === 'ADVANCED')
+			.map((candidate) => candidate.name)
+		: draftRound
+			? draftRound.roundNumber === 1 ? confirmedNames : draftRound.candidates.map((candidate) => candidate.name)
+			: confirmedNames;
 	const currentWorkflowTask = isLoading
 		? { stage: 0, title: 'Loading position workflow', description: 'Loading the current intake and round state.' }
 		: error
@@ -275,9 +286,9 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			: positionProgressStatus === 'NOMINATIONS_CLOSED' || positionProgressStatus === 'CONSOLIDATED'
 				? { stage: 0, title: 'Review and consolidate', description: 'Review proposed names, correct spellings, remove duplicates, then confirm the consolidated list.' }
 				: positionProgressStatus === 'ROUND_ACTIVE'
-					? { stage: 1, title: `Monitor voting${latestRound ? ` · Round ${latestRound.roundNumber}` : ''}`, description: 'Track participation only. Ballot totals remain hidden while voting is active.' }
+					? { stage: 1, title: `Monitor voting${latestRound ? ` · Round ${latestRound.roundNumber}` : ''}`, description: 'Track participation and review live aggregate totals.' }
 					: positionProgressStatus === 'ROUND_CLOSED_UNREVEALED'
-						? { stage: 1, title: `Review results${latestClosedRound ? ` · Round ${latestClosedRound.roundNumber}` : ''}`, description: 'Voting is closed. Results remain private until you explicitly reveal them.' }
+						? { stage: 2, title: `Record candidate decisions${latestClosedRound ? ` · Round ${latestClosedRound.roundNumber}` : ''}`, description: 'Review final aggregate results and record each candidate outcome.' }
 						: positionProgressStatus === 'RESULTS_REVEALED'
 							? { stage: 2, title: 'Record candidate decisions', description: 'Review aggregate results and record who advances, is eliminated, or is elected.' }
 							: positionProgressStatus === 'CANDIDATES_ADVANCED'
@@ -287,34 +298,31 @@ export default function NominationAdminPanel({ credentials, electionId, position
 									: { stage: 0, title: 'Set up nomination intake', description: 'Set the name limit and create an intake link for this position.' }
 		: intake.status === 'OPEN'
 			? { stage: 0, title: 'Collect nominations', description: 'Share the nomination link, monitor profile submissions, and close intake when ready.' }
-			: !intake.revealed
+			: !intake.revealed && rounds.length === 0
 				? { stage: 0, title: 'Review and consolidate', description: 'Review proposed names, correct spellings, remove duplicates, then confirm the consolidated list.' }
 				: activeRound
 					? { stage: 1, title: 'Voting is active', description: 'Track profile/link submissions only. Ballot totals remain hidden while voting is active.' }
-					: latestClosedRound && unrevealedRoundIds.includes(latestClosedRound.id)
-						? { stage: 1, title: `Review results · Round ${latestClosedRound.roundNumber}`, description: 'Voting is closed. Results remain private until you explicitly reveal them.' }
+					: latestRoundIsDraft
+						? { stage: 1, title: `Prepare voting · Round ${latestRound.roundNumber}`, description: 'Confirm the roster and selection count before starting the voting round.' }
+					: showClosedRoundDecisions
+						? { stage: 2, title: `Record candidate decisions · Round ${latestRevealedRound?.roundNumber}`, description: 'Review final aggregate results and record who advances, is eliminated, or is elected.' }
 						: latestRevealedResult && !latestRevealedResult.candidates.every((candidate) => candidate.decision)
 							? { stage: 2, title: `Record candidate decisions · Round ${latestRevealedRound?.roundNumber}`, description: 'Review aggregate results and record who advances, is eliminated, or is elected.' }
-							: latestRound?.status === 'DRAFT'
-								? { stage: 1, title: `Prepare voting · Round ${latestRound.roundNumber}`, description: 'Confirm the roster and selection count before starting the voting round.' }
+							: latestClosedRound && !decisionsComplete
+								? { stage: 2, title: `Record candidate decisions · Round ${latestClosedRound.roundNumber}`, description: 'Choose Elect, Advance, or Remove for each candidate, then save the decisions.' }
+								: latestClosedRound && decisionsComplete && candidateOptions.length >= 2
+									? { stage: 1, title: `Prepare the next round · Round ${latestClosedRound.roundNumber + 1}`, description: 'Review the candidates marked Advance and configure the next round.' }
 								: !latestRound && intake.revealed
 									? { stage: 1, title: 'Prepare round 1', description: 'Review the confirmed list and configure how many names each ballot can select.' }
 								: latestRevealedRound
 									? { stage: positionProgressStatus === 'COMPLETE' ? 3 : 1, title: positionProgressStatus === 'COMPLETE' ? 'Position complete' : `Prepare the next round · Round ${latestRevealedRound.roundNumber + 1}`, description: positionProgressStatus === 'COMPLETE' ? 'All election actions for this position are complete.' : 'Use the saved candidate decisions to prepare the next round.' }
 										: { stage: 0, title: 'Prepare voting', description: 'Configure the first round using the confirmed nomination list.' };
-	const candidateOptions = latestClosedRound
-		? (roundResults[latestClosedRound.id]?.candidates ?? [])
-			.filter((candidate) => candidate.decision === 'ADVANCED')
-			.map((candidate) => candidate.name)
-		: draftRound
-						? draftRound.roundNumber === 1 ? confirmedNames : draftRound.candidates.map((candidate) => candidate.name)
-			: confirmedNames;
 	const unsavedDrafts = (!intake && nameLimit !== '5')
 		|| sharedListDirty
 		|| (hasSavedSnapshot && roundsReady && selectionCount !== selectionCountBaseline)
 		|| Object.entries(decisionDrafts).some(([candidateId, draft]) => {
 			const candidate = rounds.flatMap((round) => roundResults[round.id]?.candidates ?? []).find((item) => item.id === candidateId);
-			return candidate && (draft.decision !== (candidate.decision ?? 'ADVANCED') || draft.reason.trim() !== (candidate.decisionReason ?? '').trim());
+			return candidate && (draft.decision !== (candidate.decision ?? null) || draft.reason.trim() !== (candidate.decisionReason ?? '').trim());
 		});
 
 	useLayoutEffect(() => {
@@ -332,7 +340,8 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setSelectionCount('');
 			setSelectionCountBaseline('');
 			setRoundResults({});
-			setUnrevealedRoundIds([]);
+			setRoundAggregateResults({});
+			setAggregateRefreshErrors({});
 			setRoundsError('');
 			setRoundsReady(false);
 			setRoundsLoading(false);
@@ -345,7 +354,8 @@ export default function NominationAdminPanel({ credentials, electionId, position
 		setRoundsError('');
 		setRoundsSuccess('');
 		setRoundResults({});
-		setUnrevealedRoundIds([]);
+		setRoundAggregateResults({});
+		setAggregateRefreshErrors({});
 		listVotingRounds(credentials, electionId, positionId).then((loaded) => {
 			if (!isCurrent) return;
 			setRounds(loaded);
@@ -367,7 +377,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			})).then((loadedResults) => {
 				if (!isCurrent) return;
 				setRoundResults(Object.fromEntries(loadedResults.filter((entry) => entry.result !== null).map((entry) => [entry.roundId, entry.result as VotingRoundResult])));
-				setUnrevealedRoundIds(loadedResults.filter((entry) => entry.result === null).map((entry) => entry.roundId));
+				setRoundAggregateResults({});
 				setRoundsReady(true);
 			});
 		}).catch((requestError: unknown) => {
@@ -386,6 +396,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 		const inFlight = new Set<string>();
 
 		setRoundProgress((current) => Object.fromEntries(Object.entries(current).filter(([roundId]) => activeRoundIds.includes(roundId))));
+		setAggregateRefreshErrors((current) => Object.fromEntries(Object.entries(current).filter(([roundId]) => activeRoundIds.includes(roundId))));
 		if (activeRoundIds.length === 0) return () => { isCurrent = false; };
 
 		const pollProgress = async () => {
@@ -396,13 +407,21 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					const progress = await getVotingRoundProgress(credentials, electionId, positionId, roundId);
 					if (!isCurrent) return;
 					setRoundProgress((current) => ({ ...current, [roundId]: progress }));
+					try {
+						const aggregate = await getVotingRoundAggregateResults(credentials, electionId, positionId, roundId);
+						if (!isCurrent) return;
+						setRoundAggregateResults((current) => ({ ...current, [roundId]: aggregate }));
+						setAggregateRefreshErrors((current) => ({ ...current, [roundId]: false }));
+					} catch {
+						if (isCurrent) setAggregateRefreshErrors((current) => ({ ...current, [roundId]: true }));
+					}
+					if (!isCurrent) return;
 					if (progress.status === 'CLOSED') {
 						lifecycleChangeRef.current();
 						try {
 							const result = await getVotingRoundResults(credentials, electionId, positionId, roundId);
 							if (!isCurrent) return;
 							setRoundResults((current) => ({ ...current, [roundId]: result }));
-							setUnrevealedRoundIds((current) => current.filter((id) => id !== roundId));
 						} catch (requestError) {
 							if (!isCurrent) return;
 							if (requestError instanceof RoundsApiError && requestError.status === 404) {
@@ -411,7 +430,6 @@ export default function NominationAdminPanel({ credentials, electionId, position
 									delete next[roundId];
 									return next;
 								});
-								setUnrevealedRoundIds((current) => current.includes(roundId) ? current : [...current, roundId]);
 							} else {
 								setRoundsError(requestError instanceof Error ? requestError.message : 'Could not refresh voting round results.');
 							}
@@ -906,12 +924,23 @@ export default function NominationAdminPanel({ credentials, electionId, position
 		try {
 			const closed = await closeVotingRound(credentials, electionId, positionId, round.id);
 			setRounds((current) => current.map((item) => item.id === closed.id ? closed : item));
-			setRoundResults((current) => {
+			setRoundAggregateResults((current) => {
 				const next = { ...current };
 				delete next[closed.id];
 				return next;
 			});
-			setUnrevealedRoundIds((current) => current.includes(closed.id) ? current : [...current, closed.id]);
+			try {
+				const aggregate = await getVotingRoundAggregateResults(credentials, electionId, positionId, closed.id);
+				setRoundAggregateResults((current) => ({ ...current, [closed.id]: aggregate }));
+			} catch {
+				setRoundsError('Voting is closed, but final aggregate totals could not be loaded. Retry by reloading this position.');
+			}
+					try {
+						const finalResults = await getVotingRoundResults(credentials, electionId, positionId, closed.id);
+						setRoundResults((current) => ({ ...current, [closed.id]: finalResults }));
+					} catch {
+						setRoundsError('Voting is closed, but final decision details could not be loaded. Reload this position to retry.');
+					}
 			setRoundsSuccess(`Round ${closed.roundNumber} is closed.`);
 			onLifecycleChange();
 		} catch (requestError) {
@@ -921,83 +950,52 @@ export default function NominationAdminPanel({ credentials, electionId, position
 		}
 	}
 
-	async function confirmRevealRound() {
-		if (!credentials || !revealRoundId) return;
-		const round = rounds.find((item) => item.id === revealRoundId);
-		if (!round || round.status !== 'CLOSED') return;
-		setRoundLifecycleBusy(true);
-		setRoundsError('');
-		setRoundsSuccess('');
-		try {
-			const result = await revealVotingRound(credentials, electionId, positionId, round.id);
-			setRoundResults((current) => ({ ...current, [round.id]: result }));
-			setUnrevealedRoundIds((current) => current.filter((id) => id !== round.id));
-			setRevealRoundId(null);
-			setRoundsSuccess(`Results for round ${round.roundNumber} are revealed to administrators.`);
-			onLifecycleChange();
-		} catch (requestError) {
-			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not reveal round results.');
-		} finally {
-			setRoundLifecycleBusy(false);
-		}
-	}
-
-	async function saveCandidateOutcome(roundId: string, candidateId: string, electedConfirmed = false) {
+	async function saveCandidateDecisions(roundId: string) {
 		if (!credentials) return;
-		const draft = decisionDrafts[candidateId] ?? { decision: 'ADVANCED' as CandidateDecision, reason: '' };
-		const reason = draft.reason.trim();
-		if (draft.decision === 'ELECTED' && !electedConfirmed) {
-			setElectedCandidateId(candidateId);
-			return;
-		}
 		const result = roundResults[roundId];
 		if (!result) return;
-		const completionMayChange = draft.decision === 'ELECTED'
-			|| result.candidates.find((candidate) => candidate.id === candidateId)?.decision === 'ELECTED';
-		setSavingDecisionCandidateId(candidateId);
+		const choices = result.candidates.map((candidate) => ({
+			candidate,
+			decision: decisionDrafts[candidate.id]?.decision ?? candidate.decision ?? null,
+			reason: decisionDrafts[candidate.id]?.reason.trim() ?? candidate.decisionReason ?? '',
+		}));
+		if (choices.some((choice) => choice.decision === null)) {
+			setRoundsError('Choose Elect, Advance, or Remove for every candidate before saving.');
+			return;
+		}
+		const electedCount = choices.filter((choice) => choice.decision === 'ELECTED').length;
+		const advancedCount = choices.filter((choice) => choice.decision === 'ADVANCED').length;
+		if (electedCount === 0 && advancedCount < 2) {
+			setRoundsError('Elect at least one candidate or advance at least two candidates to continue.');
+			return;
+		}
+		const changedChoices = choices.filter(({ candidate, decision, reason }) =>
+			candidate.decision !== decision || (candidate.decisionReason ?? '') !== reason,
+		);
+		if (changedChoices.length === 0) {
+			setRoundsError('No candidate decisions have changed.');
+			return;
+		}
+		const completionMayChange = changedChoices.some(({ candidate, decision }) =>
+			decision === 'ELECTED' || candidate.decision === 'ELECTED',
+		);
+		setSavingDecisionCandidateId(roundId);
 		setRoundsError('');
 		setRoundsSuccess('');
+		let currentResult = result;
 		try {
-			const saved = await saveCandidateDecision(credentials, electionId, positionId, roundId, candidateId, {
-				decision: draft.decision,
-				...(reason ? { reason } : {}),
-			});
-			const updatedResult = 'roundId' in saved
-				? saved
-				: {
-					...result,
-					candidates: result.candidates.map((candidate) => candidate.id === saved.id ? { ...candidate, ...saved } : candidate),
-				};
-			setRoundResults((current) => ({ ...current, [roundId]: updatedResult }));
-			setElectedCandidateId(null);
-			setRoundsSuccess('Candidate decision saved.');
+			for (const { candidate, decision, reason } of changedChoices) {
+				if (decision === null) continue;
+				currentResult = await saveCandidateDecision(credentials, electionId, positionId, roundId, candidate.id, {
+					decision,
+					...(reason ? { reason } : {}),
+				}) as VotingRoundResult;
+				setRoundResults((current) => ({ ...current, [roundId]: currentResult }));
+			}
+			setRoundsSuccess('Candidate decisions saved.');
 			onLifecycleChange(completionMayChange);
 		} catch (requestError) {
-			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not save the candidate decision.');
-		} finally {
-			setSavingDecisionCandidateId(null);
-		}
-	}
-
-	async function undoCandidateOutcome(roundId: string, candidateId: string) {
-		if (!credentials) return;
-		setSavingDecisionCandidateId(candidateId);
-		setRoundsError('');
-		setRoundsSuccess('');
-		try {
-			const updatedResult = await undoCandidateDecision(credentials, electionId, positionId, roundId, candidateId);
-			setRoundResults((current) => ({ ...current, [roundId]: updatedResult }));
-			const restoredCandidate = updatedResult.candidates.find((candidate) => candidate.id === candidateId);
-			if (restoredCandidate) {
-				setDecisionDrafts((current) => ({
-					...current,
-					[candidateId]: { decision: 'ADVANCED', reason: '' },
-				}));
-			}
-			setRoundsSuccess('Candidate decision undone. Mark the candidate Advanced to include them in the next round.');
-			onLifecycleChange();
-		} catch (requestError) {
-			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not undo the candidate decision.');
+			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not save all candidate decisions. Successfully saved decisions are retained.');
 		} finally {
 			setSavingDecisionCandidateId(null);
 		}
@@ -1011,12 +1009,16 @@ export default function NominationAdminPanel({ credentials, electionId, position
 		try {
 			const reopened = await reopenVotingRound(credentials, electionId, positionId, reopenRoundId);
 			setRounds((current) => current.map((round) => round.id === reopened.id ? reopened : round));
+			setRoundAggregateResults((current) => {
+				const next = { ...current };
+				delete next[reopened.id];
+				return next;
+			});
 			setRoundResults((current) => {
 				const next = { ...current };
 				delete next[reopened.id];
 				return next;
 			});
-			setUnrevealedRoundIds((current) => current.filter((id) => id !== reopened.id));
 			setReopenRoundId(null);
 			setRoundsSuccess(`Round ${reopened.roundNumber} is active again.`);
 			onLifecycleChange();
@@ -1052,8 +1054,12 @@ export default function NominationAdminPanel({ credentials, electionId, position
 				delete next[reset.id];
 				return next;
 			});
+			setRoundAggregateResults((current) => {
+				const next = { ...current };
+				delete next[reset.id];
+				return next;
+			});
 			onLifecycleChange(true);
-			setUnrevealedRoundIds((current) => current.filter((id) => id !== reset.id));
 			setResetRoundId(null);
 			setRoundsSuccess(cancellingActiveRound
 				? `Voting cancelled. Ballots and current decisions were permanently deleted; candidate roster preserved for round ${reset.roundNumber}.`
@@ -1189,35 +1195,11 @@ export default function NominationAdminPanel({ credentials, electionId, position
 				<div className="position-roster-empty">No candidates yet.</div>
 				<span className="position-opening-count">{openingCount} {openingCount === 1 ? 'opening' : 'openings'}</span>
 			</aside>}
-			{isExpanded && !isLoading && intake?.status === 'CLOSED' && !firstRoundSetupVisible && !hasActiveRound && (
-				<section className="closed-review-summary" aria-label="Closed nomination review">
-					<p ref={closedStatusRef} tabIndex={-1} className="closed-review-message" role="status" aria-live="polite" aria-atomic="true">
-						{intake.revealed
-							? 'The consolidated list is confirmed. Use Audience presentation to show or hide it.'
-							: 'Nominations are closed. Review and consolidate the names, then confirm the list.'}
-					</p>
-					<div className="closed-review-meta">
-						<span>{intake.currentContributorCount ?? 'Unavailable'} current profile submissions</span>
-						<span>{intake.consolidatedNames?.length ?? intake.sharedList.filter((entry) => entry.active).length} candidates</span>
-					</div>
-					{!intake.revealed && <button className="primary-button" type="button" disabled={isLoading || sharedListDirty || sharedListDraft.some((entry) => entry.active && !entry.name.trim())} onClick={() => { void confirmConsolidatedList(); }}>Confirm consolidated list</button>}
-				</section>
+			{isExpanded && !isLoading && intake?.status === 'CLOSED' && rounds.length === 0 && !firstRoundSetupVisible && !hasActiveRound && (
+				<ClosedNominationReviewStage intake={intake} sharedListDirty={sharedListDirty} sharedListDraft={sharedListDraft} isLoading={isLoading} statusRef={closedStatusRef} onConfirm={() => { void confirmConsolidatedList(); }} />
 			)}
 			{isExpanded && !isLoading && intake?.status === 'OPEN' && (
-				<section className="intake-collection-view" aria-label="Open nomination intake">
-					<h3 className="intake-open-title">Nomination intake is open</h3>
-					<div className="intake-collection-metrics" aria-live="polite" aria-atomic="true">
-						<div><strong>{intake.currentContributorCount ?? 'Unavailable'}</strong><span>profile submissions</span></div>
-						<div><strong>{intake.nameLimit}</strong><span>names allowed per profile</span></div>
-					</div>
-					{intake.currentContributorCount == null && <p className="form-note">The connected API did not provide this count. Restart or update the API, then reload nominations.</p>}
-					{openSubmissionNames.length > 0 && <ol className="member-list intake-open-name-list" aria-label="Submitted nomination names">
-						{openSubmissionNames.map((name, index) => <li key={`${name}-${index}`}><span className="shared-nomination-name">{name}</span></li>)}
-					</ol>}
-					<div className="intake-open-actions">
-						<button ref={closeTriggerRef} className="secondary-button" type="button" disabled={isLoading} onClick={() => setCloseDialogOpen(true)}>Close nomination intake</button>
-					</div>
-				</section>
+				<OpenNominationIntakeStage intake={intake} names={openSubmissionNames} closeTriggerRef={closeTriggerRef} isLoading={isLoading} onClose={() => setCloseDialogOpen(true)} />
 			)}
 			</div>
 			<div className={`position-workflow-grid${!intake ? ' is-intake-setup' : ''}${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}${firstRoundSetupVisible ? ' is-round-setup-primary' : ''}${hasActiveRound ? ' is-voting-active' : ''}`}>
@@ -1251,7 +1233,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					</section>
 				</div>
 			)}
-			{isExpanded && !isLoading && intake?.status === 'CLOSED' && intake.listCreated && !firstRoundSetupVisible && !hasActiveRound && (
+			{isExpanded && !isLoading && intake?.status === 'CLOSED' && intake.listCreated && rounds.length === 0 && !firstRoundSetupVisible && !hasActiveRound && (
 				<section ref={sharedListSectionRef} className="workflow-details consolidation-details">
 					<div className="consolidation-list-heading">
 						<h3>{intake.revealed ? 'Consolidated list' : 'Review and consolidate'}</h3>
@@ -1312,29 +1294,38 @@ export default function NominationAdminPanel({ credentials, electionId, position
 				<details className={`workflow-details voting-round-configuration${firstRoundSetupVisible ? ' is-first-round-setup' : ''}${hasActiveRound ? ' is-voting-active' : ''}`} open>
 					<summary hidden={firstRoundSetupVisible || hasActiveRound}>Voting round configuration <span>{rounds.length} {rounds.length === 1 ? 'round' : 'rounds'} · {draftRoundId ? 'Draft ready' : 'Setup'}</span></summary>
 						<section aria-labelledby="voting-round-title">
-							{hasActiveRound ? <div className="active-voting-card" aria-labelledby="voting-round-title">
-								<div className="section-heading"><div><h3 id="voting-round-title">Voting is active</h3></div></div>
-								{activeRound && <div className="round-progress" role="status" aria-live="polite" aria-atomic="true">
-									{roundProgress[activeRound.id]?.status === 'ACTIVE'
-										? <strong>{roundProgress[activeRound.id].ballotsCast} of {roundProgress[activeRound.id].expectedVoterCount} profile/link submissions</strong>
-										: <strong>Loading submission count…</strong>}
-									<span>Submissions are counted per browser profile or link, not as verified people. Ballot totals and choices remain private.</span>
-								</div>}
-								<div className="active-voting-actions">
-									{activeRound && <button className="danger-button" type="button" disabled={roundLifecycleBusy} onClick={() => setResetRoundId(activeRound.id)}>Cancel active voting</button>}
-									{activeRound && <button className="primary-button" type="button" disabled={roundLifecycleBusy} onClick={() => { void closeRound(activeRound); }}>Close voting</button>}
-								</div>
-							</div> : !firstRoundSetupVisible && <div className="section-heading">
+							{hasActiveRound && activeRound && <ActiveVotingStage
+								round={activeRound}
+								progress={roundProgress[activeRound.id]}
+								aggregate={roundAggregateResults[activeRound.id]}
+								aggregateError={Boolean(aggregateRefreshErrors[activeRound.id])}
+								lifecycleBusy={roundLifecycleBusy}
+								onCancel={() => setResetRoundId(activeRound.id)}
+								onClose={() => { void closeRound(activeRound); }}
+							/>}
+							{!hasActiveRound && !firstRoundSetupVisible && latestRound?.status !== 'DRAFT' && !latestClosedRound && <div className="section-heading">
 								<div><h3 id="voting-round-title">Voting round configuration</h3><p>{latestRound ? 'Candidates marked Advanced in the preceding round continue automatically.' : 'The consolidated list is the complete candidate roster for this poll.'}</p></div>
 							</div>}
 					{roundsError && !roundsLoading && !roundsReady && <button className="secondary-button" type="button" onClick={() => setRoundsLoadAttempt((attempt) => attempt + 1)}>Retry loading rounds</button>}
 					{!roundsLoading && roundsReady && (
 						<>
-							{rounds.some((round) => round.status !== 'ACTIVE') && !firstRoundSetupVisible && (
+									{showClosedRoundDecisions && latestClosedRound && <ClosedRoundDecisionsStage
+										round={latestClosedRound}
+										result={roundResults[latestClosedRound.id]}
+										aggregate={roundAggregateResults[latestClosedRound.id]}
+										decisionDrafts={decisionDrafts}
+										setDecisionDrafts={setDecisionDrafts}
+										onSave={() => { void saveCandidateDecisions(latestClosedRound.id); }}
+										onReopen={() => setReopenRoundId(latestClosedRound.id)}
+										onReset={() => setResetRoundId(latestClosedRound.id)}
+										canReset={!rounds.some((round) => round.roundNumber > latestClosedRound.roundNumber)}
+										lifecycleBusy={roundLifecycleBusy}
+									/>}
+									{rounds.some((round) => round.status !== 'ACTIVE' && round.id !== latestClosedRound?.id) && !hasActiveRound && !firstRoundSetupVisible && latestRound?.status !== 'DRAFT' && (
 								<ul className="voting-round-list" aria-label="Voting rounds">
-									{rounds.filter((round) => round.status !== 'ACTIVE').map((round) => (
+												{rounds.filter((round) => round.status !== 'ACTIVE' && round.id !== latestClosedRound?.id).map((round) => (
 										<li className="voting-round-item" key={round.id}>
-											<details id={`round-${round.id}`} className={`workflow-details round-details${round.status === 'ACTIVE' ? ' round-details-active' : ''}`} name="voting-rounds">
+											<details id={`round-${round.id}`} className={`workflow-details round-details${round.status === 'ACTIVE' ? ' round-details-active' : ''}${round.status === 'CLOSED' && round.id === latestClosedRound?.id ? ' round-details-current-decisions' : ''}`} name="voting-rounds" open={round.status === 'CLOSED' && round.id === latestClosedRound?.id}>
 												<summary><span>Round {round.roundNumber}</span><span>{round.status === 'DRAFT' ? 'Draft' : round.status === 'ACTIVE' ? 'Voting active now' : 'Closed'} · {round.candidates.length} candidates</span></summary>
 												<div className="round-detail-content">
 											<div className="voting-round-heading">
@@ -1352,7 +1343,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 													</div>
 												</>
 											)}
-											{round.status === 'CLOSED' && unrevealedRoundIds.includes(round.id) && <button className="primary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setRevealRoundId(round.id)}>Reveal results</button>}
+															{round.status === 'CLOSED' && roundAggregateResults[round.id] && !roundResults[round.id] && <AggregateCandidateResults result={roundAggregateResults[round.id]} label={`Final aggregate candidate results for round ${round.roundNumber}`} />}
 																			{round.status === 'CLOSED' && <button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setReopenRoundId(round.id)}>Reopen voting</button>}
 																			{round.status === 'CLOSED' && !rounds.some((item) => item.roundNumber > round.roundNumber) && <button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setResetRoundId(round.id)}>Reset round</button>}
 																			{(round.resetCount ?? 0) > 0 && <p className="form-note">Reset count: {round.resetCount}</p>}
@@ -1360,18 +1351,19 @@ export default function NominationAdminPanel({ credentials, electionId, position
 												const result = roundResults[round.id];
 												return (
 													<details className="workflow-details result-details" open>
-														<summary>Revealed results <span>{result.ballotsCast} / {result.expectedVoterCount} ballots</span></summary>
+														<summary>Final results <span>{result.ballotsCast} / {result.expectedVoterCount} ballots</span></summary>
 													<section className="round-results" aria-labelledby={`round-results-title-${round.id}`}>
-														<div className="section-heading"><div><h4 id={`round-results-title-${round.id}`}>Revealed results</h4><p>Aggregate totals only. Ballot choices are not shown.</p></div></div>
+														<div className="section-heading"><div><h4 id={`round-results-title-${round.id}`}>Final results</h4><p>Aggregate totals only. Ballot choices are not shown.</p></div></div>
 														<dl className="round-result-summary">
 															<div><dt>Ballots cast</dt><dd>{result.ballotsCast} / {result.expectedVoterCount}</dd></div>
 															<div><dt>Majority threshold</dt><dd>{result.majorityThreshold}</dd></div>
 														</dl>
 														<ul className="round-result-candidates" aria-label={`Aggregate candidate votes for round ${round.roundNumber}`}>
-															{[...result.candidates]
+																				{[...result.candidates]
 																.sort((first, second) => second.votes - first.votes || first.name.localeCompare(second.name))
 																.map((candidate) => {
-																const draft = decisionDrafts[candidate.id];
+																				const draft = decisionDrafts[candidate.id];
+																				const selectedDecision = draft?.decision ?? candidate.decision ?? null;
 																const isEliminated = candidate.decision === 'ELIMINATED';
 																const isElected = candidate.decision === 'ELECTED';
 																const electedCount = rounds
@@ -1403,46 +1395,32 @@ export default function NominationAdminPanel({ credentials, electionId, position
 																				{candidate.decisionAt && <> <time dateTime={candidate.decisionAt}>{new Date(candidate.decisionAt).toLocaleString()}</time></>}
 																			</p>
 																		)}
-																		{isEliminated ? (
-																			<button className="secondary-button" type="button" disabled={savingDecisionCandidateId === candidate.id} onClick={() => void undoCandidateOutcome(round.id, candidate.id)}>
-																				{savingDecisionCandidateId === candidate.id ? 'Undoing…' : 'Undo'}
-																			</button>
-																		) : !isElected && (
-																		<form className="candidate-decision-form" onSubmit={(event) => { event.preventDefault(); void saveCandidateOutcome(round.id, candidate.id); }}>
-																			<label htmlFor={`candidate-decision-${candidate.id}`}>Decision</label>
-																			<select
-																				id={`candidate-decision-${candidate.id}`}
-																				value={draft?.decision ?? candidate.decision ?? 'ADVANCED'}
-																				disabled={savingDecisionCandidateId === candidate.id}
-																				onChange={(event) => setDecisionDrafts((current) => ({
-																					...current,
-																					[candidate.id]: { decision: event.target.value as CandidateDecision, reason: current[candidate.id]?.reason ?? '' },
-																				}))}
-																			>
-																				<option value="ADVANCED">Advanced</option>
-																				<option value="ELIMINATED">Eliminated</option>
-																				<option value="ELECTED">Elected</option>
-																			</select>
-																			<label htmlFor={`candidate-reason-${candidate.id}`}>Reason (optional)</label>
-																			<input
-																				id={`candidate-reason-${candidate.id}`}
-																				value={draft?.reason ?? ''}
-																				placeholder="Add an optional reason"
-																				disabled={savingDecisionCandidateId === candidate.id}
-																				onChange={(event) => setDecisionDrafts((current) => ({
-																					...current,
-																					[candidate.id]: { decision: current[candidate.id]?.decision ?? candidate.decision ?? 'ADVANCED', reason: event.target.value },
-																				}))}
-																			/>
-																			<button className="secondary-button" type="submit" disabled={savingDecisionCandidateId === candidate.id}>
-																				{savingDecisionCandidateId === candidate.id ? 'Saving…' : 'Save decision'}
-																			</button>
-																		</form>
-																		)}
+																						<div className="candidate-actions" role="group" aria-label={`Decision for ${candidate.name}`}>
+																							{([
+																							['ELECTED', 'Elect'],
+																							['ADVANCED', 'Advance'],
+																							['ELIMINATED', 'Remove'],
+																						] as const).map(([decision, label]) => <button
+																							key={decision}
+																							type="button"
+																							className={`candidate-action${selectedDecision === decision ? ' is-selected' : ''}`}
+																							aria-pressed={selectedDecision === decision}
+																							disabled={Boolean(savingDecisionCandidateId)}
+																							onClick={() => setDecisionDrafts((current) => ({
+																								...current,
+																								[candidate.id]: { decision, reason: current[candidate.id]?.reason ?? candidate.decisionReason ?? '' },
+																							}))}
+																						>{label}</button>)}
+																						</div>
 																	</li>
 																);
 															})}
 														</ul>
+														<div className="form-actions">
+															<button className="primary-button" type="button" disabled={Boolean(savingDecisionCandidateId)} onClick={() => { void saveCandidateDecisions(round.id); }}>
+																{savingDecisionCandidateId === round.id ? 'Saving…' : 'Save decisions'}
+															</button>
+														</div>
 													</section>
 													</details>
 												);
@@ -1479,8 +1457,8 @@ export default function NominationAdminPanel({ credentials, electionId, position
 									onCancel={() => { void cancelAndRebuildFirstRound(); }}
 								/>
 							) : hasActiveRound ? (
-								<p className="state-message" role="status">Next-round setup is available after the active round closes and results are reviewed.</p>
-							) : draftRoundId || rounds.length === 0 || candidateOptions.length > 0 ? (
+								<p className="state-message" role="status">Voting remains open until you close it. Afterward, choose an outcome for each candidate and save the decisions.</p>
+												) : draftRoundId || rounds.length === 0 || candidateOptions.length > 0 ? (
 								<form className="round-configuration-form" onSubmit={saveRoundConfiguration}>
 									<div className="round-candidate-roster">
 										<span className="summary-label">{latestRound ? 'Candidates advancing to this round' : 'Candidates in this poll'}</span>
@@ -1522,21 +1500,19 @@ export default function NominationAdminPanel({ credentials, electionId, position
 										<button className="primary-button" type="submit" disabled={roundsSaving || roundsLoading}>
 											{roundsSaving ? 'Saving…' : draftRoundId ? 'Save round setup' : 'Save round setup'}
 										</button>
-										{draftRoundId && draftRound?.roundNumber === 1 && <>
+										{draftRound && draftRound.selectionCount !== null && <>
 											<button className="primary-button" type="button" disabled={roundsSaving || roundsLoading || draftRound.selectionCount === null || firstRoundDraftStale} onClick={() => openStartDialog(draftRound)}>Start voting</button>
-											<button className="secondary-button" type="button" disabled={roundsSaving || roundsLoading} onClick={() => { void cancelAndRebuildFirstRound(); }}>Cancel and rebuild draft</button>
+											{draftRound.roundNumber === 1 && <button className="secondary-button" type="button" disabled={roundsSaving || roundsLoading} onClick={() => { void cancelAndRebuildFirstRound(); }}>Cancel and rebuild draft</button>}
 										</>}
 									</div>
 								</form>
 							) : (
-								<p className="state-message" role="status">No candidates are ready for the next round. Reveal the preceding round and mark candidates Advanced to continue.</p>
+								<p className="state-message" role="status">No candidates are ready for the next round. Mark at least two candidates Advanced in the closed round to continue.</p>
 							)}
 							{!firstRoundSetupVisible && !hasActiveRound && roundsSuccess && <p className="state-message" role="status" tabIndex={roundsSuccess.startsWith('Voting is active') ? -1 : undefined} ref={roundsSuccess.startsWith('Voting is active') ? startSuccessRef : undefined}>{roundsSuccess}</p>}
 							{startRoundId && (() => {
 								const round = rounds.find((item) => item.id === startRoundId);
 								if (!round) return null;
-								const count = Number(expectedVoterCount);
-								const cutoffApplies = round.candidates.length === 2 && round.selectionCount === 1 && Number.isInteger(count) && count > 0 && count % 2 === 0;
 								return (
 									<div className="dialog-backdrop">
 										<section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="start-voting-title" aria-describedby="start-voting-description">
@@ -1547,7 +1523,6 @@ export default function NominationAdminPanel({ credentials, electionId, position
 											<form onSubmit={startRound}>
 												<label htmlFor="expected-voter-count">Expected voter count</label>
 												<input ref={expectedVoterInputRef} id="expected-voter-count" type="number" min="1" step="1" value={expectedVoterCount} onChange={(event) => setExpectedVoterCount(event.target.value)} required autoFocus />
-												{cutoffApplies && <p className="cutoff-warning" role="note">With {count} expected voters, this two-candidate, one-selection round will automatically close after {count - 1} ballots.</p>}
 												<div className="form-actions dialog-actions">
 													<button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setStartRoundId(null)}>Cancel</button>
 													<button className="primary-button" type="submit" disabled={roundLifecycleBusy}>{roundLifecycleBusy ? 'Starting…' : 'Confirm and start'}</button>
@@ -1561,7 +1536,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 								<div className="dialog-backdrop">
 									<section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="reopen-voting-title" aria-describedby="reopen-voting-description">
 										<h3 id="reopen-voting-title">Reopen voting for round {rounds.find((round) => round.id === reopenRoundId)?.roundNumber}?</h3>
-										<p id="reopen-voting-description">Reopening overrides this round’s automatic ballot-count limit. The administrator can close it again at any time.</p>
+										<p id="reopen-voting-description">Reopening makes the ballot available again. Voting stays open until an administrator closes it.</p>
 										<div className="form-actions dialog-actions">
 											<button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setReopenRoundId(null)}>Cancel</button>
 											<button className="primary-button" type="button" disabled={roundLifecycleBusy} onClick={confirmReopenRound}>{roundLifecycleBusy ? 'Reopening…' : 'Confirm reopen'}</button>
@@ -1587,44 +1562,9 @@ export default function NominationAdminPanel({ credentials, electionId, position
 									</div>
 								);
 							})()}
-							{revealRoundId && (() => {
-								const round = rounds.find((item) => item.id === revealRoundId);
-								if (!round || round.status !== 'CLOSED') return null;
-								return (
-									<div className="dialog-backdrop">
-										<section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="reveal-results-title" aria-describedby="reveal-results-description">
-											<h3 id="reveal-results-title">Reveal results for round {round.roundNumber}?</h3>
-											<p id="reveal-results-description">Aggregate results will become visible to administrators. Voter-linked data is never displayed.</p>
-											<div className="form-actions dialog-actions">
-												<button className="secondary-button" type="button" disabled={roundLifecycleBusy} onClick={() => setRevealRoundId(null)}>Cancel</button>
-												<button className="primary-button" type="button" disabled={roundLifecycleBusy} onClick={confirmRevealRound}>{roundLifecycleBusy ? 'Revealing…' : 'Confirm reveal'}</button>
-											</div>
-										</section>
-									</div>
-								);
-							})()}
 						</>
 					)}
 					</section>
-					{electedCandidateId && (() => {
-						const electedCandidate = Object.values(roundResults).flatMap((result) => result.candidates).find((candidate) => candidate.id === electedCandidateId);
-						if (!electedCandidate) return null;
-						return (
-							<div className="dialog-backdrop">
-								<section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="elected-confirmation-title">
-									<h3 id="elected-confirmation-title">Confirm elected outcome</h3>
-									<p>Are you sure you want to mark {electedCandidate.name} as elected?</p>
-									<div className="form-actions dialog-actions">
-										<button className="secondary-button" type="button" disabled={savingDecisionCandidateId === electedCandidateId} onClick={() => setElectedCandidateId(null)}>Cancel</button>
-										<button className="primary-button" type="button" disabled={savingDecisionCandidateId === electedCandidateId} onClick={() => {
-											const result = Object.values(roundResults).find((item) => item.candidates.some((candidate) => candidate.id === electedCandidateId));
-											if (result) void saveCandidateOutcome(result.roundId, electedCandidateId, true);
-										}}>{savingDecisionCandidateId === electedCandidateId ? 'Saving…' : 'Confirm elected'}</button>
-									</div>
-								</section>
-							</div>
-						);
-					})()}
 				</details>
 			)}
 				</div>
