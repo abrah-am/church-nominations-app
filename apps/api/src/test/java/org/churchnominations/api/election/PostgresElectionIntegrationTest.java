@@ -1184,10 +1184,7 @@ class PostgresElectionIntegrationTest {
         mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/rounds", electionId, positionId)
                         .with(httpBasic(admin, PASSWORD)).contentType(APPLICATION_JSON)
                         .content("{\"candidateNames\":[\"Carol\"],\"selectionCount\":1}"))
-                .andExpect(status().isConflict());
-        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/reveal",
-                        electionId, positionId, roundId).with(httpBasic(admin, PASSWORD)))
-                .andExpect(status().isOk());
+                .andExpect(status().isBadRequest());
         UUID carolId = jdbcTemplate.queryForObject(
                 "select id from voting_round_candidates where round_id = ? and candidate_name = ?",
                 UUID.class, roundId, "Carol");
@@ -1371,8 +1368,16 @@ class PostgresElectionIntegrationTest {
         mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/rounds",
                         electionId, councilId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("ACTIVE"));
+        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/close",
+                        electionId, councilId, councilRoundId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.closeReason").value("ADMIN"));
+        mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/rounds",
+                        electionId, councilId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].status").value("CLOSED"))
-                .andExpect(jsonPath("$[0].closeReason").value("EXPECTED_COUNT"));
+                .andExpect(jsonPath("$[0].closeReason").value("ADMIN"));
         mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/reveal",
                         electionId, councilId, councilRoundId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
@@ -1492,6 +1497,24 @@ class PostgresElectionIntegrationTest {
         mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/progress",
                         electionId, evenPositionId, evenRoundId).with(httpBasic(otherAdmin, PASSWORD)))
                 .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/aggregate-results",
+                        electionId, evenPositionId, evenRoundId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", aMapWithSize(4)))
+                .andExpect(jsonPath("$.expectedVoterCount").value(16))
+                .andExpect(jsonPath("$.ballotsCast").value(0))
+                .andExpect(jsonPath("$.majorityThreshold").value(1))
+                .andExpect(jsonPath("$.candidates", hasSize(2)))
+                .andExpect(jsonPath("$.candidates[0].name").value("Alice"))
+                .andExpect(jsonPath("$.candidates[0].votes").value(0))
+                .andExpect(jsonPath("$.deviceToken").doesNotExist())
+                .andExpect(jsonPath("$.accessToken").doesNotExist())
+                .andExpect(jsonPath("$.status").doesNotExist())
+                .andExpect(jsonPath("$.participation").doesNotExist())
+                .andExpect(jsonPath("$.ballots").doesNotExist());
+        mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/aggregate-results",
+                        electionId, evenPositionId, evenRoundId).with(httpBasic(otherAdmin, PASSWORD)))
+                .andExpect(status().isNotFound());
         mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/reveal",
                         electionId, evenPositionId, evenRoundId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isConflict());
@@ -1556,11 +1579,25 @@ class PostgresElectionIntegrationTest {
                         electionId, evenPositionId, evenRoundId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ballotsCast").value(1));
+        mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/aggregate-results",
+                        electionId, evenPositionId, evenRoundId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ballotsCast").value(1))
+                .andExpect(jsonPath("$.candidates[0].name").value("Alice"))
+                .andExpect(jsonPath("$.candidates[0].votes").value(1));
         submitBallot(accessToken, firstDevice, bobId);
         mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/progress",
                         electionId, evenPositionId, evenRoundId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ballotsCast").value(1));
+        mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/aggregate-results",
+                        electionId, evenPositionId, evenRoundId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ballotsCast").value(1))
+                .andExpect(jsonPath("$.candidates[0].name").value("Bob"))
+                .andExpect(jsonPath("$.candidates[0].votes").value(1))
+                .andExpect(jsonPath("$.candidates[1].name").value("Alice"))
+                .andExpect(jsonPath("$.candidates[1].votes").value(0));
         mockMvc.perform(get("/api/polls/{token}", accessToken).header("X-Voting-Device-Token", firstDevice))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.submittedCandidateIds", hasSize(1)))
@@ -1579,21 +1616,47 @@ class PostgresElectionIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ballotsCast").value(15));
         mockMvc.perform(get("/api/polls/{token}", accessToken).header("X-Voting-Device-Token", firstDevice))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk());
         mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/rounds",
                         electionId, evenPositionId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].status").value("CLOSED"))
-                .andExpect(jsonPath("$[0].closeReason").value("CUTOFF"))
+                .andExpect(jsonPath("$[0].status").value("ACTIVE"))
+                .andExpect(jsonPath("$[0].closeReason").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$[0].total").doesNotExist());
-        mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/results",
+        submitBallot(accessToken, UUID.randomUUID(), aliceId);
+        mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/progress",
                         electionId, evenPositionId, evenRoundId).with(httpBasic(admin, PASSWORD)))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.ballotsCast").value(16));
+        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/close",
+                        electionId, evenPositionId, evenRoundId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CLOSED"))
+                .andExpect(jsonPath("$.closeReason").value("ADMIN"));
+        mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/results",
+                                electionId, evenPositionId, evenRoundId).with(httpBasic(admin, PASSWORD)))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.ballotsCast").value(16))
+                        .andExpect(jsonPath("$.revealedAt").value(org.hamcrest.Matchers.nullValue()));
+        mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/aggregate-results",
+                        electionId, evenPositionId, evenRoundId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.expectedVoterCount").value(16))
+                .andExpect(jsonPath("$.ballotsCast").value(16))
+                .andExpect(jsonPath("$.majorityThreshold").value(9))
+                .andExpect(jsonPath("$.candidates[0].name").value("Alice"))
+                .andExpect(jsonPath("$.candidates[0].votes").value(8))
+                .andExpect(jsonPath("$.candidates[1].name").value("Bob"))
+                .andExpect(jsonPath("$.candidates[1].votes").value(8))
+                .andExpect(jsonPath("$.candidates[0].decision").doesNotExist())
+                .andExpect(jsonPath("$.candidates[0].decisionBy").doesNotExist());
         mockMvc.perform(put("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/candidates/{candidateId}/decision",
                         electionId, evenPositionId, evenRoundId, aliceId).with(httpBasic(admin, PASSWORD))
                         .contentType(APPLICATION_JSON)
                         .content("{\"decision\":\"ELECTED\",\"reason\":\"Plurality\"}"))
-                .andExpect(status().isConflict());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.candidates[0].decision").value("ELECTED"));
         mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/reveal",
                         electionId, evenPositionId, evenRoundId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
@@ -1601,13 +1664,13 @@ class PostgresElectionIntegrationTest {
                 .andExpect(jsonPath("$.roundId").value(evenRoundId.toString()))
                 .andExpect(jsonPath("$.roundNumber").value(1))
                 .andExpect(jsonPath("$.expectedVoterCount").value(16))
-                .andExpect(jsonPath("$.ballotsCast").value(15))
-                .andExpect(jsonPath("$.majorityThreshold").value(8))
+                .andExpect(jsonPath("$.ballotsCast").value(16))
+                .andExpect(jsonPath("$.majorityThreshold").value(9))
                 .andExpect(jsonPath("$.revealedAt").isNotEmpty())
                 .andExpect(jsonPath("$.revealedBy").value(admin))
                 .andExpect(jsonPath("$.candidates", hasSize(2)))
                 .andExpect(jsonPath("$.candidates[0].name").value("Alice"))
-                .andExpect(jsonPath("$.candidates[0].votes").value(7))
+                .andExpect(jsonPath("$.candidates[0].votes").value(8))
                 .andExpect(jsonPath("$.candidates[1].name").value("Bob"))
                 .andExpect(jsonPath("$.candidates[1].votes").value(8))
                 .andExpect(jsonPath("$.deviceToken").doesNotExist())
@@ -1623,17 +1686,8 @@ class PostgresElectionIntegrationTest {
         mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/results",
                         electionId, evenPositionId, evenRoundId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ballotsCast").value(15))
-                .andExpect(jsonPath("$.candidates[0].votes").value(7));
-        mockMvc.perform(put("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/candidates/{candidateId}/decision",
-                        electionId, evenPositionId, evenRoundId, aliceId).with(httpBasic(admin, PASSWORD))
-                        .contentType(APPLICATION_JSON)
-                        .content("{\"decision\":\"ELECTED\",\"reason\":\"Plurality\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.candidates[0].decision").value("ELECTED"))
-                .andExpect(jsonPath("$.candidates[0].decisionReason").value("Plurality"))
-                .andExpect(jsonPath("$.candidates[0].decisionBy").value(admin))
-                .andExpect(jsonPath("$.candidates[0].decisionAt").isNotEmpty());
+                .andExpect(jsonPath("$.ballotsCast").value(16))
+                .andExpect(jsonPath("$.candidates[0].votes").value(8));
         mockMvc.perform(put("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/candidates/{candidateId}/decision",
                         electionId, evenPositionId, evenRoundId, aliceId).with(httpBasic(admin, PASSWORD))
                         .contentType(APPLICATION_JSON)
@@ -1702,8 +1756,9 @@ class PostgresElectionIntegrationTest {
                 .andExpect(jsonPath("$.total").doesNotExist());
         mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/results",
                         electionId, evenPositionId, evenRoundId).with(httpBasic(admin, PASSWORD)))
-                .andExpect(status().isNotFound());
-        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/reveal",
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revealedAt").value(org.hamcrest.Matchers.nullValue()));
+        mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/results",
                         electionId, evenPositionId, evenRoundId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.candidates[0].decision").value("ELIMINATED"))
@@ -1740,24 +1795,33 @@ class PostgresElectionIntegrationTest {
         mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/rounds",
                         electionId, oddPositionId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].status").value("CLOSED"))
-                .andExpect(jsonPath("$[0].closeReason").value("EXPECTED_COUNT"));
+                .andExpect(jsonPath("$[0].status").value("ACTIVE"))
+                .andExpect(jsonPath("$[0].closeReason").value(org.hamcrest.Matchers.nullValue()));
+        mockMvc.perform(get("/api/polls/{token}", oddToken)
+                        .header("X-Voting-Device-Token", expectedCountDevice))
+                .andExpect(status().isOk());
         mockMvc.perform(put("/api/polls/{token}/ballot", oddToken)
                         .header("X-Voting-Device-Token", UUID.randomUUID()).contentType(APPLICATION_JSON)
                         .content("{\"candidateIds\":[\"" + redId + "\"]}"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk());
+        assertEquals(6, jdbcTemplate.queryForObject(
+                "select count(*) from voting_ballots where round_id = ?", Integer.class, oddRoundId));
+        mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/close",
+                        electionId, oddPositionId, oddRoundId).with(httpBasic(admin, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.closeReason").value("ADMIN"));
         mockMvc.perform(post("/api/elections/{electionId}/positions/{positionId}/rounds/{roundId}/reopen",
                         electionId, oddPositionId, oddRoundId).with(httpBasic(admin, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
         submitBallot(oddToken, expectedCountDevice, redId);
-        assertEquals(5, jdbcTemplate.queryForObject(
+        assertEquals(6, jdbcTemplate.queryForObject(
                 "select count(*) from voting_ballots where round_id = ?", Integer.class, oddRoundId));
         mockMvc.perform(put("/api/polls/{token}/ballot", oddToken)
                         .header("X-Voting-Device-Token", UUID.randomUUID()).contentType(APPLICATION_JSON)
                         .content("{\"candidateIds\":[\"" + redId + "\"]}"))
-                .andExpect(status().isConflict());
-        assertEquals(5, jdbcTemplate.queryForObject(
+                .andExpect(status().isOk());
+        assertEquals(7, jdbcTemplate.queryForObject(
                 "select count(*) from voting_ballots where round_id = ?", Integer.class, oddRoundId));
         mockMvc.perform(get("/api/elections/{electionId}/positions/{positionId}/rounds",
                         electionId, oddPositionId).with(httpBasic(admin, PASSWORD)))

@@ -138,6 +138,117 @@ describe('read-only nomination presentation', () => {
 });
 
 describe('voting round navigation', () => {
+  it('shows private aggregate candidate totals live and keeps final totals after close', async () => {
+    const savedIntake = {
+      id: 'intake-1', accessToken: 'share-token', nameLimit: 3, status: 'CLOSED', revealed: true,
+      submissions: [], consolidatedNames: ['Riley Chen', 'Morgan Diaz', 'Jordan Lee'],
+      sharedList: [
+        { id: 'shared-1', name: 'Riley Chen', sequence: 1, active: true },
+        { id: 'shared-2', name: 'Morgan Diaz', sequence: 2, active: true },
+        { id: 'shared-3', name: 'Jordan Lee', sequence: 3, active: true },
+      ],
+    };
+    const activeRound = {
+      id: 'round-1', roundNumber: 1, status: 'ACTIVE', selectionCount: 3,
+      expectedVoterCount: 8, accessToken: 'active-token',
+      candidates: [
+        { id: 'candidate-riley', name: 'Riley Chen', sequence: 1 },
+        { id: 'candidate-morgan', name: 'Morgan Diaz', sequence: 2 },
+        { id: 'candidate-jordan', name: 'Jordan Lee', sequence: 3 },
+      ],
+    };
+    const closedRound = { ...activeRound, status: 'CLOSED', accessToken: null };
+    const zeroAggregate = {
+      expectedVoterCount: 8, ballotsCast: 0, majorityThreshold: 5,
+      candidates: [
+        { id: 'candidate-riley', name: 'Riley Chen', votes: 0 },
+        { id: 'candidate-morgan', name: 'Morgan Diaz', votes: 0 },
+        { id: 'candidate-jordan', name: 'Jordan Lee', votes: 0 },
+      ],
+    };
+    const firstAggregate = {
+      ...zeroAggregate,
+      ballotsCast: 2,
+      candidates: [
+        { id: 'candidate-riley', name: 'Riley Chen', votes: 3 },
+        { id: 'candidate-morgan', name: 'Morgan Diaz', votes: 3 },
+        { id: 'candidate-jordan', name: 'Jordan Lee', votes: 1 },
+      ],
+    };
+    const updatedAggregate = {
+      ...firstAggregate,
+      candidates: [
+        { id: 'candidate-riley', name: 'Riley Chen', votes: 4 },
+        { id: 'candidate-morgan', name: 'Morgan Diaz', votes: 3 },
+        { id: 'candidate-jordan', name: 'Jordan Lee', votes: 1 },
+      ],
+    };
+    const finalAggregate = { ...updatedAggregate, ballotsCast: 3 };
+    const fetchMock = signedInFetch([church], [election]);
+    let progressPollCount = 0;
+    let aggregatePollCount = 0;
+    const intervalSpy = vi.spyOn(window, 'setInterval');
+    fetchMock.mockImplementation(async (url, options) => {
+      const requestUrl = String(url);
+      const requestPath = requestUrl.replace('http://localhost:8080', '');
+      const requestMethod = options?.method ?? 'GET';
+      if (requestPath === '/api/elections/election-1' && requestMethod === 'GET') return response(election);
+      if (requestPath.endsWith('/nominations/stream')) return eventStreamResponse([`event: intake\ndata: ${JSON.stringify(savedIntake)}\n\n`]);
+      if (requestPath.endsWith('/nominations') && requestMethod === 'GET') return response(savedIntake);
+      if (requestPath.endsWith('/positions/position-2/rounds') && requestMethod === 'GET') return response([activeRound]);
+      if (requestPath.endsWith('/round-1/progress')) {
+        progressPollCount += 1;
+        return response({ roundId: 'round-1', status: 'ACTIVE', ballotsCast: progressPollCount, expectedVoterCount: 8 });
+      }
+      if (requestPath.endsWith('/round-1/aggregate-results')) {
+        aggregatePollCount += 1;
+        return response(aggregatePollCount === 1 ? zeroAggregate : aggregatePollCount === 2 ? firstAggregate : aggregatePollCount === 3 ? updatedAggregate : finalAggregate);
+      }
+      if (requestPath.endsWith('/round-1/close') && requestMethod === 'POST') return response(closedRound);
+      return response({}, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue election: Treasurer' }));
+    await waitForPositionHydration();
+
+    const results = await screen.findByRole('region', { name: 'Live aggregate candidate results' });
+    expect(within(results).getByText('Riley Chen').parentElement).toHaveTextContent('0 votes · 0%');
+    expect(within(results).getAllByRole('progressbar').map((bar) => bar.getAttribute('aria-valuenow'))).toEqual(['0', '0', '0']);
+
+    const pollingInterval = intervalSpy.mock.calls.find(([, delay]) => delay === 5000);
+    expect(pollingInterval).toBeDefined();
+    const pollAgain = pollingInterval?.[0] as () => void;
+    await act(async () => {
+      pollAgain();
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    const candidateNames = Array.from(results.querySelectorAll('.round-result-candidate-heading strong')).map((node) => node.textContent);
+    expect(candidateNames).toEqual(['Morgan Diaz', 'Riley Chen', 'Jordan Lee']);
+    expect(within(results).getByText('Morgan Diaz').parentElement).toHaveTextContent('3 votes · 150%');
+    expect(within(results).getByText('Riley Chen').parentElement).toHaveTextContent('3 votes · 150%');
+    expect(within(results).getByText('Jordan Lee').parentElement).toHaveTextContent('1 vote · 50%');
+    expect(within(results).getAllByRole('progressbar').map((bar) => bar.getAttribute('aria-valuenow'))).toEqual(['100', '100', '50']);
+
+    await act(async () => {
+      pollAgain();
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(within(results).getByText('Riley Chen').parentElement).toHaveTextContent('4 votes · 200%');
+    expect(results).not.toHaveTextContent(/device|user|choice|identity/i);
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/round-1/aggregate-results')).every(([, options]) => Boolean(options?.headers?.Authorization))).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close voting' }));
+    expect(await screen.findByRole('region', { name: 'Final aggregate candidate results for round 1' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Final aggregate candidate results for round 1' })).toHaveTextContent('4 votes · 133%');
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/round-1/reveal'))).toBe(false);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/round-1/close') && String(url).startsWith('http://localhost:8080/api/elections/'))).toBe(true);
+    intervalSpy.mockRestore();
+  });
+
   it('hides the active round row while preserving closed-round history and actions', async () => {
     const savedIntake = {
       id: 'intake-1',
@@ -207,7 +318,7 @@ describe('voting round navigation', () => {
 
     fireEvent.click(roundDisclosures[1] as HTMLElement);
     expect(details[1]).toHaveAttribute('open');
-    expect(within(details[1] as HTMLElement).getByRole('button', { name: 'Reveal results' })).toBeInTheDocument();
+    expect(within(details[1] as HTMLElement).queryByRole('button', { name: 'Reveal results' })).not.toBeInTheDocument();
     fireEvent.click(roundDisclosures[0] as HTMLElement);
     expect(details[0]).toHaveAttribute('open');
     expect(within(details[0] as HTMLElement).getByRole('button', { name: 'Reopen voting' })).toBeInTheDocument();
@@ -322,6 +433,7 @@ describe('voting round navigation', () => {
       .mockResolvedValueOnce(response(savedIntake))
       .mockResolvedValueOnce(response([activeRound]))
       .mockResolvedValueOnce(response({ roundId: 'round-1', status: 'ACTIVE', ballotsCast: 3, expectedVoterCount: 8 }))
+      .mockResolvedValueOnce(response({ expectedVoterCount: 8, ballotsCast: 3, majorityThreshold: 2, candidates: [] }))
       .mockResolvedValueOnce(response(resetRound))
       .mockResolvedValueOnce(response({ ...election, status: 'IN_PROGRESS' }));
     vi.stubGlobal('fetch', fetchMock);
@@ -361,6 +473,7 @@ describe('voting round navigation', () => {
       .mockResolvedValueOnce(response(savedIntake))
       .mockResolvedValueOnce(response([activeRound]))
       .mockResolvedValueOnce(response({ roundId: 'round-1', status: 'ACTIVE', ballotsCast: 3, expectedVoterCount: 8 }))
+      .mockResolvedValueOnce(response({ expectedVoterCount: 8, ballotsCast: 3, majorityThreshold: 2, candidates: [] }))
       .mockResolvedValueOnce(response({}, 409));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -1327,6 +1440,13 @@ describe('election administration', () => {
         revealedResults.candidates[1],
       ],
     };
+    const advancedBothResults = {
+      ...decidedResults,
+      candidates: [
+        decidedResults.candidates[0],
+        { ...revealedResults.candidates[1], decision: 'ADVANCED', decisionReason: null, decisionAt: '2026-10-19T12:15:01Z', decisionBy: 'admin@example.com' },
+      ],
+    };
     const eliminatedResults = {
       ...decidedResults,
       candidates: [
@@ -1351,9 +1471,9 @@ describe('election administration', () => {
     let intakeExists = false;
     const workflowResponses = [
       response({}, 500), response(createdDraft, 201), response(updatedDraft), response({}, 500), response(activeRound),
-      response({}, 404), response(revealedResults), response(decidedResults), response(eliminatedResults),
+      response({}, 404), response(revealedResults), response(decidedResults), response(advancedBothResults),
       response(undoneResults), response(electedResults),
-      response({ id: 'round-2', roundNumber: 2, status: 'DRAFT', selectionCount: 1, candidates: [{ id: 'candidate-1-round-2', name: 'Riley Chen', sequence: 1 }] }, 201),
+      response({ id: 'round-2', roundNumber: 2, status: 'DRAFT', selectionCount: 1, candidates: [{ id: 'candidate-1-round-2', name: 'Riley Chen', sequence: 1 }, { id: 'candidate-2-round-2', name: 'Morgan Diaz', sequence: 2 }] }, 201),
       response(electedResults), response(activeRound),
     ];
     let workflowResponseIndex = 0;
@@ -1362,6 +1482,9 @@ describe('election administration', () => {
     const viewerWindow = { location: viewerLocation, close: vi.fn() };
     vi.spyOn(window, 'open').mockReturnValue(viewerWindow as unknown as Window);
     fetchMock.mockImplementation(async (url, options) => {
+      const requestUrl = String(url);
+      const requestPath = requestUrl.replace('http://localhost:8080', '');
+      const requestMethod = options?.method ?? 'GET';
       if (String(url) === 'http://localhost:8080/api/elections/election-1' && (!options || options.method === 'GET')) {
         return response(workflowResponseIndex === 0 ? election : { ...election, status: 'IN_PROGRESS' });
       }
@@ -1372,9 +1495,40 @@ describe('election administration', () => {
           : { roundId: 'round-1', status: 'ACTIVE', ballotsCast: 7, expectedVoterCount: 16 };
         return response(progress);
       }
-      const requestUrl = String(url);
-      const requestPath = requestUrl.replace('http://localhost:8080', '');
-      const requestMethod = options?.method ?? 'GET';
+      if (String(url).endsWith('/round-1/aggregate-results')) {
+        return response({
+          expectedVoterCount: 16,
+          ballotsCast: progressPollCount === 2 ? 9 : 7,
+          majorityThreshold: 8,
+          candidates: [
+            { id: 'candidate-1', name: 'Riley Chen', votes: progressPollCount === 2 ? 9 : 7 },
+            { id: 'candidate-2', name: 'Morgan Diaz Jr.', votes: 6 },
+          ],
+        });
+      }
+      if (requestPath.endsWith('/positions/position-1/rounds') && requestMethod === 'POST') {
+        const requestedNames = JSON.parse(String(options?.body ?? '{}')).candidateNames as string[];
+        if (requestedNames[0] === 'Riley Chen' && requestedNames[1] === 'Morgan Diaz') {
+          return response({ id: 'round-2', roundNumber: 2, status: 'DRAFT', selectionCount: 1, candidates: [
+            { id: 'candidate-1-round-2', name: 'Riley Chen', sequence: 1 },
+            { id: 'candidate-2-round-2', name: 'Morgan Diaz', sequence: 2 },
+          ] }, 201);
+        }
+      }
+      if (requestPath.endsWith('/rounds/round-2/start') && requestMethod === 'POST') {
+        return response({ id: 'round-2', roundNumber: 2, status: 'ACTIVE', selectionCount: 1, expectedVoterCount: 16, accessToken: 'round-2-token', candidates: [
+          { id: 'candidate-1-round-2', name: 'Riley Chen', sequence: 1 },
+          { id: 'candidate-2-round-2', name: 'Morgan Diaz Jr.', sequence: 2 },
+        ] });
+      }
+      if (requestPath.endsWith('/round-2/progress')) return response({ roundId: 'round-2', status: 'ACTIVE', ballotsCast: 0, expectedVoterCount: 16 });
+      if (requestPath.endsWith('/round-2/aggregate-results')) return response({ expectedVoterCount: 16, ballotsCast: 0, majorityThreshold: 9, candidates: [
+        { id: 'candidate-1-round-2', name: 'Riley Chen', votes: 0 },
+        { id: 'candidate-2-round-2', name: 'Morgan Diaz Jr.', votes: 0 },
+      ] });
+      if (String(url).endsWith('/round-1/results')) return response(revealedResults);
+      if (requestPath.endsWith('/round-1/candidates/candidate-1/decision')) return response(decidedResults);
+      if (requestPath.endsWith('/round-1/candidates/candidate-2/decision')) return response(advancedBothResults);
       if (requestPath.endsWith('/nominations/stream')) {
         return eventStreamResponse([`event: intake\ndata: ${JSON.stringify(intakeState)}\n\n`]);
       }
@@ -1586,7 +1740,7 @@ describe('election administration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start Voting' }));
     const expectedVoterInput = screen.getByLabelText('Expected voter count');
     fireEvent.change(expectedVoterInput, { target: { value: '16' } });
-    expect(screen.getByText(/automatically close after 15 ballots/)).toBeInTheDocument();
+    expect(screen.queryByText(/automatically close after/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Confirm and start' }));
     expect(await within(screen.getByRole('dialog', { name: 'Start voting for round 1?' })).findByRole('alert')).toHaveTextContent('The request failed (HTTP 500).');
     expect(screen.getByLabelText('Expected voter count')).toHaveValue(16);
@@ -1615,120 +1769,70 @@ describe('election administration', () => {
       await new Promise((resolve) => window.setTimeout(resolve, 0));
     });
     expect(screen.queryByText('9 of 16 profile/link submissions')).not.toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: 'Reveal results' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reveal results' })).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/round-1/results'))).toBe(true);
     intervalSpy.mockRestore();
     expect(screen.queryByText(/Draft round 1:/)).not.toBeInTheDocument();
-    expect(screen.getByText('No candidates are ready for the next round. Reveal the preceding round and mark candidates Advanced to continue.')).toBeInTheDocument();
+    expect(screen.getByText('No candidates are ready for the next round. Mark at least two candidates Advanced in the closed round to continue.')).toBeInTheDocument();
     expect(screen.queryByLabelText('How many names can each ballot select?')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save round setup' })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Round 1' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Public voting link')).toHaveValue(`${window.location.origin}/vote/vote-token`);
+    expect(screen.getByRole('heading', { name: 'Round 1 · Candidate decisions' })).toBeInTheDocument();
+    const roundOneDecisions = screen.getByRole('region', { name: 'Round 1 candidate decisions' });
+    expect(roundOneDecisions).toBeInTheDocument();
+    expect(document.querySelector('.position-workflow-main')).toContainElement(roundOneDecisions);
+    expect(screen.queryByText('Voting round configuration', { selector: 'h3' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Public voting link')).not.toBeInTheDocument();
+    const currentRoundDecisions = screen.getByRole('region', { name: 'Round 1 candidate decisions' });
 
     expect(screen.queryByLabelText('How many names can each ballot select?')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save round setup' })).not.toBeInTheDocument();
-    expect(screen.getByText('No candidates are ready for the next round. Reveal the preceding round and mark candidates Advanced to continue.')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Round 1' }).parentElement).toHaveTextContent('Closed');
-    expect(screen.getByRole('button', { name: 'Reveal results' })).toBeInTheDocument();
-    expect(screen.queryByText('15 / 16')).not.toBeInTheDocument();
-    expect(screen.queryByText('9 votes')).not.toBeInTheDocument();
-    expect(screen.getByText('No candidates are ready for the next round. Reveal the preceding round and mark candidates Advanced to continue.')).toBeInTheDocument();
+    expect(screen.getByText('No candidates are ready for the next round. Mark at least two candidates Advanced in the closed round to continue.')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Round 1 candidate decisions' })).toBeInTheDocument();
+    expect(document.querySelector('#round-round-1.round-details')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reveal results' })).not.toBeInTheDocument();
+    expect(within(currentRoundDecisions).getAllByText('9 votes · 60%')).toHaveLength(2);
+    expect(within(currentRoundDecisions).getAllByText('6 votes · 40%')).toHaveLength(2);
+    expect(screen.getByText('No candidates are ready for the next round. Mark at least two candidates Advanced in the closed round to continue.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save round setup' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Reveal results' }));
-    expect(screen.getByRole('dialog', { name: 'Reveal results for round 1?' })).toHaveTextContent('visible to administrators');
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm reveal' }));
-    expect(await screen.findByText('Results for round 1 are revealed to administrators.')).toBeInTheDocument();
-    expect(screen.getByText('15 / 16')).toBeInTheDocument();
-    expect(screen.getByText('8')).toBeInTheDocument();
-    expect(screen.getByText('9 votes')).toBeInTheDocument();
-    expect(screen.getByText('6 votes')).toBeInTheDocument();
-    expect(screen.getByText('No candidates are ready for the next round. Reveal the preceding round and mark candidates Advanced to continue.')).toBeInTheDocument();
+    expect(within(currentRoundDecisions).getByRole('group', { name: 'Decision for Riley Chen' })).toBeInTheDocument();
+    expect(within(currentRoundDecisions).getByRole('group', { name: 'Decision for Morgan Diaz' })).toBeInTheDocument();
+    expect(within(currentRoundDecisions).getAllByText('9 votes · 60%')).toHaveLength(2);
+    expect(within(currentRoundDecisions).getAllByText('6 votes · 40%')).toHaveLength(2);
+    expect(screen.getByText('No candidates are ready for the next round. Mark at least two candidates Advanced in the closed round to continue.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save round setup' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Riley Chen')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Morgan Diaz')).not.toBeInTheDocument();
-    expect(screen.queryByText(/voter|device token|ballot identity/i)).not.toBeInTheDocument();
-    const decisionReason = screen.getAllByLabelText(/Reason/)[0];
-    fireEvent.change(decisionReason, { target: { value: 'Received a majority of votes.' } });
-    fireEvent.click(screen.getAllByRole('button', { name: 'Save decision' })[0]);
-    expect(await screen.findByText('Candidate decision saved.')).toBeInTheDocument();
-            expect(screen.getByRole('list', { name: 'Candidates advancing to this round' })).toHaveTextContent('Riley Chen');
-            expect(screen.getByRole('list', { name: 'Candidates advancing to this round' })).not.toHaveTextContent('Morgan Diaz');
-    expect(screen.getByLabelText('How many names can each ballot select?')).toBeInTheDocument();
-    expect(fetchMock.mock.calls.filter(([url, options]) => String(url).endsWith('/rounds') && options?.method === 'POST')).toHaveLength(2);
-
-    const roundDisclosure = screen.getAllByText('Round 1')[0].closest('details');
-    expect(roundDisclosure).toBeInTheDocument();
-    const roundSummary = within(roundDisclosure as HTMLElement).getAllByText('Round 1')[0];
-    fireEvent.click(roundSummary);
-    expect(roundDisclosure).toHaveAttribute('open');
-    fireEvent.click(roundSummary);
-    expect(roundDisclosure).not.toHaveAttribute('open');
-    fireEvent.click(roundSummary);
-    expect(roundDisclosure).toHaveAttribute('open');
-    const resultsSummary = screen.getAllByText(/Revealed results/)[0];
-    const resultsDisclosure = resultsSummary.closest('details');
-    expect(resultsDisclosure).toHaveAttribute('open');
-    fireEvent.click(resultsSummary);
-    expect(resultsDisclosure).not.toHaveAttribute('open');
-    fireEvent.click(resultsSummary);
-
-    fireEvent.change(screen.getAllByLabelText('Decision')[1], { target: { value: 'ELIMINATED' } });
-    fireEvent.change(screen.getAllByLabelText(/Reason/)[1], { target: { value: 'Did not receive a majority.' } });
-    fireEvent.click(screen.getAllByRole('button', { name: 'Save decision' })[1]);
-    expect(await screen.findByText(/Did not receive a majority\./)).toBeInTheDocument();
-    const aggregateCandidates = within(screen.getByRole('list', { name: 'Aggregate candidate votes for round 1' }));
-    const eliminatedCandidateRow = aggregateCandidates.getByText('Morgan Diaz').closest('li');
-    expect(eliminatedCandidateRow).toHaveClass('candidate-eliminated');
-    expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument();
-    expect(within(eliminatedCandidateRow as HTMLElement).queryByRole('combobox')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
-    expect(await screen.findByText('Candidate decision undone. Mark the candidate Advanced to include them in the next round.')).toBeInTheDocument();
-            expect(screen.getByRole('list', { name: 'Candidates advancing to this round' })).not.toHaveTextContent('Morgan Diaz');
-    expect(within(eliminatedCandidateRow as HTMLElement).getByLabelText('Decision')).toBeInTheDocument();
-
-    fireEvent.change(screen.getAllByLabelText('Decision')[1], { target: { value: 'ELECTED' } });
-    fireEvent.change(screen.getAllByLabelText(/Reason/)[1], { target: { value: 'Selected for the position.' } });
-    fireEvent.click(screen.getAllByRole('button', { name: 'Save decision' })[1]);
-    expect(screen.getByRole('dialog', { name: 'Confirm elected outcome' })).toHaveTextContent('Are you sure you want to mark Morgan Diaz as elected?');
-    const electedDecisionUrl = 'http://localhost:8080/api/elections/election-1/positions/position-1/rounds/round-1/candidates/candidate-2/decision';
-    expect(fetchMock.mock.calls.filter(([url, options]) => url === electedDecisionUrl && options?.method === 'PUT')).toHaveLength(1);
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(screen.queryByRole('dialog', { name: 'Confirm elected outcome' })).not.toBeInTheDocument();
-    expect(fetchMock.mock.calls.filter(([url, options]) => url === electedDecisionUrl && options?.method === 'PUT')).toHaveLength(1);
-    expect(screen.queryByRole('checkbox', { name: 'Morgan Diaz' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole('button', { name: 'Save decision' })[1]);
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm elected' }));
-    expect(await screen.findByText(/Selected for the position\./)).toBeInTheDocument();
-    expect(aggregateCandidates.getByText('Morgan Diaz').closest('li')).toHaveClass('candidate-elected');
-            expect(screen.getByRole('list', { name: 'Candidates advancing to this round' })).toHaveTextContent('Riley Chen');
-            expect(screen.getByRole('list', { name: 'Candidates advancing to this round' })).not.toHaveTextContent('Morgan Diaz');
-    expect(fetchMock.mock.calls.filter(([url, options]) => String(url).endsWith('/rounds') && options?.method === 'POST')).toHaveLength(2);
-
-    fireEvent.change(screen.getByLabelText('How many names can each ballot select?'), { target: { value: '1' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save round setup' }));
-    expect(await screen.findByText('Draft round configuration saved.')).toBeInTheDocument();
-    const nextRoundRequest = fetchMock.mock.calls.find(([url, options]) => String(url).endsWith('/rounds') && options?.method === 'POST' && options.body === JSON.stringify({ candidateNames: ['Riley Chen'], selectionCount: 1 }));
-    expect(nextRoundRequest?.[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ candidateNames: ['Riley Chen'], selectionCount: 1 }) });
-    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: '   ' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save decision' }));
-    expect(await screen.findByText('Candidate decision saved.')).toBeInTheDocument();
-    const reasonlessDecisionRequest = fetchMock.mock.calls.find(([url, options]) => String(url).endsWith('/candidates/candidate-1/decision') && options?.body === JSON.stringify({ decision: 'ADVANCED' }));
-    expect(reasonlessDecisionRequest?.[1]).toMatchObject({ method: 'PUT', body: JSON.stringify({ decision: 'ADVANCED' }) });
-    expect(screen.getByText((_, element) => element?.textContent?.startsWith('Current decision: ADVANCED: Received a majority of votes. By admin@example.com') ?? false)).toBeInTheDocument();
-    expect(aggregateCandidates.getByText('Riley Chen').closest('li')).toHaveTextContent('By admin@example.com');
-    const decisionRequest = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/round-1/candidates/candidate-1/decision'));
-    expect(decisionRequest?.[1]).toMatchObject({ method: 'PUT', body: JSON.stringify({ decision: 'ADVANCED', reason: 'Received a majority of votes.' }) });
-    const undoRequest = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/candidates/candidate-2/decision/undo'));
-    expect(undoRequest?.[1]).toMatchObject({ method: 'POST', body: '{}' });
-    fireEvent.click(screen.getByRole('button', { name: 'Reopen voting' }));
-    expect(screen.getByRole('dialog', { name: 'Reopen voting for round 1?' })).toHaveTextContent('overrides this round’s automatic ballot-count limit');
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm reopen' }));
-    expect(await screen.findByRole('heading', { name: 'Voting is active' })).toBeInTheDocument();
-    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/round-1/reveal'))).toBe(true);
-    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/round-1/reopen'))).toBe(true);
-    expect(screen.queryByText('15 / 16')).not.toBeInTheDocument();
-    expect(screen.queryByText('9 votes')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Reveal results' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/voter identity|device token|ballot identity/i)).not.toBeInTheDocument();
+        const rileyDecision = screen.getByRole('group', { name: 'Decision for Riley Chen' });
+        const morganDecision = screen.getByRole('group', { name: 'Decision for Morgan Diaz' });
+        expect(within(rileyDecision).getByRole('button', { name: 'Elect', pressed: false })).toBeInTheDocument();
+        expect(within(rileyDecision).getByRole('button', { name: 'Advance', pressed: false })).toBeInTheDocument();
+        expect(within(rileyDecision).getByRole('button', { name: 'Remove', pressed: false })).toBeInTheDocument();
+        fireEvent.click(within(rileyDecision).getByRole('button', { name: 'Advance' }));
+        fireEvent.click(within(morganDecision).getByRole('button', { name: 'Advance' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Save decisions' }));
+        expect(await screen.findByText('Candidate decisions saved.')).toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: 'Round 1 candidate decisions' })).not.toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Prepare the next round · Round 2' })).toBeInTheDocument();
+        expect(screen.getByRole('list', { name: 'Candidates advancing to this round' })).toHaveTextContent('Riley Chen');
+        expect(screen.getByRole('list', { name: 'Candidates advancing to this round' })).toHaveTextContent('Morgan Diaz');
+        expect(screen.getByRole('list', { name: 'Candidates advancing to this round' })).toHaveTextContent('Riley ChenMorgan Diaz');
+        expect(screen.queryByRole('region', { name: 'Round 1 candidate decisions' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: 'Closed nomination review' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('list', { name: 'Confirmed consolidated list' })).not.toBeInTheDocument();
+        fireEvent.change(screen.getByLabelText('How many names can each ballot select?'), { target: { value: '1' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Save round setup' }));
+        expect(await screen.findByRole('button', { name: 'Start voting' })).toBeEnabled();
+        fireEvent.click(screen.getByRole('button', { name: 'Start voting' }));
+        expect(await screen.findByRole('dialog', { name: 'Start voting for round 2?' })).toBeInTheDocument();
+        fireEvent.change(screen.getByLabelText('Expected voter count'), { target: { value: '16' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm and start' }));
+        expect(await screen.findByRole('region', { name: 'Round 2 active voting' })).toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: 'Round 1 candidate decisions' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: 'Closed nomination review' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('list', { name: 'Confirmed consolidated list' })).not.toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Voting is active' })).toBeInTheDocument();
+        expect(fetchMock.mock.calls.filter(([url, options]) => String(url).endsWith('/rounds') && options?.method === 'POST')).toHaveLength(3);
   });
 
   it('preserves shared-list edits after a save failure so they can be retried', async () => {
@@ -2148,10 +2252,13 @@ describe('election administration', () => {
     expect(Array.from(resultList.querySelectorAll('.round-result-candidate-heading strong')).map((candidate) => candidate.textContent)).toEqual([
       'Alex Kim', 'Zoe Patel', 'Morgan Diaz', 'Riley Chen',
     ]);
-    const decisionSelect = within(roundDetails as HTMLElement).getAllByLabelText('Decision')[0] as HTMLSelectElement;
-    expect(Array.from(decisionSelect.options).map((option) => option.textContent)).toEqual(['Advanced', 'Eliminated', 'Elected']);
-    fireEvent.change(decisionSelect, { target: { value: 'ELIMINATED' } });
+    const decisionGroup = within(roundDetails as HTMLElement).getByRole('group', { name: 'Decision for Alex Kim' });
+    expect(within(decisionGroup).getByRole('button', { name: 'Elect' })).toBeInTheDocument();
+    expect(within(decisionGroup).getByRole('button', { name: 'Advance' })).toBeInTheDocument();
+    expect(within(decisionGroup).getByRole('button', { name: 'Remove' })).toBeInTheDocument();
+    fireEvent.click(within(decisionGroup).getByRole('button', { name: 'Remove' }));
     expect(fetchMock.mock.calls.filter(([, options]) => options?.method === 'PUT')).toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Save decisions' })).toBeInTheDocument();
   });
 
   it('shows an empty shared list to admins before presentation reveal', async () => {

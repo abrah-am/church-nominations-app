@@ -28,8 +28,6 @@ import {
   updateElection,
 } from './api/elections';
 import { AccessGate } from './features/auth/AccessGate';
-import { AudiencePresentationCard } from './components/AudiencePresentationCard';
-import { ParticipantSessionLinkCard } from './components/ParticipantSessionLinkCard';
 import { BoardScreen, BoardsWorkspace } from './features/boards/BoardsWorkspace';
 import { ElectionForm } from './features/elections/ElectionForm';
 import NominationAdminPanel from './features/nominations/NominationAdminPanel';
@@ -94,7 +92,6 @@ function AuthenticatedApp() {
   const mainRegion = useRef<HTMLElement>(null);
   const focusMainAfterNavigation = useRef(false);
   const [screen, setScreen] = useState<Screen>('list');
-  const [demoPresentationVisible, setDemoPresentationVisible] = useState(true);
   const [pageError, setPageError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -627,22 +624,7 @@ function AuthenticatedApp() {
                 <span className="demo-badge">SAMPLE TERM</span>
                 <p>Live election rows below are shown under this demo term for visual presentation only. The API does not associate elections with terms.</p>
               </div>}
-              <section className="access-card-group access-card-group--overview" aria-label="Sample links, display only">
-                <ParticipantSessionLinkCard
-                  description="One session link for the authorized current phase. Anyone with the link may be able to access it."
-                  url="sample://voting-session/example"
-                  actionDisabled
-                  actionTitle="Demo link not active"
-                  className="access-card--overview"
-                />
-                <AudiencePresentationCard
-                  description="The separate display is read-only. Presentation controls stay in this authenticated admin workspace."
-                  visible={demoPresentationVisible}
-                  onVisibilityChange={setDemoPresentationVisible}
-                  openDisabled
-                  className="access-card--overview"
-                />
-              </section>
+
               {!selectedTerm && <div className="section-heading">
                 <div>
                   <h2 id="election-list-title">Department elections</h2>

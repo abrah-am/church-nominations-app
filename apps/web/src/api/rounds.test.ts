@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createVotingRound, getVotingRoundProgress, getVotingRoundResults, listVotingRounds, revealVotingRound, saveCandidateDecision, undoCandidateDecision, updateVotingRound } from './rounds';
+import { createVotingRound, getVotingRoundAggregateResults, getVotingRoundProgress, getVotingRoundResults, listVotingRounds, revealVotingRound, saveCandidateDecision, undoCandidateDecision, updateVotingRound } from './rounds';
 
 function response(body: unknown, status = 200) {
   return { ok: status >= 200 && status < 300, status, json: vi.fn().mockResolvedValue(body) };
@@ -63,6 +63,24 @@ describe('voting rounds API', () => {
 
     expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds/round-1/progress');
     expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'GET', headers: { Authorization: `Basic ${btoa('admin@example.com:secret')}` } });
+  });
+
+  it('loads aggregate-only results through the authenticated round endpoint', async () => {
+    const aggregate = {
+      expectedVoterCount: 12,
+      ballotsCast: 4,
+      majorityThreshold: 3,
+      candidates: [{ id: 'candidate-1', name: 'Riley Chen', votes: 5 }],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(response(aggregate));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getVotingRoundAggregateResults('admin@example.com:secret', 'election/1', 'position 2', 'round/3')).resolves.toEqual(aggregate);
+
+    expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:8080/api/elections/election%2F1/positions/position%202/rounds/round%2F3/aggregate-results');
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'GET', headers: { Authorization: `Basic ${btoa('admin@example.com:secret')}` } });
+    expect(Object.keys(aggregate).sort()).toEqual(['ballotsCast', 'candidates', 'expectedVoterCount', 'majorityThreshold']);
+    expect(Object.keys(aggregate.candidates[0]).sort()).toEqual(['id', 'name', 'votes']);
   });
 
   it('reveals a round and saves candidate decisions with a reason', async () => {

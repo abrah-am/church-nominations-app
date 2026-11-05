@@ -225,10 +225,38 @@ public class VotingRoundService {
         elections.getPositionForChurch(electionId, positionId, accountEmail);
         VotingRound round = rounds.findByIdAndPositionId(roundId, positionId)
             .orElseThrow(VotingRoundNotFoundException::new);
-        if (round.getStatus() != VotingRoundStatus.CLOSED || round.getRevealedAt() == null) {
+        if (round.getStatus() != VotingRoundStatus.CLOSED) {
             throw new VotingRoundNotFoundException();
         }
         return results(round);
+        }
+
+        public VotingRoundAggregateResultsResponse aggregateResults(
+            UUID electionId, UUID positionId, UUID roundId, String accountEmail) {
+        elections.getPositionForChurch(electionId, positionId, accountEmail);
+        VotingRound round = rounds.findByIdAndPositionId(roundId, positionId)
+                .orElseThrow(VotingRoundNotFoundException::new);
+        if (round.getStatus() != VotingRoundStatus.ACTIVE && round.getStatus() != VotingRoundStatus.CLOSED) {
+            throw new VotingRoundNotFoundException();
+        }
+
+        Long ballotsCastResult = jdbc.queryForObject(
+            "select count(*) from voting_ballots where round_id = ?", Long.class, roundId);
+        long ballotsCast = ballotsCastResult == null ? 0 : ballotsCastResult;
+        List<VotingRoundAggregateResultsResponse.CandidateAggregate> candidateResults = jdbc.query("""
+            select c.id, c.candidate_name, count(choice.ballot_id) as votes
+            from voting_round_candidates c
+            left join voting_ballot_choices choice
+                on choice.round_id = c.round_id and choice.candidate_id = c.id
+            where c.round_id = ?
+            group by c.id, c.candidate_name
+            order by votes desc, lower(c.candidate_name), c.candidate_name
+            """, (result, row) -> new VotingRoundAggregateResultsResponse.CandidateAggregate(
+                result.getObject("id", UUID.class),
+                result.getString("candidate_name"),
+                result.getLong("votes")), roundId);
+        return new VotingRoundAggregateResultsResponse(round.getExpectedVoterCount(), ballotsCast,
+            ballotsCast / 2 + 1, candidateResults);
         }
 
         public VotingRoundProgressResponse progress(
@@ -253,7 +281,7 @@ public class VotingRoundService {
         ElectionPositionDetails position = elections.lockPositionForChurch(electionId, positionId, accountEmail);
         VotingRound round = rounds.findByIdAndPositionIdForUpdate(roundId, positionId)
             .orElseThrow(VotingRoundNotFoundException::new);
-        if (round.getStatus() != VotingRoundStatus.CLOSED || round.getRevealedAt() == null) {
+        if (round.getStatus() != VotingRoundStatus.CLOSED) {
             throw new VotingRoundConflictException();
         }
         if (candidates.findByIdAndRoundId(candidateId, roundId).isEmpty()) {
@@ -319,7 +347,7 @@ public class VotingRoundService {
         elections.lockPositionForChurch(electionId, positionId, accountEmail);
         VotingRound round = rounds.findByIdAndPositionIdForUpdate(roundId, positionId)
             .orElseThrow(VotingRoundNotFoundException::new);
-        if (round.getStatus() != VotingRoundStatus.CLOSED || round.getRevealedAt() == null) {
+        if (round.getStatus() != VotingRoundStatus.CLOSED) {
             throw new VotingRoundConflictException();
         }
         if (candidates.findByIdAndRoundId(candidateId, roundId).isEmpty()) {
@@ -413,16 +441,6 @@ public class VotingRoundService {
             || candidates.findAllByRoundIdAndIdIn(round.getId(), candidateIds).size() != candidateIds.size()) {
             throw new InvalidVotingRoundRequestException();
         }
-        Long currentBallotCount = jdbc.queryForObject(
-            "select count(*) from voting_ballots where round_id = ?", Long.class, round.getId());
-        boolean deviceHasBallot = jdbc.queryForObject(
-            "select exists(select 1 from voting_ballots where round_id = ? and device_token = ?)",
-            Boolean.class, round.getId(), deviceToken);
-        if (currentBallotCount != null
-            && currentBallotCount >= round.getExpectedVoterCount()
-            && !deviceHasBallot) {
-            throw new VotingRoundConflictException();
-        }
         UUID ballotId = jdbc.query("""
             insert into voting_ballots (id, round_id, device_token)
             values (?, ?, ?)
@@ -435,25 +453,7 @@ public class VotingRoundService {
             "insert into voting_ballot_choices (id, round_id, ballot_id, candidate_id) values (?, ?, ?, ?)",
             UUID.randomUUID(), round.getId(), ballotId, candidateId));
 
-        Long ballotCount = jdbc.queryForObject(
-            "select count(*) from voting_ballots where round_id = ?", Long.class, round.getId());
-        if (isCutoffEligible(round)) {
-            if (ballotCount != null && ballotCount >= round.getExpectedVoterCount() - 1) {
-                round.close(VotingRoundCloseReason.CUTOFF);
-                rounds.saveAndFlush(round);
-            }
-        } else if (!round.isCutoffOverridden() && ballotCount != null
-            && ballotCount >= round.getExpectedVoterCount()) {
-            round.close(VotingRoundCloseReason.EXPECTED_COUNT);
-            rounds.saveAndFlush(round);
-        }
         return new SubmittedBallotResponse(true);
-        }
-
-        private boolean isCutoffEligible(VotingRound round) {
-        return !round.isCutoffOverridden() && round.getSelectionCount() == 1
-            && round.getExpectedVoterCount() % 2 == 0
-            && candidates.findAllByRoundIdOrderBySequenceAsc(round.getId()).size() == 2;
         }
 
     private List<String> validateAndResolveCandidates(
@@ -497,7 +497,7 @@ public class VotingRoundService {
             UUID positionId, int previousRoundNumber, ConfigureVotingRoundRequest request) {
         VotingRound previousRound = rounds.findByPositionIdAndRoundNumber(positionId, previousRoundNumber)
                 .orElseThrow(VotingRoundConflictException::new);
-        if (previousRound.getStatus() != VotingRoundStatus.CLOSED || previousRound.getRevealedAt() == null) {
+        if (previousRound.getStatus() != VotingRoundStatus.CLOSED) {
             throw new VotingRoundConflictException();
         }
 
@@ -528,8 +528,7 @@ public class VotingRoundService {
         }
         VotingRound previous = rounds.findByPositionIdAndRoundNumber(
                         round.getPositionId(), round.getRoundNumber() - 1)
-                .filter(candidate -> candidate.getStatus() == VotingRoundStatus.CLOSED
-                        && candidate.getRevealedAt() != null)
+            .filter(candidate -> candidate.getStatus() == VotingRoundStatus.CLOSED)
                 .orElse(null);
         if (previous == null) {
             return false;
