@@ -180,7 +180,7 @@ export default function NominationIntake({
 				</section>
 			</div>
 		)}
-		{isExpanded && !isLoading && intake?.status === 'CLOSED' && intake.listCreated && roundsCount === 0 && !firstRoundSetupVisible && !hasActiveRound && (
+		{isExpanded && !isLoading && intake?.status === 'CLOSED' && intake.listCreated && roundsCount === 0 && !hasActiveRound && (
 			<section ref={sharedListSectionRef} className="workflow-details consolidation-details">
 				<div className="consolidation-list-heading">
 					<h3>{intake.revealed ? 'Consolidated list' : 'Review and consolidate'}</h3>
@@ -221,7 +221,7 @@ export default function NominationIntake({
 					{sharedListConflict && !sharedListDirty && !removalEntry && <button className="secondary-button" type="button" disabled={isLoading} onClick={onReloadSharedList}>Reload latest saved list</button>}
 					{hasActiveRound && <p className="form-note">Shared-list editing is unavailable while voting is active.</p>}
 					{changeEvents.length > 0 && <details className="admin-change-history"><summary>Confirmed change history ({changeEvents.length})</summary><ol>{changeEvents.map((event) => <li key={event.id}><span>{event.action === 'CORRECTED' ? `${event.beforeName} → ${event.afterName}` : event.action === 'REMOVED' ? `${event.beforeName} removed · ${event.removalReason ?? 'Other'}${event.reasonDetail ? `: ${event.reasonDetail}` : ''}` : `${event.afterName ?? event.beforeName} restored`}</span><small>{event.actorLabel} · {new Date(event.occurredAt).toLocaleString()}</small></li>)}</ol></details>}
-					{intake.revealed && !sharedListEditing && !hasActiveRound && <div className="form-actions">
+					{intake.revealed && !sharedListEditing && !firstRoundSetupVisible && !hasActiveRound && <div className="form-actions">
 						<button className="secondary-button" type="button" onClick={onEditSharedList}>Edit consolidated list</button>
 						{roundsCount === 0 && <button ref={prepareRoundButtonRef} className="primary-button" type="button" onClick={onPrepareRound}>Prepare round 1</button>}
 					</div>}
