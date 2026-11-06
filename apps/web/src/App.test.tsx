@@ -1654,8 +1654,9 @@ describe('election administration', () => {
     expect(screen.getByRole('heading', { name: 'Round 1 setup' })).toHaveFocus();
     expect(document.querySelector('.workflow-stage-group')).toHaveClass('is-intake-closed', 'is-round-setup-primary');
     expect(document.querySelector('.voting-round-configuration')).toHaveClass('is-first-round-setup');
-    expect(screen.queryByRole('list', { name: 'Confirmed consolidated list' })).not.toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Confirmed consolidated list' })).toHaveTextContent('Morgan Diaz Jr.');
     expect(screen.getByRole('list', { name: 'Candidates in this poll' })).toHaveTextContent('Morgan Diaz Jr.Riley Chen');
+    expect(screen.queryByRole('button', { name: 'Prepare round 1' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Start Voting' })).toBeEnabled();
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Round 1 setup' }).closest('.voting-round-configuration')).toHaveClass('is-first-round-setup');
@@ -1689,8 +1690,8 @@ describe('election administration', () => {
     });
 
     expect(await screen.findByRole('heading', { name: 'Round 1 setup' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'People on the ballot' })).toBeInTheDocument();
-    expect(screen.getByText('Round 1 · candidate roster')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'People on the ballot' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Round 1 candidate roster' })).not.toBeInTheDocument();
     const roundListRequest = fetchMock.mock.calls.find(([url, options]) => String(url).endsWith('/positions/position-1/rounds') && options?.method === 'GET');
     expect(roundListRequest?.[0]).toBe('http://localhost:8080/api/elections/election-1/positions/position-1/rounds');
     expect(roundListRequest?.[1].method).toBe('GET');
@@ -1825,6 +1826,22 @@ describe('election administration', () => {
         expect(screen.getByRole('list', { name: 'Candidates advancing to this round' })).toHaveTextContent('Morgan Diaz');
         expect(screen.getByRole('list', { name: 'Candidates advancing to this round' })).toHaveTextContent('Riley ChenMorgan Diaz');
         expect(screen.queryByRole('region', { name: 'Round 1 candidate decisions' })).not.toBeInTheDocument();
+        expect(screen.queryByText('Candidate decisions saved.')).not.toBeInTheDocument();
+        const nextRoundReview = screen.getByRole('region', { name: 'Round 2 candidate review' });
+        expect(within(nextRoundReview).getByRole('list', { name: 'Candidates advancing to this round' })).toHaveTextContent('Riley ChenMorgan Diaz');
+        expect(within(nextRoundReview).getByRole('button', { name: 'Edit list' })).toBeInTheDocument();
+        expect(within(nextRoundReview).getByRole('button', { name: 'Prepare round 2' })).toBeInTheDocument();
+        expect(screen.queryByLabelText('How many candidates can each ballot select?')).not.toBeInTheDocument();
+        fireEvent.click(within(nextRoundReview).getByRole('button', { name: 'Edit list' }));
+        expect(within(nextRoundReview).getByRole('list', { name: 'Edit advancing candidates' })).toBeInTheDocument();
+        expect(within(nextRoundReview).getByRole('button', { name: 'Save list' })).toBeInTheDocument();
+        fireEvent.click(within(nextRoundReview).getByRole('button', { name: 'Save list' }));
+        expect(screen.getByRole('region', { name: 'Round 2 candidate review' })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Prepare round 2' }));
+        expect(screen.getByRole('heading', { name: 'Round 2 setup' })).toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: 'Round 2 candidate review' })).not.toBeInTheDocument();
+        expect(screen.getByLabelText('How many candidates can each ballot select?')).toHaveValue(2);
+        expect(screen.getByRole('button', { name: 'Save round setup' })).toBeInTheDocument();
         expect(screen.queryByRole('region', { name: 'Closed nomination review' })).not.toBeInTheDocument();
         expect(screen.queryByRole('list', { name: 'Confirmed consolidated list' })).not.toBeInTheDocument();
         fireEvent.change(screen.getByLabelText('How many names can each ballot select?'), { target: { value: '1' } });
