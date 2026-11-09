@@ -1,4 +1,3 @@
-
 ---
 name: qa-engineer
 description: Verifies features and creates automated tests.

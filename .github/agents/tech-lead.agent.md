@@ -1,3 +1,8 @@
+---
+name: Tech Lead
+description: Coordinates development and delegates tasks to specialized agents.
+user-invocable: true
+---
 
 ## Session and Context Management
 

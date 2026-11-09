@@ -1,8 +1,7 @@
-
 ---
 name: backend-developer
-description: Backend specialist responsible for REST APIs, business logic, database design, integrations, security, and automated tests.
-tools: ['read', 'edit', 'search', 'execute']
+description: Implements and maintains backend APIs, business logic, persistence, security, and integrations.
+user-invocable: true
 ---
 
 # Role: Senior Backend Developer

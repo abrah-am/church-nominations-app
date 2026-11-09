@@ -1,4 +1,3 @@
-
 ---
 name: frontend-developer
 description: React and TypeScript specialist responsible for frontend implementation, UI architecture, API integration, and frontend tests.
