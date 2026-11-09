@@ -129,6 +129,7 @@ Expected documents:
 - `requirements.md`
 - `implementation-plan.md`
 - `ux-design.md`
+- `ux-validation.md` when a user-facing implementation requires UX validation
 - `qa-report.md`
 - `review.md`
 - `handoff.md`
@@ -254,13 +255,31 @@ Inputs:
 Actions:
 1. Identify user goals.
 2. Define the primary user journey.
-3. Propose information architecture.
-4. Specify screen layouts and navigation.
-5. Define interaction behavior.
-6. Define loading, empty, error, and success states.
-7. Define responsive behavior.
-8. Specify accessibility requirements.
-9. Identify usability risks and assumptions.
+3. Select the lightweight design track appropriate to the change:
+   - New screen or significant redesign: provide an actual desktop
+     and mobile visual reference for every major screen. A reference
+     may be an annotated screenshot, wireframe, or interactive mockup;
+     written descriptions alone are not sufficient.
+   - Minor UI change: provide an annotated screenshot and concise,
+     objective acceptance criteria describing the intended change.
+4. Propose information architecture and specify screen layouts,
+   navigation, and component hierarchy and placement.
+5. Specify typography, spacing, alignment, visual emphasis, what is
+   visible by default versus progressively disclosed, and responsive
+   behavior across desktop and mobile.
+6. Define primary and secondary actions, interaction behavior and
+   states, loading/empty/error/success states, and accessibility
+   requirements.
+7. Write objective acceptance criteria that can be checked against the
+   approved references and interaction specifications.
+8. Identify usability risks, assumptions, and decisions requiring
+   Product Owner approval.
+
+UX specifications cover presentation and interaction. They do not
+define or replace product behavior or business rules. Do not infer
+business rules from a visual design or implementation convenience;
+record unresolved behavior as a Product Owner decision and obtain
+approval before implementation depends on it.
 
 Deliverable:
 - `ux-design.md`
@@ -269,9 +288,12 @@ The Tech Lead reviews the UX proposal.
 
 Exit Criteria:
 - Primary user flows are documented.
-- Important interaction states are defined.
+- Required visual references and objective acceptance criteria are
+  present for the selected track.
+- Important interaction states and responsive behavior are defined.
 - Accessibility requirements are identified.
-- Significant design decisions are approved
+- Product behavior and business-rule decisions are explicit and
+  approved by the Product Owner; significant UX decisions are approved
   by the Product Owner.
 
 For stories without user-facing changes,
@@ -401,12 +423,21 @@ Actions:
 3. Review correctness and maintainability.
 4. Review security and data handling.
 5. Review test adequacy.
-6. Compare the implemented UI against UX specs.
-7. Identify usability and accessibility issues.
-8. Classify findings by severity.
+6. For user-facing changes, the UX Designer (or UX Engineer) compares
+   implementation screenshots at desktop and mobile sizes and checks
+   key interactions against the approved references and acceptance
+   criteria.
+7. Record screenshot evidence, interaction checks, and visual or
+   interaction deviations in the story's `ux-validation.md`; include
+   the validation status and remaining issues in `handoff.md`.
+8. Return deviations for correction and recheck the corrections against
+   the same references before Product Owner sign-off.
+9. Identify usability and accessibility issues.
+10. Classify findings by severity.
 
-Deliverable:
+Deliverables:
 - `review.md`
+- `ux-validation.md` for user-facing changes
 
 Severity:
 - Critical: Security, data loss, or major failure.
@@ -441,6 +472,12 @@ The Tech Lead presents:
 6. Known limitations.
 7. Instructions to run and verify the feature.
 8. Outstanding decisions.
+
+For user-facing changes, include the approved visual references and
+UX validation evidence from `ux-design.md` and `ux-validation.md`, plus
+the validation status and any remaining deviations recorded in
+`handoff.md`. UX comparison and correction checks must be complete
+before requesting Product Owner sign-off.
 
 The Product Owner may:
 - Accept the story.

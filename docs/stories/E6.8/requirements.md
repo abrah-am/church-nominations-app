@@ -27,3 +27,7 @@ Follow the current prototype and approved voting visibility direction. The displ
 - The **admin** is authenticated and alone can change nominations or control reveal/presentation lifecycle.
 - A **viewer** is the read-only audience using the presentation view. Viewers see only the currently revealed, server-confirmed content and live change history; they cannot access nomination mutations or admin controls.
 - “Viewer” describes a presentation capability, not a third authenticated application role. Presentation access is scoped to its session and follows E6.10 authorization/security requirements.
+
+## Position-finalization publication addendum (Product Owner approved, 2026-11-07; PD-018/PD-020)
+
+This supersedes only the earlier blanket elected-outcome visibility wording for the position-finalization transition, including the 2026-11-02 E6.8 update that says elected outcomes appear on both current-session viewer surfaces. Finalization does not publish elected names or results and does not clear or otherwise change previously published Presentation content. It ends participant activity for the position and the participant current-session view becomes neutral/complete. Presentation publication state is independent: retain only content previously explicitly revealed/enabled; existing explicit administrator audience controls govern subsequent show/hide. See [PD-018/PD-020](../../product/product-decisions.md) and the [product position-finalization addendum](../../product/requirements.md).
