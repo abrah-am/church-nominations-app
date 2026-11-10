@@ -1,12 +1,13 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AdminShell } from '../features/admin-shell/admin-shell'
 import { ShellPlaceholder } from '../features/admin-shell/components/shell-placeholder'
+import { WorkspaceRoute } from '../features/workspace/workspace-route'
 
 export function AppRoutes() {
   return (
     <Routes>
       <Route path="/admin" element={<AdminShell />}>
-        <Route index element={<ShellPlaceholder title="Position workspace" />} />
+        <Route index element={<WorkspaceRoute />} />
         <Route path="setup" element={<ShellPlaceholder title="Elections" />} />
         <Route
           path="setup/churches"

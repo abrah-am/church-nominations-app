@@ -44,6 +44,26 @@ export interface PositionLifecycleEvent {
 
 export interface PositionPollSummary {
   id: string
+  type: 'nomination' | 'voting'
+  number: number
+  title: string
+  status: PollStatus
+  sourceCandidateIds: string[]
+  candidateNames: Record<string, string>
+  aggregateVotes: Record<string, number>
+  ballotsCast: number
+  recordedDecisions: Array<{ candidateId: string; status: CandidateStatus }>
+  nominationSubmissions: Array<{ id: string; name: string; submittedAt: string }>
+  auditEntries: Array<{ id: string; action: string; at: string; detail: string }>
+}
+
+export interface ActiveSessionSnapshot {
+  churchId: string
+  termId: string
+  positionId: string
+  positionName: string
+  pollId: string
+  pollTitle: string
   status: PollStatus
 }
 
@@ -55,6 +75,8 @@ export interface PositionSnapshot {
   id: string
   churchId: string
   termId: string
+  departmentId: string
+  name: string
   openings: number
   candidates: Candidate[]
   polls: PositionPollSummary[]

@@ -1,12 +1,14 @@
-# WEB-NEXT-M2: Position Workspace core (proposal)
+# WEB-NEXT-M2: Position Workspace core
 
-Status: planning and UX design authorized 2026-11-09. Story scope, references
-and implementation require Product Owner approval. No M2 application code yet.
+Status: scope and UX approved 2026-11-09. Product Owner authorized Phase 2
+implementation within the approved read-only scope and explicitly accepted
+WEB-NEXT-M2 on 2026-11-10 after reviewing T007 evidence. Merge and deployment
+are not authorized.
 
 As an administrator, I want to inspect a position, its polls and candidates
 while keeping the participant session unchanged.
 
-## Proposed acceptance criteria
+## Acceptance criteria
 
 - REQ-001: Within the accepted M1 shell, show position name, openings, effective
   elected count, accepted/filled count and remaining openings. Display each

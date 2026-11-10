@@ -84,7 +84,7 @@ export function AdminShell() {
           aria-label="Main content"
           tabIndex={-1}
         >
-          <Outlet />
+          <Outlet context={viewingContext} />
         </main>
       </div>
     </div>
