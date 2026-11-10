@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>WEB-NEXT-M2 · Position Workspace UX references</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #233642;
+        background: #f3f5f6;
+        font-synthesis: none;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      a { color: #246a70; }
+      .gallery-head { padding: 24px clamp(16px, 4vw, 48px); background: #fff; border-bottom: 1px solid #d5dee2; }
+      .gallery-head h1 { margin: 0 0 8px; font-size: clamp(22px, 3vw, 30px); line-height: 1.2; }
+      .gallery-head p { max-width: 1040px; margin: 0; color: #586b75; line-height: 1.55; }
+      .gallery-head nav { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px; font-size: 14px; }
+      main { max-width: none; margin: 0; padding: 20px 0 48px; }
+      .scope { width: min(100% - 32px, 1440px); margin: 0 auto 22px; padding: 12px 14px; border-left: 4px solid #739b98; border-radius: 6px; background: #fff; color: #405560; line-height: 1.5; }
+      .ref { margin: 0 auto 28px; scroll-margin-top: 12px; }
+      .ref > h2, .ref > p { padding-right: clamp(10px, 2.5vw, 32px); padding-left: clamp(10px, 2.5vw, 32px); }
+      .ref h2 { margin: 0 0 5px; font-size: 20px; }
+      .ref > p { max-width: 1000px; margin: 0 0 12px; color: #586b75; font-size: 14px; line-height: 1.5; }
+      figure { margin: 0; padding: 0; overflow: hidden; border: 0; border-top: 1px solid #d5dee2; border-bottom: 1px solid #d5dee2; background: #fff; }
+      figcaption { margin: 0; padding: 9px clamp(10px, 2.5vw, 32px); color: #405560; font-size: 13px; font-weight: 650; line-height: 1.45; }
+
+      .screen {
+        --ink: #263b47;
+        --subtle: #586b75;
+        --border: #d5dee2;
+        --muted: #eef2f3;
+        --surface: #fff;
+        --page: #f3f5f6;
+        --teal: #378276;
+        width: 100%;
+        max-width: 1440px;
+        min-height: 800px;
+        margin: 0 auto;
+        overflow: hidden;
+        border: 1px solid #d5dee2;
+        border-radius: 8px;
+        background: var(--page);
+        color: var(--ink);
+        container-type: inline-size;
+      }
+      .screen.mobile { width: 390px; max-width: 100%; min-height: 0; }
+      .screen.compact { width: 320px; max-width: 100%; min-height: 0; }
+      .shell { display: grid; grid-template-columns: 246px minmax(0, 1fr); min-height: 800px; }
+      .sidebar { padding: 22px 14px; border-right: 1px solid var(--border); background: var(--surface); }
+      .brand { margin: 0 0 30px; color: var(--ink); font-size: 16px; font-weight: 720; letter-spacing: -.02em; }
+      .nav-label { margin: 22px 10px 8px; color: #657780; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+      .nav-item { display: block; margin: 3px 0; padding: 10px 11px; border-radius: 6px; color: #405560; font-size: 14px; text-decoration: none; }
+      .nav-item.selected { border-left: 3px solid var(--teal); background: #f0f3f4; color: #233642; font-weight: 650; }
+      .content { min-width: 0; padding: 24px 30px 36px; }
+      .mobilebar { display: none; }
+      .context { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1.15fr; gap: 10px; margin-bottom: 20px; }
+      .context-item { min-width: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+      .context-item small { display: block; margin-bottom: 3px; color: var(--subtle); font-size: 11px; }
+      .context-item strong { display: block; overflow-wrap: anywhere; font-size: 12px; font-weight: 630; line-height: 1.35; }
+      .eyebrow { margin: 0 0 4px; color: #657780; font-size: 11px; font-weight: 720; letter-spacing: .07em; text-transform: uppercase; }
+      .title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+      .title-row h2 { margin: 0; font-size: 24px; line-height: 1.25; letter-spacing: -.02em; }
+      .term-status { flex: 0 0 auto; padding: 5px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: #405560; font-size: 12px; }
+      .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin: 0 0 12px; }
+      .metric { min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
+      .metric strong { display: block; font-size: 20px; line-height: 1.15; }
+      .metric span { display: block; margin-top: 3px; color: var(--subtle); font-size: 12px; }
+      .openings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin: 0 0 12px; }
+      .opening { min-width: 0; padding: 9px 11px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); font-size: 12px; line-height: 1.45; }
+      .opening strong { display: block; margin-bottom: 2px; font-size: 12px; }
+      .opening span { color: var(--subtle); }
+      .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; padding: 10px 12px; border: 1px solid #cdd9d9; border-radius: 8px; background: #f8fbfa; }
+      .session-copy { min-width: 0; }
+      .session-copy .eyebrow { color: #246a70; }
+      .session-copy strong { display: block; font-size: 13px; line-height: 1.35; }
+      .session-copy .viewed-copy { display: block; margin-top: 3px; color: var(--subtle); font-size: 11px; line-height: 1.4; }
+      .mock-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 5px; max-width: 470px; }
+      .mock-action { padding: 6px 8px; border: 1px solid #cbd6da; border-radius: 5px; background: var(--surface); color: #405560; font-size: 10px; font-weight: 650; line-height: 1.25; }
+      .mock-action b { color: #246a70; }
+      .work-nav { display: flex; align-items: center; gap: 18px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+      .work-nav a { display: inline-block; padding: 9px 3px 8px; color: #586b75; font-size: 13px; font-weight: 650; text-decoration: none; }
+      .work-nav a.current { border-bottom: 2px solid var(--teal); color: var(--ink); }
+      .work-nav .view-cue { margin-left: auto; color: var(--subtle); font-size: 11px; }
+      .workspace { display: grid; grid-template-columns: 226px minmax(0, 1fr); gap: 14px; align-items: start; }
+      .history, .detail, .candidate-list, .supp-panel, .state-panel { min-width: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+      .history { padding: 12px; }
+      .panel-head { margin: 0 0 8px; font-size: 14px; }
+      .poll-item { display: block; margin-top: 6px; padding: 9px; border: 1px solid transparent; border-radius: 6px; color: var(--ink); text-decoration: none; }
+      .poll-item .poll-title { display: block; font-size: 12px; font-weight: 660; line-height: 1.35; }
+      .poll-item .poll-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-top: 5px; color: var(--subtle); font-size: 10px; }
+      .poll-item.selected { border-color: #b7cccc; background: #f5f9f8; }
+      .pill { display: inline-block; padding: 3px 6px; border: 1px solid var(--border); border-radius: 999px; background: #f7f8f8; color: #405560; font-size: 10px; font-weight: 660; line-height: 1.25; }
+      .pill.teal { border-color: #b4cfca; background: #eff7f5; color: #246a70; }
+      .detail { padding: 14px; }
+      .detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid #e4e9eb; }
+      .detail-head h3 { margin: 0; font-size: 17px; line-height: 1.3; }
+      .detail-head p { margin: 4px 0 0; color: var(--subtle); font-size: 11px; line-height: 1.45; }
+      .audit-link { flex: 0 0 auto; color: #246a70; font-size: 11px; font-weight: 650; }
+      .aggregate-note { display: flex; align-items: baseline; gap: 7px; margin: 10px 0 4px; }
+      .aggregate-note strong { font-size: 16px; }
+      .aggregate-note span { color: var(--subtle); font-size: 11px; }
+      .privacy-note { margin: 0 0 9px; color: var(--subtle); font-size: 10px; line-height: 1.45; }
+      .result-labels, .result-row { display: grid; grid-template-columns: minmax(145px, 1.4fr) minmax(160px, 1.2fr) minmax(105px, .9fr) minmax(145px, 1.15fr); gap: 9px; align-items: center; }
+      .result-labels { padding: 7px 8px; color: #657780; font-size: 10px; font-weight: 700; }
+      .result-row { padding: 8px; border-top: 1px solid #edf0f1; font-size: 11px; line-height: 1.35; }
+      .candidate-name { font-weight: 670; }
+      .vote-count { color: #405560; font-variant-numeric: tabular-nums; }
+      .bar { display: block; width: 100%; height: 6px; margin-top: 4px; overflow: hidden; border-radius: 99px; background: #e8edef; }
+      .bar span { display: block; height: 100%; border-radius: inherit; background: #739b98; }
+      .decision { color: #405560; }
+      .response { display: block; margin-top: 3px; color: var(--subtle); font-size: 10px; }
+      .decision-note { margin-top: 10px; padding: 9px 10px; border-radius: 6px; background: #f7f8f8; color: #405560; font-size: 11px; line-height: 1.45; }
+      .decision-note strong { color: var(--ink); }
+      .candidate-list { padding: 14px; }
+      .candidate-list h3 { margin: 0 0 4px; font-size: 17px; }
+      .candidate-list > p { margin: 0 0 10px; color: var(--subtle); font-size: 11px; line-height: 1.45; }
+      .candidate-head, .candidate-row { display: grid; grid-template-columns: minmax(150px, 1.2fr) minmax(155px, 1fr) minmax(170px, 1.15fr); gap: 10px; align-items: center; }
+      .candidate-head { padding: 7px 8px; color: #657780; font-size: 10px; font-weight: 700; }
+      .candidate-row { padding: 9px 8px; border-top: 1px solid #edf0f1; font-size: 12px; line-height: 1.4; }
+      .candidate-row strong { font-weight: 670; }
+      .candidate-row .candidate-response { color: var(--subtle); font-size: 11px; }
+      .supp-panel { padding: 14px; }
+      .supp-panel h3 { margin: 0 0 6px; font-size: 15px; }
+      .supp-panel p { margin: 0 0 10px; color: var(--subtle); font-size: 11px; line-height: 1.5; }
+      .roster-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 10px 0; }
+      .roster-person { padding: 8px 9px; border: 1px solid #e2e8ea; border-radius: 5px; font-size: 12px; font-weight: 620; }
+      details.trace { margin-top: 10px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 6px; background: #fafbfb; }
+      details.trace summary { color: #405560; cursor: default; font-size: 11px; font-weight: 650; }
+      details.trace p { margin: 8px 0 0; font-size: 10px; }
+      .state-copy { padding: 13px; border: 1px solid #d5dee2; border-radius: 6px; background: #f7f8f8; font-size: 12px; line-height: 1.5; }
+      .state-copy strong { display: block; margin-bottom: 4px; }
+      .open-results { margin-top: 10px; padding: 10px; border: 1px solid #d5dee2; border-radius: 6px; background: #fafbfb; }
+      .open-results-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 5px 12px; margin-bottom: 7px; }
+      .open-results-head strong { font-size: 13px; }
+      .open-results-head span { color: #586b75; font-size: 10px; font-weight: 650; }
+      .open-result { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 8px 0; border-top: 1px solid #e6ebed; font-size: 11px; }
+      .open-result strong { font-size: 12px; }
+      .open-result .bar { grid-column: 1 / -1; margin-top: 0; }
+      .open-results-note { margin: 6px 0 0 !important; color: #586b75; font-size: 10px !important; line-height: 1.45; }
+      .mobile-nav-surface { position: relative; min-height: 700px; overflow: hidden; background: #e9eef0; }
+      .mobile-nav-underlay { padding: 22px 18px; color: #657780; font-size: 12px; }
+      .mobile-nav-underlay::after { display: block; height: 190px; margin-top: 16px; border: 1px solid #d5dee2; border-radius: 8px; background: #f7f8f8; content: ""; }
+      .mobile-sheet { position: absolute; inset: 0 auto 0 0; width: min(82%, 310px); padding: 18px 14px; border-right: 1px solid var(--border); background: var(--surface); box-shadow: 12px 0 28px rgba(35,54,66,.14); }
+      .mobile-sheet .brand { margin: 0 0 24px; }
+      .mobile-sheet .nav-label { margin-top: 24px; }
+      .footer-note { max-width: 1440px; margin: 0 auto; color: #586b75; font-size: 13px; line-height: 1.55; }
+
+      @container (max-width: 760px) {
+        .shell { display: block; min-height: 0; }
+        .sidebar { display: none; }
+        .mobilebar { display: flex; align-items: center; justify-content: space-between; min-height: 54px; padding: 0 14px; border-bottom: 1px solid var(--border); background: var(--surface); }
+        .mobilebar strong { font-size: 14px; }
+        .mobilebar span { padding: 7px 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--ink); font-size: 11px; font-weight: 620; }
+        .content { padding: 14px 14px 24px; }
+        .context { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-bottom: 14px; }
+        .context .church { grid-column: 1 / -1; }
+        .title-row { gap: 7px; }
+        .title-row h2 { font-size: 20px; }
+        .term-status { padding: 4px 7px; font-size: 10px; }
+        .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+        .metric { padding: 8px 9px; }
+        .metric strong { font-size: 18px; }
+        .metric span { font-size: 11px; }
+        .openings { gap: 7px; }
+        .opening { padding: 8px; font-size: 11px; }
+        .toolbar { display: block; padding: 9px; }
+        .mock-actions { justify-content: flex-start; max-width: none; margin-top: 8px; }
+        .mock-action { padding: 6px 7px; font-size: 9px; }
+        .work-nav { gap: 14px; }
+        .work-nav .view-cue { max-width: 52%; text-align: right; line-height: 1.35; }
+        .workspace { grid-template-columns: minmax(0, 1fr); gap: 9px; }
+        .history { padding: 10px; }
+        .history-items { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+        .poll-item { min-width: 0; margin-top: 4px; padding: 7px; }
+        .poll-item .poll-title { font-size: 11px; }
+        .poll-item .poll-meta { gap: 3px; font-size: 9px; }
+        .detail { padding: 11px; }
+        .detail-head h3 { font-size: 15px; }
+        .aggregate-note { margin-top: 9px; }
+        .result-labels { display: none; }
+        .result-row { grid-template-columns: minmax(0, 1fr) auto; gap: 5px 8px; padding: 9px 2px; }
+        .result-row .candidate-name { grid-column: 1; }
+        .result-row .vote-count { grid-column: 2; grid-row: 1; text-align: right; }
+        .result-row .result-progress { grid-column: 1; }
+        .result-row .decision { grid-column: 2; grid-row: 2; text-align: right; }
+        .decision-note { font-size: 10px; }
+        .candidate-head { display: none; }
+        .candidate-row { grid-template-columns: minmax(0, 1fr) auto; gap: 5px; padding: 9px 2px; }
+        .candidate-row strong { grid-column: 1; }
+        .candidate-row .effective { grid-column: 1 / -1; grid-row: auto; text-align: left; }
+        .candidate-row .candidate-response { grid-column: 1 / -1; }
+        .roster-list { grid-template-columns: 1fr; }
+      }
+      @container (max-width: 360px) {
+        .content { padding-right: 10px; padding-left: 10px; }
+        .mobilebar { padding-right: 10px; padding-left: 10px; }
+        .context { grid-template-columns: minmax(0, 1fr); }
+        .context .church { grid-column: auto; }
+        .context-item { padding: 7px 8px; }
+        .title-row { display: block; }
+        .term-status { display: inline-block; margin-top: 6px; }
+        .opening { font-size: 10px; }
+        .mock-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .mock-action { min-width: 0; overflow-wrap: anywhere; }
+        .work-nav { gap: 11px; }
+        .work-nav a { font-size: 12px; }
+        .work-nav .view-cue { font-size: 9px; }
+        .history-items { grid-template-columns: minmax(0, 1fr); }
+        .poll-item { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+        .poll-item .poll-title { max-width: 48%; }
+        .poll-item .poll-meta { justify-content: flex-end; }
+        .detail-head { display: block; }
+        .audit-link { display: inline-block; margin-top: 7px; }
+        .candidate-row { grid-template-columns: minmax(0, 1fr); }
+        .candidate-row strong, .candidate-row .effective, .candidate-row .candidate-response { grid-column: 1; grid-row: auto; text-align: left; }
+        .result-row { grid-template-columns: minmax(0, 1fr); }
+        .result-row .candidate-name, .result-row .vote-count, .result-row .result-progress, .result-row .decision { grid-column: 1; grid-row: auto; text-align: left; }
+        .result-row .vote-count { margin-top: -3px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="gallery-head">
+      <h1>M2 Position Workspace · static UX references</h1>
+      <p>Hand-authored, local HTML/CSS screens in the accepted neutral/teal direction. System fonts only; no remote assets, scripts, live data, or app implementation. Scroll each reference vertically. Mock actions are labels, not working controls.</p>
+      <nav aria-label="Reference index">
+        <a href="#results-desktop">Results · 1440</a>
+        <a href="#results-mobile">Results · 390</a>
+        <a href="#results-compact">Results · 320</a>
+        <a href="#candidates-desktop">Candidates · desktop</a>
+        <a href="#candidates-mobile">Candidates · mobile</a>
+        <a href="#nomination">Approved nominations</a>
+        <a href="#open-draft">Open / draft states</a>
+        <a href="#mobile-navigation">Mobile navigation</a>
+        <a href="#empty-state">No-active / empty</a>
+        <a href="../ux-design.md">UX specification</a>
+      </nav>
+    </header>
+    <main>
+      <p class="scope"><strong>Pending PO approval:</strong> M2 design only. Main screens use the same Riverside 2027 Church Elder fixture at all widths: 2 openings, 1 elected, 0 accepted, 2 remaining to fill; Round 1 Closed is Viewed and Round 2 Open remains the Active participant session. No election-mutation controls are pictured.</p>
+
+      <section class="ref" id="results-desktop">
+        <h2>Closed Round 1 · Desktop 1440px</h2>
+        <p>Full 246px sidebar, ordered context, compact summary and persistent toolbar. Poll history marks Viewed separately from Active. Closed aggregate results and recorded decisions share one detail view; Audit is separate.</p>
+        <figure><figcaption>1440px target artboard · scroll vertically for full workspace</figcaption>
+          <div class="screen desktop">
+            <div class="shell">
+              <aside class="sidebar" aria-label="Application navigation">
+                <p class="brand">Church nominations</p>
+                <a class="nav-item selected" href="#results-desktop">Elections</a>
+                <p class="nav-label">Settings</p>
+                <a class="nav-item" href="#results-desktop">Church settings</a>
+                <a class="nav-item" href="#results-desktop">Term management</a>
+              </aside>
+              <div class="mobilebar"><strong>Church nominations</strong><span>Open navigation</span></div>
+              <div class="content">
+                <div class="context" aria-label="Viewing context">
+                  <div class="context-item church"><small>Church</small><strong>Riverside Seventh-day Adventist Church</strong></div>
+                  <div class="context-item"><small>Term</small><strong>2027 Church Board</strong></div>
+                  <div class="context-item"><small>Department</small><strong>Ministry</strong></div>
+                  <div class="context-item"><small>Position</small><strong>Church Elder</strong></div>
+                </div>
+                <div class="title-row"><div><p class="eyebrow">Position workspace</p><h2>Church Elder</h2></div><span class="term-status">Preparing term</span></div>
+                <div class="summary-grid" aria-label="Position summary">
+                  <div class="metric"><strong>2</strong><span>Openings</span></div>
+                  <div class="metric"><strong>1</strong><span>Elected</span></div>
+                  <div class="metric"><strong>0</strong><span>Accepted · filled</span></div>
+                  <div class="metric"><strong>2</strong><span>Remaining to fill</span></div>
+                </div>
+                <div class="openings" aria-label="Opening summary">
+                  <div class="opening"><strong>Opening 1 · Elaine Brooks</strong><span>Election decision: Elected · Candidate response: Awaiting response</span></div>
+                  <div class="opening"><strong>Opening 2 · Vacant</strong><span>No elected candidate recorded</span></div>
+                </div>
+                <section class="toolbar" aria-label="Participant session and mock sharing">
+                  <div class="session-copy"><p class="eyebrow">Active participant session</p><strong>Church Elder · Round 2 · Open</strong><span class="viewed-copy">Viewing Round 1 · Closed. History selection does not change the active session.</span></div>
+                  <div class="mock-actions" aria-label="Static mock-only preview affordances">
+                    <span class="mock-action"><b>MOCK</b> · copy voter link</span><span class="mock-action"><b>MOCK</b> · QR preview</span><span class="mock-action"><b>MOCK</b> · participant preview</span><span class="mock-action"><b>MOCK</b> · presentation preview</span>
+                  </div>
+                </section>
+                <nav class="work-nav" aria-label="Position workspace">
+                  <a class="current" href="#results-desktop">Polls</a><a href="#candidates-desktop">Candidates</a><span class="view-cue">Viewed: Round 1 · Closed</span>
+                </nav>
+                <div class="workspace">
+                  <nav class="history" aria-label="Position poll history">
+                    <h3 class="panel-head">Poll history</h3>
+                    <div class="history-items">
+                      <a class="poll-item" href="#nomination"><span class="poll-title">Nomination Poll 1</span><span class="poll-meta"><span class="pill">Nomination</span><span class="pill">Approved</span></span></a>
+                      <a class="poll-item selected" href="#results-desktop" aria-current="page"><span class="poll-title">Round 1</span><span class="poll-meta"><span class="pill">Voting</span><span class="pill">Closed</span><span class="pill teal">Viewed</span></span></a>
+                      <a class="poll-item" href="#open-draft"><span class="poll-title">Round 2</span><span class="poll-meta"><span class="pill">Voting</span><span class="pill teal">Open · Active session</span></span></a>
+                    </div>
+                  </nav>
+                  <section class="detail" aria-label="Viewed Round 1 results and recorded decisions">
+                    <div class="detail-head"><div><p class="eyebrow">Viewed poll · Voting · Closed</p><h3>Round 1 · Results &amp; recorded decisions</h3><p>Names and decisions are this poll's recorded snapshot.</p></div><span class="audit-link">Audit · separate view</span></div>
+                    <div class="aggregate-note"><strong>8 ballots cast</strong><span>Aggregate only</span></div>
+                    <p class="privacy-note">Percentages use ballots cast. No individual ballots, choices, or voter identities are shown.</p>
+                    <div class="result-labels"><span>Candidate snapshot</span><span>Votes · share of ballots cast</span><span>Recorded decision</span><span>Candidate response</span></div>
+                    <div class="result-row"><span class="candidate-name">Elaine Brooks</span><span class="vote-count">3 votes · 38%<span class="bar"><span style="width:38%"></span></span></span><span class="decision">Elected</span><span class="response">Awaiting response</span></div>
+                    <div class="result-row"><span class="candidate-name">Marcus Hill</span><span class="vote-count">2 votes · 25%<span class="bar"><span style="width:25%"></span></span></span><span class="decision">Advanced</span><span class="response">—</span></div>
+                    <div class="result-row"><span class="candidate-name">Priya Nair</span><span class="vote-count">2 votes · 25%<span class="bar"><span style="width:25%"></span></span></span><span class="decision">Advanced</span><span class="response">—</span></div>
+                    <div class="result-row"><span class="candidate-name">Robert James</span><span class="vote-count">1 vote · 13%<span class="bar"><span style="width:13%"></span></span></span><span class="decision">Eliminated</span><span class="response">—</span></div>
+                    <div class="result-row"><span class="candidate-name">Sofia Martinez</span><span class="vote-count">0 votes · 0%<span class="bar"><span style="width:0%"></span></span></span><span class="decision">Declined <span class="pill">legacy recorded decision</span></span><span class="response">Not a candidate response</span></div>
+                    <div class="decision-note"><strong>Recorded note:</strong> Committee reviewed the first poll and selected candidates for the next round.</div>
+                  </section>
+                </div>
+              </div>
+            </div>
+          </div>
+        </figure>
+      </section>
+
+      <section class="ref" id="results-mobile">
+        <h2>Closed Round 1 · Mobile 390px</h2>
+        <p>Full-label mobile shell; history and details stack in reading order. Toolbar actions wrap compactly without a tall stack of cards.</p>
+        <figure><figcaption>390px target artboard · vertical page scroll</figcaption>
+          <div class="screen mobile">
+            <div class="shell">
+              <aside class="sidebar" aria-label="Application navigation"><p class="brand">Church nominations</p><a class="nav-item selected" href="#results-mobile">Elections</a><p class="nav-label">Settings</p><a class="nav-item" href="#results-mobile">Church settings</a><a class="nav-item" href="#results-mobile">Term management</a></aside>
+              <div class="mobilebar"><strong>Church nominations</strong><span>Open navigation</span></div>
+              <div class="content">
+                <div class="context" aria-label="Viewing context">
+                  <div class="context-item church"><small>Church</small><strong>Riverside Seventh-day Adventist Church</strong></div><div class="context-item"><small>Term</small><strong>2027 Church Board</strong></div><div class="context-item"><small>Department</small><strong>Ministry</strong></div><div class="context-item"><small>Position</small><strong>Church Elder</strong></div>
+                </div>
+                <div class="title-row"><div><p class="eyebrow">Position workspace</p><h2>Church Elder</h2></div><span class="term-status">Preparing term</span></div>
+                <div class="summary-grid"><div class="metric"><strong>2</strong><span>Openings</span></div><div class="metric"><strong>1</strong><span>Elected</span></div><div class="metric"><strong>0</strong><span>Accepted · filled</span></div><div class="metric"><strong>2</strong><span>Remaining to fill</span></div></div>
+                <div class="openings"><div class="opening"><strong>Opening 1 · Elaine Brooks</strong><span>Election decision: Elected · Candidate response: Awaiting response</span></div><div class="opening"><strong>Opening 2 · Vacant</strong><span>No elected candidate recorded</span></div></div>
+                <section class="toolbar"><div class="session-copy"><p class="eyebrow">Active participant session</p><strong>Church Elder · Round 2 · Open</strong><span class="viewed-copy">Viewing Round 1 · Closed. History selection does not change the active session.</span></div><div class="mock-actions"><span class="mock-action"><b>MOCK</b> · copy voter link</span><span class="mock-action"><b>MOCK</b> · QR preview</span><span class="mock-action"><b>MOCK</b> · participant preview</span><span class="mock-action"><b>MOCK</b> · presentation preview</span></div></section>
+                <nav class="work-nav" aria-label="Position workspace"><a class="current" href="#results-mobile">Polls</a><a href="#candidates-mobile">Candidates</a><span class="view-cue">Viewed: Round 1 · Closed</span></nav>
+                <div class="workspace">
+                  <nav class="history" aria-label="Position poll history"><h3 class="panel-head">Poll history</h3><div class="history-items"><a class="poll-item" href="#nomination"><span class="poll-title">Nomination Poll 1</span><span class="poll-meta"><span class="pill">Nomination</span><span class="pill">Approved</span></span></a><a class="poll-item selected" href="#results-mobile" aria-current="page"><span class="poll-title">Round 1</span><span class="poll-meta"><span class="pill">Voting</span><span class="pill">Closed</span><span class="pill teal">Viewed</span></span></a><a class="poll-item" href="#open-draft"><span class="poll-title">Round 2</span><span class="poll-meta"><span class="pill">Voting</span><span class="pill teal">Open · Active session</span></span></a></div></nav>
+                  <section class="detail"><div class="detail-head"><div><p class="eyebrow">Viewed poll · Voting · Closed</p><h3>Round 1 · Results &amp; recorded decisions</h3><p>Names and decisions are this poll's recorded snapshot.</p></div><span class="audit-link">Audit · separate view</span></div><div class="aggregate-note"><strong>8 ballots cast</strong><span>Aggregate only</span></div><p class="privacy-note">Percentages use ballots cast. No individual ballots, choices, or voter identities are shown.</p>
+                    <div class="result-labels"><span>Candidate snapshot</span><span>Votes · share</span><span>Decision</span><span>Response</span></div>
+                    <div class="result-row"><span class="candidate-name">Elaine Brooks</span><span class="vote-count">3 votes · 38%<span class="bar"><span style="width:38%"></span></span></span><span class="decision">Elected</span><span class="response">Awaiting response</span></div>
+                    <div class="result-row"><span class="candidate-name">Marcus Hill</span><span class="vote-count">2 votes · 25%<span class="bar"><span style="width:25%"></span></span></span><span class="decision">Advanced</span><span class="response">—</span></div>
+                    <div class="result-row"><span class="candidate-name">Priya Nair</span><span class="vote-count">2 votes · 25%<span class="bar"><span style="width:25%"></span></span></span><span class="decision">Advanced</span><span class="response">—</span></div>
+                    <div class="result-row"><span class="candidate-name">Robert James</span><span class="vote-count">1 vote · 13%<span class="bar"><span style="width:13%"></span></span></span><span class="decision">Eliminated</span><span class="response">—</span></div>
+                    <div class="result-row"><span class="candidate-name">Sofia Martinez</span><span class="vote-count">0 votes · 0%<span class="bar"><span style="width:0%"></span></span></span><span class="decision">Declined <span class="pill">legacy recorded</span></span><span class="response">Not a candidate response</span></div><div class="decision-note"><strong>Recorded note:</strong> Committee reviewed the first poll and selected candidates for the next round.</div>
+                  </section>
+                </div>
+              </div>
+            </div>
+          </div>
+        </figure>
+      </section>
+
+      <section class="ref" id="results-compact">
+        <h2>Closed Round 1 · Narrow 320px</h2>
+        <p>All four context values stack, long names wrap, and toolbar/history/detail remain within the 320px canvas.</p>
+        <figure><figcaption>320px target artboard · vertical page scroll</figcaption>
+          <div class="screen compact">
+            <div class="shell">
+              <aside class="sidebar" aria-label="Application navigation"><p class="brand">Church nominations</p><a class="nav-item selected" href="#results-compact">Elections</a><p class="nav-label">Settings</p><a class="nav-item" href="#results-compact">Church settings</a><a class="nav-item" href="#results-compact">Term management</a></aside>
+              <div class="mobilebar"><strong>Church nominations</strong><span>Open navigation</span></div>
+              <div class="content">
+                <div class="context" aria-label="Viewing context"><div class="context-item church"><small>Church</small><strong>Riverside Seventh-day Adventist Church</strong></div><div class="context-item"><small>Term</small><strong>2027 Church Board</strong></div><div class="context-item"><small>Department</small><strong>Ministry</strong></div><div class="context-item"><small>Position</small><strong>Church Elder</strong></div></div>
+                <div class="title-row"><div><p class="eyebrow">Position workspace</p><h2>Church Elder</h2></div><span class="term-status">Preparing term</span></div>
+                <div class="summary-grid"><div class="metric"><strong>2</strong><span>Openings</span></div><div class="metric"><strong>1</strong><span>Elected</span></div><div class="metric"><strong>0</strong><span>Accepted · filled</span></div><div class="metric"><strong>2</strong><span>Remaining to fill</span></div></div>
+                <div class="openings"><div class="opening"><strong>Opening 1 · Elaine Brooks</strong><span>Election decision: Elected · Candidate response: Awaiting response</span></div><div class="opening"><strong>Opening 2 · Vacant</strong><span>No elected candidate recorded</span></div></div>
+                <section class="toolbar"><div class="session-copy"><p class="eyebrow">Active participant session</p><strong>Church Elder · Round 2 · Open</strong><span class="viewed-copy">Viewing Round 1 · Closed. History selection does not change the active session.</span></div><div class="mock-actions"><span class="mock-action"><b>MOCK</b> · copy voter link</span><span class="mock-action"><b>MOCK</b> · QR preview</span><span class="mock-action"><b>MOCK</b> · participant preview</span><span class="mock-action"><b>MOCK</b> · presentation preview</span></div></section>
+                <nav class="work-nav" aria-label="Position workspace"><a class="current" href="#results-compact">Polls</a><a href="#candidates-mobile">Candidates</a><span class="view-cue">Viewed: Round 1 · Closed</span></nav>
+                <div class="workspace">
+                  <nav class="history" aria-label="Position poll history"><h3 class="panel-head">Poll history</h3><div class="history-items"><a class="poll-item" href="#nomination"><span class="poll-title">Nomination Poll 1</span><span class="poll-meta"><span class="pill">Nomination</span><span class="pill">Approved</span></span></a><a class="poll-item selected" href="#results-compact" aria-current="page"><span class="poll-title">Round 1</span><span class="poll-meta"><span class="pill">Voting</span><span class="pill">Closed</span><span class="pill teal">Viewed</span></span></a><a class="poll-item" href="#open-draft"><span class="poll-title">Round 2</span><span class="poll-meta"><span class="pill">Voting</span><span class="pill teal">Open · Active session</span></span></a></div></nav>
+                  <section class="detail"><div class="detail-head"><div><p class="eyebrow">Viewed poll · Voting · Closed</p><h3>Round 1 · Results &amp; recorded decisions</h3><p>Names and decisions are this poll's recorded snapshot.</p></div><span class="audit-link">Audit · separate view</span></div><div class="aggregate-note"><strong>8 ballots cast</strong><span>Aggregate only</span></div><p class="privacy-note">Percentages use ballots cast. No individual ballots, choices, or voter identities are shown.</p>
+                    <div class="result-labels"><span>Candidate snapshot</span><span>Votes · share</span><span>Decision</span><span>Response</span></div>
+                    <div class="result-row"><span class="candidate-name">Elaine Brooks</span><span class="vote-count">3 votes · 38%<span class="bar"><span style="width:38%"></span></span></span><span class="decision">Elected</span><span class="response">Awaiting response</span></div>
+                    <div class="result-row"><span class="candidate-name">Marcus Hill</span><span class="vote-count">2 votes · 25%<span class="bar"><span style="width:25%"></span></span></span><span class="decision">Advanced</span><span class="response">—</span></div>
+                    <div class="result-row"><span class="candidate-name">Priya Nair</span><span class="vote-count">2 votes · 25%<span class="bar"><span style="width:25%"></span></span></span><span class="decision">Advanced</span><span class="response">—</span></div>
+                    <div class="result-row"><span class="candidate-name">Robert James</span><span class="vote-count">1 vote · 13%<span class="bar"><span style="width:13%"></span></span></span><span class="decision">Eliminated</span><span class="response">—</span></div>
+                    <div class="result-row"><span class="candidate-name">Sofia Martinez</span><span class="vote-count">0 votes · 0%<span class="bar"><span style="width:0%"></span></span></span><span class="decision">Declined <span class="pill">legacy recorded</span></span><span class="response">Not a candidate response</span></div><div class="decision-note"><strong>Recorded note:</strong> Committee reviewed the first poll and selected candidates for the next round.</div>
+                  </section>
+                </div>
+              </div>
+            </div>
+          </div>
+        </figure>
+      </section>
+
+      <section class="ref" id="candidates-desktop">
+        <h2>Position-wide Candidates · Desktop</h2>
+        <p>Current effective statuses are distinct from the still-viewed Round 1 snapshot and the active Round 2 session. Same position summary and fixture; no status-edit controls.</p>
+        <figure><figcaption>Desktop Candidates view · same Riverside Elder fixture</figcaption>
+          <div class="screen desktop">
+            <div class="shell"><aside class="sidebar" aria-label="Application navigation"><p class="brand">Church nominations</p><a class="nav-item selected" href="#candidates-desktop">Elections</a><p class="nav-label">Settings</p><a class="nav-item" href="#candidates-desktop">Church settings</a><a class="nav-item" href="#candidates-desktop">Term management</a></aside><div class="mobilebar"><strong>Church nominations</strong><span>Open navigation</span></div>
+              <div class="content">
+                <div class="context"><div class="context-item church"><small>Church</small><strong>Riverside Seventh-day Adventist Church</strong></div><div class="context-item"><small>Term</small><strong>2027 Church Board</strong></div><div class="context-item"><small>Department</small><strong>Ministry</strong></div><div class="context-item"><small>Position</small><strong>Church Elder</strong></div></div>
+                <div class="title-row"><div><p class="eyebrow">Position workspace</p><h2>Church Elder</h2></div><span class="term-status">Preparing term</span></div>
+                <div class="summary-grid"><div class="metric"><strong>2</strong><span>Openings</span></div><div class="metric"><strong>1</strong><span>Elected</span></div><div class="metric"><strong>0</strong><span>Accepted · filled</span></div><div class="metric"><strong>2</strong><span>Remaining to fill</span></div></div>
+                <div class="openings"><div class="opening"><strong>Opening 1 · Elaine Brooks</strong><span>Election decision: Elected · Candidate response: Awaiting response</span></div><div class="opening"><strong>Opening 2 · Vacant</strong><span>No elected candidate recorded</span></div></div>
+                <section class="toolbar"><div class="session-copy"><p class="eyebrow">Active participant session</p><strong>Church Elder · Round 2 · Open</strong><span class="viewed-copy">Viewing Round 1 · Closed. Candidate view does not change either state.</span></div><div class="mock-actions"><span class="mock-action"><b>MOCK</b> · copy voter link</span><span class="mock-action"><b>MOCK</b> · QR preview</span><span class="mock-action"><b>MOCK</b> · participant preview</span><span class="mock-action"><b>MOCK</b> · presentation preview</span></div></section>
+                <nav class="work-nav" aria-label="Position workspace"><a href="#results-desktop">Polls</a><a class="current" href="#candidates-desktop">Candidates</a><span class="view-cue">Viewed poll: Round 1 · Closed</span></nav>
+                <section class="candidate-list"><h3>Current candidates</h3><p>Position-wide effective status. Poll snapshots and recorded response are separate history.</p><div class="candidate-head"><span>Candidate</span><span>Current effective status</span><span>Latest candidate response</span></div>
+                  <div class="candidate-row"><strong>Elaine Brooks</strong><span class="effective"><span class="pill teal">Elected</span></span><span class="candidate-response">Awaiting response</span></div>
+                  <div class="candidate-row"><strong>Marcus Hill</strong><span class="effective"><span class="pill">Advanced</span></span><span class="candidate-response">Response not applicable</span></div>
+                  <div class="candidate-row"><strong>Priya Nair</strong><span class="effective"><span class="pill">Advanced</span></span><span class="candidate-response">Response not applicable</span></div>
+                  <div class="candidate-row"><strong>Robert James</strong><span class="effective"><span class="pill">Eliminated</span></span><span class="candidate-response">Response not applicable</span></div>
+                  <div class="candidate-row"><strong>Sofia Martinez</strong><span class="effective"><span class="pill">Declined · legacy recorded decision</span></span><span class="candidate-response">Not a candidate response</span></div>
+                </section>
+              </div>
+            </div>
+          </div>
+        </figure>
+      </section>
+
+      <section class="ref" id="candidates-mobile">
+        <h2>Position-wide Candidates · Mobile</h2>
+        <p>Same five effective statuses, opening values, viewed poll, and active session as desktop, with explicit labels retained in stacked records.</p>
+        <figure><figcaption>390px Candidates view · vertical page scroll</figcaption>
+          <div class="screen mobile">
+            <div class="shell"><aside class="sidebar" aria-label="Application navigation"><p class="brand">Church nominations</p><a class="nav-item selected" href="#candidates-mobile">Elections</a><p class="nav-label">Settings</p><a class="nav-item" href="#candidates-mobile">Church settings</a><a class="nav-item" href="#candidates-mobile">Term management</a></aside><div class="mobilebar"><strong>Church nominations</strong><span>Open navigation</span></div>
+              <div class="content">
+                <div class="context"><div class="context-item church"><small>Church</small><strong>Riverside Seventh-day Adventist Church</strong></div><div class="context-item"><small>Term</small><strong>2027 Church Board</strong></div><div class="context-item"><small>Department</small><strong>Ministry</strong></div><div class="context-item"><small>Position</small><strong>Church Elder</strong></div></div>
+                <div class="title-row"><div><p class="eyebrow">Position workspace</p><h2>Church Elder</h2></div><span class="term-status">Preparing term</span></div>
+                <div class="summary-grid"><div class="metric"><strong>2</strong><span>Openings</span></div><div class="metric"><strong>1</strong><span>Elected</span></div><div class="metric"><strong>0</strong><span>Accepted · filled</span></div><div class="metric"><strong>2</strong><span>Remaining to fill</span></div></div>
+                <div class="openings"><div class="opening"><strong>Opening 1 · Elaine Brooks</strong><span>Election decision: Elected · Candidate response: Awaiting response</span></div><div class="opening"><strong>Opening 2 · Vacant</strong><span>No elected candidate recorded</span></div></div>
+                <section class="toolbar"><div class="session-copy"><p class="eyebrow">Active participant session</p><strong>Church Elder · Round 2 · Open</strong><span class="viewed-copy">Viewing Round 1 · Closed. Candidate view does not change either state.</span></div><div class="mock-actions"><span class="mock-action"><b>MOCK</b> · copy voter link</span><span class="mock-action"><b>MOCK</b> · QR preview</span><span class="mock-action"><b>MOCK</b> · participant preview</span><span class="mock-action"><b>MOCK</b> · presentation preview</span></div></section>
+                <nav class="work-nav" aria-label="Position workspace"><a href="#results-mobile">Polls</a><a class="current" href="#candidates-mobile">Candidates</a><span class="view-cue">Viewed poll: Round 1 · Closed</span></nav>
+                <section class="candidate-list"><h3>Current candidates</h3><p>Position-wide effective status. Poll snapshots and recorded response are separate history.</p>
+                  <div class="candidate-row"><strong>Elaine Brooks</strong><span class="effective">Current effective status · <span class="pill teal">Elected</span></span><span class="candidate-response">Latest candidate response · Awaiting response</span></div>
+                  <div class="candidate-row"><strong>Marcus Hill</strong><span class="effective">Current effective status · <span class="pill">Advanced</span></span><span class="candidate-response">Latest response · not applicable</span></div>
+                  <div class="candidate-row"><strong>Priya Nair</strong><span class="effective">Current effective status · <span class="pill">Advanced</span></span><span class="candidate-response">Latest response · not applicable</span></div>
+                  <div class="candidate-row"><strong>Robert James</strong><span class="effective">Current effective status · <span class="pill">Eliminated</span></span><span class="candidate-response">Latest response · not applicable</span></div>
+                  <div class="candidate-row"><strong>Sofia Martinez</strong><span class="effective">Current effective status · <span class="pill">Declined · legacy recorded</span></span><span class="candidate-response">Not a candidate response</span></div>
+                </section>
+              </div>
+            </div>
+          </div>
+        </figure>
+      </section>
+
+      <section class="ref" id="nomination">
+        <h2>Approved nomination · supplementary selected-poll view</h2>
+        <p>The approved roster is visible; original nomination traceability is collapsed. Active Round 2 remains distinct. This is the actual initial fixture, not an added poll.</p>
+        <figure><figcaption>Nomination Poll 1 · Approved · same Riverside Elder summary and active session</figcaption>
+          <div class="screen mobile">
+            <div class="shell"><aside class="sidebar"><p class="brand">Church nominations</p><a class="nav-item selected" href="#nomination">Elections</a><p class="nav-label">Settings</p><a class="nav-item" href="#nomination">Church settings</a><a class="nav-item" href="#nomination">Term management</a></aside><div class="mobilebar"><strong>Church nominations</strong><span>Open navigation</span></div>
+              <div class="content">
+                <div class="context"><div class="context-item church"><small>Church</small><strong>Riverside Seventh-day Adventist Church</strong></div><div class="context-item"><small>Term</small><strong>2027 Church Board</strong></div><div class="context-item"><small>Department</small><strong>Ministry</strong></div><div class="context-item"><small>Position</small><strong>Church Elder</strong></div></div>
+                <div class="title-row"><div><p class="eyebrow">Position workspace</p><h2>Church Elder</h2></div><span class="term-status">Preparing term</span></div>
+                <div class="summary-grid"><div class="metric"><strong>2</strong><span>Openings</span></div><div class="metric"><strong>1</strong><span>Elected</span></div><div class="metric"><strong>0</strong><span>Accepted · filled</span></div><div class="metric"><strong>2</strong><span>Remaining to fill</span></div></div>
+                <div class="openings"><div class="opening"><strong>Opening 1 · Elaine Brooks</strong><span>Election decision: Elected · Candidate response: Awaiting response</span></div><div class="opening"><strong>Opening 2 · Vacant</strong><span>No elected candidate recorded</span></div></div>
+                <section class="toolbar"><div class="session-copy"><p class="eyebrow">Active participant session</p><strong>Church Elder · Round 2 · Open</strong><span class="viewed-copy">Viewing Nomination Poll 1 · Approved. Selection does not change the active session.</span></div><div class="mock-actions"><span class="mock-action"><b>MOCK</b> · copy voter link</span><span class="mock-action"><b>MOCK</b> · QR preview</span><span class="mock-action"><b>MOCK</b> · participant preview</span><span class="mock-action"><b>MOCK</b> · presentation preview</span></div></section>
+                <nav class="work-nav" aria-label="Position workspace"><a class="current" href="#results-mobile">Polls</a><a href="#candidates-mobile">Candidates</a><span class="view-cue">Viewed: Nomination 1 · Approved</span></nav>
+                <section class="supp-panel"><p class="eyebrow">Viewed poll · Nomination · Approved</p><h3>Approved nomination roster</h3><p>Five effective roster names from seven original submissions. Names are shown as approved poll content, not editable inputs.</p><div class="roster-list"><div class="roster-person">Elaine Brooks</div><div class="roster-person">Marcus Hill</div><div class="roster-person">Priya Nair</div><div class="roster-person">Robert James</div><div class="roster-person">Sofia Martinez</div></div><details class="trace"><summary>Original nomination traceability · 7 submissions</summary><p>Elaine Brooks · Elain Brooks → Elaine Brooks<br>Marcus Hill → Marcus Hill<br>Priya Nair · Priya N. → Priya Nair<br>Robert James → Robert James<br>Sofia Martinez → Sofia Martinez</p></details></section>
+              </div>
+            </div>
+          </div>
+        </figure>
+      </section>
+
+      <section class="ref" id="open-draft">
+        <h2>Open and draft · supplementary state treatments</h2>
+        <p>Round 2 is the real Open/Active fixture. The draft panel is a schematic state only: the initial fixture has no draft and no additional poll is asserted. Open-poll aggregate policy remains pending.</p>
+        <figure><figcaption>State panels · same context and opening summary; active toolbar remains Round 2 Open</figcaption>
+          <div class="screen mobile">
+            <div class="shell"><aside class="sidebar"><p class="brand">Church nominations</p><a class="nav-item selected" href="#open-draft">Elections</a><p class="nav-label">Settings</p><a class="nav-item" href="#open-draft">Church settings</a><a class="nav-item" href="#open-draft">Term management</a></aside><div class="mobilebar"><strong>Church nominations</strong><span>Open navigation</span></div>
+              <div class="content">
+                <div class="context"><div class="context-item church"><small>Church</small><strong>Riverside Seventh-day Adventist Church</strong></div><div class="context-item"><small>Term</small><strong>2027 Church Board</strong></div><div class="context-item"><small>Department</small><strong>Ministry</strong></div><div class="context-item"><small>Position</small><strong>Church Elder</strong></div></div>
+                <div class="title-row"><div><p class="eyebrow">Position workspace</p><h2>Church Elder</h2></div><span class="term-status">Preparing term</span></div>
+                <div class="summary-grid"><div class="metric"><strong>2</strong><span>Openings</span></div><div class="metric"><strong>1</strong><span>Elected</span></div><div class="metric"><strong>0</strong><span>Accepted · filled</span></div><div class="metric"><strong>2</strong><span>Remaining to fill</span></div></div>
+                <div class="openings"><div class="opening"><strong>Opening 1 · Elaine Brooks</strong><span>Election decision: Elected · Candidate response: Awaiting response</span></div><div class="opening"><strong>Opening 2 · Vacant</strong><span>No elected candidate recorded</span></div></div>
+                <section class="toolbar"><div class="session-copy"><p class="eyebrow">Active participant session</p><strong>Church Elder · Round 2 · Open</strong><span class="viewed-copy">Active identity is separate from whichever poll is viewed below.</span></div><div class="mock-actions"><span class="mock-action"><b>MOCK</b> · copy voter link</span><span class="mock-action"><b>MOCK</b> · QR preview</span><span class="mock-action"><b>MOCK</b> · participant preview</span><span class="mock-action"><b>MOCK</b> · presentation preview</span></div></section>
+                <section class="supp-panel"><p class="eyebrow">Viewed poll · Voting · Open</p><h3>Round 2 · Open · Active session</h3><p>The authenticated administrator sees live aggregate totals while voting is open. This reference shows a static mock snapshot, not a live backend feed.</p><div class="state-copy"><strong>Viewed <span class="pill teal">Viewed</span> <span class="pill teal">Active session</span></strong>Source candidate snapshot: Marcus Hill · Priya Nair. Open status is text-labeled. Admin results remain read-only; there are no election-mutation controls.</div><div class="open-results"><div class="open-results-head"><strong>4 ballots cast</strong><span>MOCK ADMIN SNAPSHOT · NOT LIVE BACKEND DATA</span></div><div class="open-result"><strong>Marcus Hill</strong><span>3 votes · 75%</span><span class="bar"><span style="width:75%"></span></span></div><div class="open-result"><strong>Priya Nair</strong><span>1 vote · 25%</span><span class="bar"><span style="width:25%"></span></span></div><p class="open-results-note">Aggregate counts only. No individual ballots or voter identities. Audience/presentation publication is separate and not shown here.</p></div></section>
+                <section class="supp-panel" style="margin-top:10px"><p class="eyebrow">Draft state · schematic only</p><h3>Draft voting snapshot</h3><p>No draft exists in the initial Riverside Elder fixture. This panel documents the status treatment only; it does not add a poll count, round number, candidate snapshot, or saved data.</p><div class="state-copy"><strong>Viewed: Draft · Not active</strong>A draft is not a participant session. If a separate active session exists, its position/poll/status remain in the persistent toolbar. Do not infer activation from draft selection.</div></section>
+              </div>
+            </div>
+          </div>
+        </figure>
+      </section>
+
+      <section class="ref" id="mobile-navigation">
+        <h2>Mobile application navigation · open sheet</h2>
+        <p>Supplemental M1-pattern reference with full destination labels. Church, term, department and position remain in the page context, never in the application menu. No new destination is introduced.</p>
+        <figure><figcaption>390px mobile navigation sheet · only Elections and the two existing Settings destinations</figcaption>
+          <div class="screen mobile">
+            <div class="mobilebar"><strong>Church nominations</strong><span>Close navigation</span></div>
+            <div class="mobile-nav-surface">
+              <div class="mobile-nav-underlay">Viewing context remains on the page behind the navigation sheet.</div>
+              <nav class="mobile-sheet" aria-label="Application navigation">
+                <p class="brand">Church nominations</p>
+                <a class="nav-item selected" href="#results-mobile">Elections</a>
+                <p class="nav-label">Settings</p>
+                <a class="nav-item" href="#results-mobile">Church settings</a>
+                <a class="nav-item" href="#results-mobile">Term management</a>
+              </nav>
+            </div>
+          </div>
+        </figure>
+      </section>
+
+      <section class="ref" id="empty-state">
+        <h2>No-active / empty · state reference</h2>
+        <p>Generic state treatment only, not a second Riverside fixture. It shows no active session and no position snapshot, keeps the content scope explicit, and offers no mutation prompt or fallback.</p>
+        <figure><figcaption>Empty read state · no tenant, position, or poll data is substituted</figcaption>
+          <div class="screen mobile">
+            <div class="shell"><aside class="sidebar"><p class="brand">Church nominations</p><a class="nav-item selected" href="#empty-state">Elections</a><p class="nav-label">Settings</p><a class="nav-item" href="#empty-state">Church settings</a><a class="nav-item" href="#empty-state">Term management</a></aside><div class="mobilebar"><strong>Church nominations</strong><span>Open navigation</span></div>
+              <div class="content">
+                <div class="context"><div class="context-item church"><small>Church</small><strong>Context unavailable</strong></div><div class="context-item"><small>Term</small><strong>Not loaded</strong></div><div class="context-item"><small>Department</small><strong>Not loaded</strong></div><div class="context-item"><small>Position</small><strong>Not loaded</strong></div></div>
+                <section class="toolbar"><div class="session-copy"><p class="eyebrow">Active participant session</p><strong>No active participant session</strong><span class="viewed-copy">No viewed poll. Active state is not inferred from a draft or history selection.</span></div><div class="mock-actions"><span class="mock-action"><b>MOCK</b> · voter preview unavailable</span><span class="mock-action"><b>MOCK</b> · presentation preview unavailable</span></div></section>
+                <section class="state-panel" style="padding:14px"><p class="eyebrow">Position workspace</p><h3 class="panel-head">Position data unavailable</h3><div class="state-copy"><strong>No position summary, polls, or candidates to show</strong>Keep the current context visible. Do not substitute another church, term, position, poll, fixture, or active session. Loading and recoverable errors use separate labeled states; only a safe read retry may be offered after implementation approval.</div></section>
+              </div>
+            </div>
+          </div>
+        </figure>
+      </section>
+
+      <p class="footer-note">Source: Prototype V2 model and AdminView, M0 refinement, M1 accepted shell and actual screenshot review. See <a href="../ux-design.md">ux-design.md</a> for flows, state/accessibility requirements, source notes, exclusions, acceptance criteria, and decisions awaiting Product Owner approval. These references are static design artwork—not implemented screens or accessibility/browser test evidence.</p>
+    </main>
+  </body>
+</html>
