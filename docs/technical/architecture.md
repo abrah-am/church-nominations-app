@@ -38,6 +38,28 @@
 
 ## Application shape
 
+### Incremental frontend replacement (approved 2026-11-09)
+
+The Product Owner approved a separate React/TypeScript/Vite/Tailwind/shadcn
+frontend in `apps/web-next`. Existing `apps/web`, `apps/api` and the approved
+`docs/prototype-v2` reference remain preserved. Only M0 foundation work is
+currently authorized; Admin shell implementation requires review of visual
+options and separate M1 authorization.
+
+Use feature modules, pure domain derivations, and a typed application data port.
+Mock and future HTTP adapters implement the same application-facing port;
+existing server DTOs require explicit mapping, not assumed schema compatibility.
+Election rules belong in domain, not repeated in adapters or components.
+Future Position Workspace composition separates nomination, voting, results,
+decisions and history as complexity grows.
+
+No backend rewrite, workspace-package migration or additional state-management
+library is implied. M0 follows the repository's existing independent npm-app
+pattern rather than introducing the older proposed pnpm-workspace layout below.
+Prototype/product conflicts and backend integration dependencies are tracked
+separately in [WEB-NEXT-M0](../stories/WEB-NEXT-M0/dependencies.md); dependent
+behavior must not be inferred from fixtures.
+
 Use a **modular monolith**: one deployable API with explicit domain modules, one web frontend, and one PostgreSQL database. There is no current requirement that justifies microservices or asynchronous infrastructure. Modules should communicate through application services and domain-level contracts rather than reaching into one another's persistence details.
 
 Suggested API modules:

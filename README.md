@@ -6,6 +6,16 @@ Local-development foundation for the React + TypeScript web app and Java/Spring 
 
 The repository separates the applications under `apps/`: `apps/web` contains the React client, and `apps/api` contains the Spring Boot API and database migrations. Within those applications, code is organized by feature/domain so contributors can work in a focused area.
 
+`apps/web-next` is the isolated, incremental replacement frontend foundation.
+See its [README](apps/web-next/README.md) for tooling, module boundaries and local
+commands, and [WEB-NEXT-M0](docs/stories/WEB-NEXT-M0/requirements.md) for scope.
+It does not replace the existing client yet. The approved
+[Prototype V2](docs/prototype-v2/README.md) remains the workflow/UX reference.
+The approved M1 Admin shell is implemented locally for acceptance review;
+Position Workspace content remains deferred. See the
+[M1 requirements](docs/stories/WEB-NEXT-M1/requirements.md) and
+[screenshot comparison](docs/stories/WEB-NEXT-M1/screenshot-comparison.html).
+
 ### Web (`apps/web/src`)
 
 - `App.tsx` composes routes, authenticated session state, and top-level navigation.

@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="760" viewBox="0 0 320 760" role="img" aria-labelledby="title desc">
+  <title id="title">Direction A, quiet neutral grouped navigation, compact 320 by 760</title>
+  <desc id="desc">Static compact-width reference showing the complete four-level context without horizontal scrolling and keeping active participant session distinct from a read-only historical poll.</desc>
+  <rect width="320" height="760" fill="#f4f6f7"/>
+  <rect width="320" height="54" fill="#fff"/><path d="M0 53.5h320" stroke="#d8e0e3"/>
+  <rect x="12" y="10" width="34" height="34" rx="8" fill="#174a68"/>
+  <text x="29" y="32" text-anchor="middle" fill="#fff" font-size="11" font-weight="700" font-family="system-ui, sans-serif">CN</text>
+  <text x="54" y="25" fill="#183447" font-size="12" font-weight="700" font-family="system-ui, sans-serif">Church nominations</text>
+  <rect x="259" y="10" width="49" height="34" rx="7" fill="#fff" stroke="#b8c5c9"/>
+  <text x="283.5" y="31" text-anchor="middle" fill="#214457" font-size="10" font-weight="650" font-family="system-ui, sans-serif">Menu</text>
+  <text x="12" y="75" fill="#647680" font-size="8" font-weight="750" letter-spacing=".8" font-family="system-ui, sans-serif">VIEWING CONTEXT · IN ORDER</text>
+  <text x="12" y="97" fill="#284351" font-size="11" font-weight="650" font-family="system-ui, sans-serif">Grace Community Church</text>
+  <text x="12" y="117" fill="#596e78" font-size="10" font-family="system-ui, sans-serif">› 2027 Church Board › Ministry</text>
+  <rect x="12" y="125" width="132" height="21" rx="6" fill="#eaf1f3"/>
+  <text x="19" y="140" fill="#143a53" font-size="10" font-weight="700" font-family="system-ui, sans-serif">› Church Elder</text>
+  <text x="12" y="174" fill="#667981" font-size="8" font-weight="750" letter-spacing=".8" font-family="system-ui, sans-serif">FUTURE SCOPE · SHELL ONLY</text>
+  <text x="12" y="200" fill="#17384d" font-size="21" font-weight="700" font-family="system-ui, sans-serif">Position workspace</text>
+  <rect x="12" y="215" width="296" height="105" rx="9" fill="#fff" stroke="#d7e0e3"/>
+  <circle cx="28" cy="235" r="4" fill="#18806e"/>
+  <text x="39" y="239" fill="#36525d" font-size="8" font-weight="750" letter-spacing=".4" font-family="system-ui, sans-serif">ACTIVE PARTICIPANT SESSION</text>
+  <text x="24" y="263" fill="#183d51" font-size="13" font-weight="700" font-family="system-ui, sans-serif">2027 Church Board · Round 2</text>
+  <rect x="24" y="274" width="44" height="20" rx="10" fill="#e5f3ed"/>
+  <text x="46" y="288" text-anchor="middle" fill="#17664f" font-size="9" font-weight="700" font-family="system-ui, sans-serif">Open</text>
+  <text x="24" y="309" fill="#586b75" font-size="9" font-family="system-ui, sans-serif">Independent of viewing context.</text>
+  <rect x="12" y="332" width="296" height="114" rx="9" fill="#f9faf9" stroke="#aab9bd" stroke-dasharray="5 4"/>
+  <text x="24" y="353" fill="#425b67" font-size="8" font-weight="750" letter-spacing=".4" font-family="system-ui, sans-serif">VIEWING HISTORY · SESSION UNCHANGED</text>
+  <text x="24" y="378" fill="#183d51" font-size="14" font-weight="700" font-family="system-ui, sans-serif">Round 1 · Closed</text>
+  <text x="24" y="401" fill="#586b75" font-size="10" font-family="system-ui, sans-serif">Read-only historical poll.</text>
+  <text x="24" y="421" fill="#586b75" font-size="10" font-family="system-ui, sans-serif">Does not activate or replace session.</text>
+  <rect x="12" y="458" width="296" height="207" rx="9" fill="#fff" stroke="#d7e0e3"/>
+  <text x="24" y="482" fill="#667981" font-size="8" font-weight="750" letter-spacing=".4" font-family="system-ui, sans-serif">FUTURE WORKSPACE · OUTLINE ONLY</text>
+  <text x="24" y="506" fill="#17384d" font-size="15" font-weight="700" font-family="system-ui, sans-serif">Church Elder</text>
+  <text x="24" y="526" fill="#61727b" font-size="9" font-family="system-ui, sans-serif">Not implemented · placement only</text>
+  <path d="M24 539h272M24 580h272M24 621h272" stroke="#e6ebed"/>
+  <text x="24" y="565" fill="#2d4958" font-size="11" font-weight="600" font-family="system-ui, sans-serif">Position summary</text>
+  <text x="24" y="606" fill="#2d4958" font-size="11" font-weight="600" font-family="system-ui, sans-serif">Poll history · Candidates</text>
+  <text x="24" y="647" fill="#2d4958" font-size="11" font-weight="600" font-family="system-ui, sans-serif">Results / decisions</text>
+  <text x="12" y="694" fill="#566a75" font-size="9" font-family="system-ui, sans-serif">System sans · neutral surfaces · 4–32 px rhythm</text>
+  <rect x="12" y="707" width="22" height="16" rx="3" fill="#f4f6f7"/><rect x="39" y="707" width="22" height="16" rx="3" fill="#183d51"/><rect x="66" y="707" width="22" height="16" rx="3" fill="#174a68"/><rect x="93" y="707" width="22" height="16" rx="3" fill="#eaf1f3"/><rect x="120" y="707" width="22" height="16" rx="3" fill="#d7e0e3"/>
+  <text x="12" y="746" fill="#647680" font-size="8" font-family="system-ui, sans-serif">Static reference · not implemented</text>
+</svg>

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844" role="img" aria-labelledby="title desc">
+  <title id="title">Supplemental mobile application navigation sheet at 390 by 844</title>
+  <desc id="desc">Static open left-side navigation sheet with full application labels Elections, Church settings and Term management. No church, term, department or position context is duplicated in this menu.</desc>
+  <rect width="390" height="844" fill="#f3f5f6"/>
+  <rect width="390" height="58" fill="#fff"/>
+  <text x="14" y="27" fill="#233b48" font-size="14" font-weight="700" font-family="system-ui, sans-serif">Church nominations</text>
+  <text x="14" y="44" fill="#71828a" font-size="10" font-family="system-ui, sans-serif">Administration</text>
+  <rect x="310" y="11" width="66" height="36" rx="7" fill="#fff" stroke="#bac8cd"/>
+  <text x="343" y="34" text-anchor="middle" fill="#3e535e" font-size="11" font-family="system-ui, sans-serif">Menu</text>
+  <rect y="58" width="390" height="786" fill="#162832" opacity=".34"/>
+  <rect x="0" y="58" width="286" height="786" rx="0" fill="#fff"/>
+  <path d="M285.5 58v786" stroke="#cfd9dd"/>
+  <text x="20" y="92" fill="#233b48" font-size="16" font-weight="700" font-family="system-ui, sans-serif">Church nominations</text>
+  <text x="20" y="112" fill="#71828a" font-size="11" font-family="system-ui, sans-serif">Application navigation</text>
+  <rect x="232" y="72" width="38" height="34" rx="6" fill="#fff" stroke="#cfd9dd"/>
+  <text x="251" y="94" text-anchor="middle" fill="#3e535e" font-size="10" font-weight="600" font-family="system-ui, sans-serif">Close</text>
+  <path d="M20 129h246" stroke="#e2e7e9"/>
+  <text x="20" y="158" fill="#76858c" font-size="10" font-weight="700" letter-spacing="1" font-family="system-ui, sans-serif">APPLICATION</text>
+  <rect x="14" y="171" width="258" height="48" rx="8" fill="#f0f3f4"/>
+  <rect x="28" y="186" width="18" height="18" rx="4" fill="none" stroke="#536873" stroke-width="1.5"/>
+  <path d="M32 193h10M32 198h7" stroke="#536873" stroke-width="1.3"/>
+  <text x="58" y="201" fill="#233b48" font-size="14" font-weight="650" font-family="system-ui, sans-serif">Elections</text>
+  <text x="20" y="257" fill="#76858c" font-size="10" font-weight="700" letter-spacing="1" font-family="system-ui, sans-serif">SETTINGS</text>
+  <rect x="29" y="272" width="17" height="17" rx="3" fill="none" stroke="#73828a" stroke-width="1.4"/>
+  <path d="M32 277h11M32 281h11M32 285h7" stroke="#73828a" stroke-width="1.2"/>
+  <text x="58" y="286" fill="#3f515b" font-size="13" font-family="system-ui, sans-serif">Church settings</text>
+  <circle cx="37" cy="326" r="7" fill="none" stroke="#73828a" stroke-width="1.4"/>
+  <path d="M37 322v5l3 2" fill="none" stroke="#73828a" stroke-width="1.3"/>
+  <text x="58" y="331" fill="#3f515b" font-size="13" font-family="system-ui, sans-serif">Term management</text>
+  <path d="M20 355h246" stroke="#e2e7e9"/>
+  <text x="20" y="384" fill="#7b898f" font-size="10" font-family="system-ui, sans-serif">No hierarchy context is duplicated here.</text>
+  <rect x="20" y="779" width="246" height="44" rx="7" fill="#fff" stroke="#bac8cd"/>
+  <text x="143" y="806" text-anchor="middle" fill="#3e535e" font-size="12" font-weight="600" font-family="system-ui, sans-serif">Close navigation</text>
+</svg>
