@@ -78,7 +78,12 @@ mutation. Existing C1-C4 policy holds remain unresolved.
 
 ## Next steps
 
-1. Commit the documented M0/M1 delivery, excluding unrelated agent-file changes,
-   as explicitly requested by the Product Owner.
+1. M0/M1 delivery and acceptance are committed in `19fba65`
+   (`feat(web-next): deliver M0 foundation and accepted M1 admin shell`).
+   This is a combined milestone delivery because neither milestone was
+   previously committed separately; no synthetic history was reconstructed.
+   The unrelated `.github/agents/tech-lead.agent.md` modification remains
+   uncommitted and was excluded. Final precommit check passed22tests/lint/
+   TypeScript/build; protected frontend/backend/prototype paths were unchanged.
 2. Prepare M2 scope and UX references only. Do not implement M2 until the Product
    Owner approves both. No merge or deployment authorized.

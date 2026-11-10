@@ -105,3 +105,12 @@ authorized Admin shell/responsive navigation implementation only. The depicted
 Position Workspace content remains illustrative and deferred. Active work is
 tracked in [WEB-NEXT-M1](../WEB-NEXT-M1/requirements.md); M1 acceptance is still
 required before M2. This does not imply a merge/deployment authorization.
+
+## Commit continuity
+
+The M0 foundation and accepted M1 shell were committed together as `19fba65`
+on 2026-11-09 at the Product Owner's explicit request. Unrelated agent-file
+edits were excluded; existing frontend/backend/Prototype V2 remain unchanged.
+Earlier references to "no commit" above describe the original validation
+checkpoint, not the current delivery state. M1 acceptance is recorded in its
+[handoff](../WEB-NEXT-M1/handoff.md); M2 is planning/UX only.
