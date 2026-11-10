@@ -1,10 +1,10 @@
 # `web-next` admin shell
 
 An isolated React/TypeScript application for incrementally implementing the
-approved Prototype V2 experience. The current milestone implements only the
-responsive Admin application shell, approved navigation destinations, and
-development-only viewing-context selectors. Destinations intentionally remain
-shell-only placeholders; this is not a functional election workflow.
+approved Prototype V2 experience. M1 established the responsive Admin shell;
+M2 adds the approved read-only Position Workspace with typed synthetic
+snapshots, poll history, aggregate results, candidate views, and a separate
+MOCK-only active-session toolbar. It is not a production election workflow.
 
 ## Runtime and commands
 
@@ -24,26 +24,42 @@ Button, Sheet, and Select primitives. `components.json` retains the configured
 
 ## Routes and M1 boundaries
 
-| Route | Shell-only destination |
+| Route | Destination |
 | --- | --- |
-| `/admin` | Position workspace |
+| `/admin` | Read-only position workspace |
 | `/admin/setup` | Elections |
 | `/admin/setup/churches` | Church settings |
 | `/admin/setup/terms` | Term management |
 
 The Elections destination is the active application navigation item for the
-Position workspace and `/admin/setup`. Settings contains only Church settings
-and Term management. There is no Dashboard destination. The church, term,
-department, and position selectors appear only in the content header and use
-explicit synthetic fixtures from `src/data/mock-admin-context.ts`. Selecting a
-parent clears its downstream viewing selections; context changes do not activate
-or mutate an election session.
+Position Workspace and `/admin/setup`. Settings contains only Church settings
+and Term management. There is no Dashboard destination. Church, term,
+department, and position selectors use explicit synthetic fixtures from
+`src/data/mock-admin-context.ts`. Selecting a parent clears downstream viewing
+selections; viewing-context changes do not activate or mutate a session.
 
-There are no backend requests, API contracts, authentication simulation, forms,
-or election/session operations in this milestone. Position metrics, session and
-sharing controls, poll history, candidate rows, results, and decisions are
-intentionally not implemented. Existing M0 domain/data modules and tests remain
-separate and unchanged.
+M2 renders a position summary and opening assignments, Polls/Candidates
+navigation, typed poll history, approved nomination roster with collapsed
+original-name traceability, read-only voting aggregates and recorded decisions,
+and current candidate statuses. Round 2 open-poll totals are explicitly labeled
+as a **MOCK admin snapshot · not live backend data**. Aggregate percentages use
+ballots cast, with deterministic vote-descending/name-ascending ordering and a
+zero-ballot guard. Sofia's `Declined` is shown as a legacy recorded decision,
+separate from responses. No individual ballots, choices, voter identities,
+credentials, or submitter identity fields are modeled.
+
+The active-session summary is a separate read snapshot from the viewed
+position/poll. History selection, Polls/Candidates navigation, and every
+toolbar affordance leave it unchanged. Copy, QR, participant, and presentation
+affordances are visibly MOCK-only; they do not produce a usable link, QR
+payload, viewer, publication, or capability. Clipboard failure is reported.
+The toolbar's presence during navigation is in-memory UI behavior, not browser
+or backend persistence.
+
+No backend requests, API adapter, authentication simulation, or election/session
+mutations are implemented. The read port is an application contract, not a
+backend wire schema. Loading, empty, missing-context, and recoverable error
+states preserve requested context and never substitute another fixture.
 
 The lockfile pins transitive `minimatch` to `11.0.1` because the current ESLint
 10 and typescript-eslint dependencies request `^10.2.x`, for which npm's
@@ -63,10 +79,11 @@ range.
   lifecycle, and position-condition summaries.
 - `src/data`: application-facing read port, explicit errors, isolated
   in-memory snapshots, reusable adapter contract tests, and the separate
-  shell-only mock context fixture.
-- `src/features/workspace`: reserved for future focused workspace modules.
-  Add nomination, voting, results, decisions, and history modules as approved;
-  do not build a monolithic workspace component or create empty feature files.
+  shell viewing-context fixture.
+- `src/features/workspace`: focused summary, session toolbar, poll history,
+  selected-poll details, candidate view, and route composition. Keep future
+  approved capabilities modular; do not add mutation controls or create a
+  monolithic workspace component.
 
 No query/global-state library, backend adapter, or shared cross-app package is
 introduced.
@@ -76,20 +93,31 @@ introduced.
 The pure derivations are narrowly ported from
 `docs/prototype-v2/src/model.ts` (`getCurrentCandidateStatus`,
 `getPollCandidateStatus`, `getPositionLifecycle`, `getOpeningSummaries`, and
-`getPositionCondition`) with relevant expectations from
-`docs/prototype-v2/src/model.test.ts`. Their source-linked tests cover decision
+`getPositionCondition`) and aggregate sorting/ballots-cast percentages from
+`docs/prototype-v2/src/features/admin/AdminView.tsx`, with relevant expectations
+from `docs/prototype-v2/src/model.test.ts`. Their source-linked tests cover decision
 revision versus poll history, opening/response separation, open-poll readiness
 gating, append-only response history, and retained finalized lifecycle.
 
-The application model is a minimal aggregate/admin summary, not a backend wire
-schema and not a public viewer DTO. It has no ballot property, voter identity,
-credentials, ballot counts, or election-policy rules. The read-only asynchronous
-`PositionReader` scopes reads by church, term, and position and rejects missing
-or out-of-scope data with a typed error. Its in-memory implementation returns
+The application model is a minimal aggregate/admin read contract, not a backend
+wire schema and not a public viewer DTO. Position and active-session snapshots
+are separate reads; active-session reads are scoped by church and term so a
+position lookup cannot substitute another church's session. It has no ballot property, individual
+ballot choices, voter or submitter identity, credentials, or election-policy
+rules. Poll-level aggregate totals and ballots-cast values are permitted
+administrator snapshots only. The read-only asynchronous
+`PositionReader` scopes position reads by church, term, and position and
+active-session reads by church and term, rejecting missing or out-of-scope
+position data with a typed error. Its in-memory implementation returns
 independently cloned snapshots and is only an explicit local substitute. A
 future HTTP adapter must map verified backend DTOs and reuse the reader contract
 tests; no endpoint or exact backend parity is claimed, and a failed real API
 request must never fall back to fixtures.
+
+Fixtures are deterministic snapshots grounded in the approved Riverside 2027
+Prototype V2 position. Domain functions own current/poll status derivation,
+opening acceptance, and aggregate result ordering/percentages; fixtures supply
+source values. Replacement-aware opening assignment remains unsupported.
 
 The port preserves prototype decision statuses (`Pending`, `Advanced`,
 `Elected`, `Eliminated`, and legacy `Declined`) as read-only data. It does not

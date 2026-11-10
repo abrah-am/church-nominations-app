@@ -54,16 +54,21 @@ export interface OpeningSummary {
   electedCandidate: Candidate | undefined
   latestResponse: CandidateResponseEvent | undefined
   responseHistory: CandidateResponseEvent[]
+  filled: boolean
 }
 
 // Invitation-based replacement assignment is deliberately outside this port.
 export function getOpeningSummaries(position: PositionSnapshot): OpeningSummary[] {
   const elected = position.candidates
     .flatMap((candidate) => {
+      const currentStatus = getCurrentCandidateStatus(position, candidate.id)
       const election = position.decisions
         .filter((event) => event.candidateId === candidate.id && event.status === 'Elected')
-        .sort(byTimestamp)[0]
-      return election ? [{ candidate, electedAt: election.decidedAt }] : []
+        .sort(byTimestamp)
+        .at(-1)
+      return currentStatus === 'Elected' && election
+        ? [{ candidate, electedAt: election.decidedAt }]
+        : []
     })
     .sort((left, right) => left.electedAt.localeCompare(right.electedAt))
   const openingIds = Array.from(
@@ -72,7 +77,11 @@ export function getOpeningSummaries(position: PositionSnapshot): OpeningSummary[
   )
   const assigned = new Map<string, Candidate>()
 
-  for (const response of position.responseEvents) {
+  const responses = [...position.responseEvents].sort((left, right) =>
+    left.respondedAt.localeCompare(right.respondedAt),
+  )
+
+  for (const response of responses) {
     const candidate = elected.find((item) => item.candidate.id === response.candidateId)?.candidate
     if (candidate && openingIds.includes(response.openingId)) {
       assigned.set(response.openingId, candidate)
@@ -88,23 +97,49 @@ export function getOpeningSummaries(position: PositionSnapshot): OpeningSummary[
   return openingIds.map((openingId, index) => {
     const candidate = assigned.get(openingId)
     const candidateResponses = candidate
-      ? position.responseEvents.filter(
+      ? responses.filter(
           (event) => event.openingId === openingId && event.candidateId === candidate.id,
         )
       : []
-    const responseHistory = position.responseEvents.filter(
+    const responseHistory = responses.filter(
       (event) => event.openingId === openingId,
     )
+    const latestResponse = candidateResponses.at(-1)
 
     return {
       openingId,
       number: index + 1,
       candidate,
       electedCandidate: candidate,
-      latestResponse: candidateResponses.at(-1),
+      latestResponse,
       responseHistory,
+      filled: getCurrentCandidateStatus(position, candidate?.id ?? '') === 'Elected'
+        && latestResponse?.status === 'Accepted',
     }
   })
+}
+
+export interface PollResult {
+  candidateId: string
+  name: string
+  votes: number
+  percentage: number
+}
+
+/** Aggregates are fixture/read-contract values; individual ballots are never modeled. */
+export function getPollResults(
+  poll: PositionSnapshot['polls'][number],
+): PollResult[] {
+  return poll.sourceCandidateIds
+    .map((candidateId) => ({
+      candidateId,
+      name: poll.candidateNames[candidateId] ?? 'Unknown candidate',
+      votes: poll.aggregateVotes[candidateId] ?? 0,
+      percentage: poll.ballotsCast > 0
+        ? Math.round(((poll.aggregateVotes[candidateId] ?? 0) / poll.ballotsCast) * 100)
+        : 0,
+    }))
+    .sort((left, right) => right.votes - left.votes || left.name.localeCompare(right.name))
 }
 
 export function getPositionCondition(position: PositionSnapshot): PositionCondition {

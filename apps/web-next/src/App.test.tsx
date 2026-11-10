@@ -42,13 +42,12 @@ function getPrimaryNavigation() {
 }
 
 describe('admin shell routes', () => {
-  it('renders the shell-only position destination and approved app navigation', () => {
+  it('renders the position workspace in the accepted shell and approved app navigation', async () => {
     renderRoutes()
 
-    expect(
-      screen.getByRole('heading', { name: 'Position workspace', level: 1 }),
-    ).toBeInTheDocument()
-    expect(screen.getByText(/shell-only placeholder/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Position workspace', level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Church Elder' })).toBeInTheDocument()
+    expect(screen.getByText(/Development mock context/)).toBeInTheDocument()
 
     const navigation = getPrimaryNavigation()
     expect(
@@ -65,7 +64,6 @@ describe('admin shell routes', () => {
       within(navigation).getByRole('link', { name: 'Term management' }),
     ).toHaveAttribute('href', '/admin/setup/terms')
     expect(within(navigation).queryByRole('link', { name: /dashboard/i })).toBeNull()
-    expect(screen.getByText(/development mock context/i)).toBeInTheDocument()
   })
 
   it('supports client navigation, deep-linked destinations, and browser-style back navigation', async () => {

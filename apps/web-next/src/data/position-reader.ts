@@ -1,4 +1,4 @@
-import type { PositionSnapshot } from '../domain/types'
+import type { ActiveSessionSnapshot, PositionSnapshot } from '../domain/types'
 
 export interface PositionQuery {
   churchId: string
@@ -6,11 +6,17 @@ export interface PositionQuery {
   positionId: string
 }
 
-export interface PositionReader {
-  getPosition(query: PositionQuery): Promise<PositionSnapshot>
+export interface ActiveSessionQuery {
+  churchId: string
+  termId: string
 }
 
-export type PositionDataErrorCode = 'POSITION_NOT_FOUND'
+export interface PositionReader {
+  getPosition(query: PositionQuery): Promise<PositionSnapshot>
+  getActiveSession(query: ActiveSessionQuery): Promise<ActiveSessionSnapshot | null>
+}
+
+export type PositionDataErrorCode = 'POSITION_NOT_FOUND' | 'ACTIVE_SESSION_SCOPE_MISMATCH'
 
 export class PositionDataError extends Error {
   readonly code: PositionDataErrorCode

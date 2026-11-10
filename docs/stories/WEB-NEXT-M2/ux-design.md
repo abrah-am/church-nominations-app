@@ -1,10 +1,10 @@
 # WEB-NEXT-M2 · Position Workspace UX design
 
-**Status: UX proposal for Product Owner review — pending explicit approval.**
-Product Owner authorization is limited to M2 planning and UX design. This
-document and its local [visual-reference gallery](visual-references/index.html)
-do not authorize application implementation. M2 code must wait until the PO
-approves both the story scope and this UX.
+**Status: Approved by the Product Owner 2026-11-09 for Phase 2 implementation
+within the approved read-only scope.** Final acceptance remains subject to T007
+verification and T008 review. This approval does not authorize merge/deployment.
+The [visual-reference gallery](visual-references/index.html) remains the UX
+baseline for implementation.
 
 ## Design intent
 
@@ -331,15 +331,18 @@ These are UX review checks for PO approval, not completed app tests:
 10. PO approval of both story scope and this UX is recorded before any M2 app
     work begins.
 
-## Decisions pending Product Owner approval
+## Product Owner approval record
 
-1. Approve or revise the proposed M2 scope and this read-only UX separately;
-   implementation remains blocked until both are approved.
-2. Confirm that the four non-mutating share/preview affordances may be proposed
-   as **MOCK** local-development links only, with no real viewer or
-   publication design in this milestone. No audience/presentation publication
-   behavior is inferred or changed.
-3. Confirm nomination source-traceability detail and treatment of the legacy
-   Sofia “Declined” recorded decision without reinterpretation.
-4. Confirm the empty/no-active and draft state behavior; the accepted initial
-   fixture has an active Round 2 and no draft poll.
+On 2026-11-09, the Product Owner approved the M2 scope and UX references and
+authorized Phase 2 implementation, subject to these explicit constraints:
+
+- Keep implementation within the approved read-only scope.
+- All share/preview affordances remain explicitly **MOCK**; add no real access
+  links, QR tokens, or credentials.
+- “Persistent session/share module” means the toolbar remains available during
+  workspace navigation, not backend persistence.
+- Approve the four proposed treatments without exception: MOCK-only
+  share/preview, collapsed nomination traceability, Sofia’s legacy “Declined”
+  recorded-decision label, and schematic draft/no-active/empty states.
+- Final acceptance remains subject to T007 verification and T008 review.
+  Merge and deployment are not authorized.

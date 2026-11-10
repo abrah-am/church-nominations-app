@@ -1,15 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import { getCurrentCandidateStatus, getOpeningSummaries, getPollCandidateStatus, getPositionCondition, getPositionLifecycle } from './position-summary'
+import { getCurrentCandidateStatus, getOpeningSummaries, getPollCandidateStatus, getPollResults, getPositionCondition, getPositionLifecycle } from './position-summary'
 import type { PositionSnapshot } from './types'
+import { createPositionFixtures } from '../data/position-fixtures'
 
 function createPosition(): PositionSnapshot {
   return {
     id: 'position-1',
     churchId: 'church-1',
     termId: 'term-1',
+    departmentId: 'department-1',
+    name: 'Position One',
     openings: 1,
     candidates: [{ id: 'candidate-1', name: 'Candidate One' }],
-    polls: [{ id: 'poll-1', status: 'Closed' }, { id: 'poll-2', status: 'Closed' }],
+    polls: [
+      {
+        id: 'poll-1', status: 'Closed', type: 'voting', number: 1, title: 'Poll 1',
+        sourceCandidateIds: ['candidate-1'], candidateNames: { 'candidate-1': 'Candidate One' },
+        aggregateVotes: {}, ballotsCast: 0, recordedDecisions: [], nominationSubmissions: [], auditEntries: [],
+      },
+      {
+        id: 'poll-2', status: 'Closed', type: 'voting', number: 2, title: 'Poll 2',
+        sourceCandidateIds: ['candidate-1'], candidateNames: { 'candidate-1': 'Candidate One' },
+        aggregateVotes: {}, ballotsCast: 0, recordedDecisions: [], nominationSubmissions: [], auditEntries: [],
+      },
+    ],
     decisions: [
       {
         id: 'decision-elected',
@@ -59,6 +73,7 @@ describe('prototype-derived position summaries', () => {
       },
     ]
 
+    expect(getOpeningSummaries(position)[0]?.filled).toBe(true)
     expect(getPositionCondition(position)).toBe('Ready to Finalize')
     expect(getCurrentCandidateStatus(position, 'candidate-1')).toBe('Elected')
   })
@@ -128,5 +143,50 @@ describe('prototype-derived position summaries', () => {
 
     expect(getCurrentCandidateStatus(position, 'candidate-1')).toBe('Declined')
     expect(getPollCandidateStatus(position, 'poll-1', 'candidate-1')).toBe('Declined')
+  })
+
+  it('derives fixture opening counts without treating an election as acceptance', () => {
+    const position = createPositionFixtures()[0]!
+    const openings = getOpeningSummaries(position)
+
+    expect(position.openings).toBe(2)
+    expect(position.candidates.filter((candidate) =>
+      getCurrentCandidateStatus(position, candidate.id) === 'Elected',
+    )).toHaveLength(1)
+    expect(openings.map(({ candidate, latestResponse, filled }) => ({
+      candidate: candidate?.name,
+      response: latestResponse?.status ?? (candidate ? 'Awaiting response' : 'None'),
+      filled,
+    }))).toEqual([
+      { candidate: 'Elaine Brooks', response: 'Awaiting response', filled: false },
+      { candidate: undefined, response: 'None', filled: false },
+    ])
+    expect(getPositionCondition(position)).toBe('In Progress')
+  })
+
+  it('sorts aggregate votes descending then name, with percentages based on ballots cast', () => {
+    const position = createPositionFixtures()[0]!
+    const roundOne = position.polls.find((poll) => poll.id === 'p-elder-2027-1')!
+    const roundTwo = position.polls.find((poll) => poll.id === 'p-elder-2027-2')!
+
+    expect(getPollResults(roundOne).map(({ name, votes, percentage }) => [name, votes, percentage])).toEqual([
+      ['Elaine Brooks', 3, 38],
+      ['Marcus Hill', 2, 25],
+      ['Priya Nair', 2, 25],
+      ['Robert James', 1, 13],
+      ['Sofia Martinez', 0, 0],
+    ])
+    expect(getPollResults(roundTwo).map(({ name, votes, percentage }) => [name, votes, percentage])).toEqual([
+      ['Marcus Hill', 3, 75],
+      ['Priya Nair', 1, 25],
+    ])
+  })
+
+  it('uses zero-percent results when no ballots have been cast', () => {
+    const position = createPositionFixtures()[1]!
+
+    expect(getPollResults(position.polls[0]!)).toEqual([
+      { candidateId: 'candidate-foundation-1', name: 'Candidate One', votes: 0, percentage: 0 },
+    ])
   })
 })
