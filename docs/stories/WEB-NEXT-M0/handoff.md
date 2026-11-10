@@ -1,10 +1,12 @@
 # WEB-NEXT-M0 handoff
 
-## Status
+## Current status
 
-M0 foundation implemented locally on `feat/web-next-m0-foundation`.
-Product Owner acceptance is pending. No commit, merge or deployment performed.
-Admin shell implementation is not authorized.
+The M0 foundation is implemented, validated, and committed together with the
+accepted M1 shell in `19fba65`. A separate explicit Product Owner acceptance
+for M0 is not recorded; do not infer it from M1 or M2 acceptance. M1 was
+explicitly accepted on 2026-11-09 and M2 on 2026-11-10. No merge or deployment
+is authorized.
 
 ## Delivered
 
@@ -49,7 +51,8 @@ SVG references: [comparison gallery](visual-options/index.html) and
 recommended; B uses a compact blue inset/rail and C a teal context-first header.
 The Tech Lead opened and inspected the gallery. These are illustrative
 references, not installed blocks or implemented screens. Theme selection,
-accessibility/interaction validation and M1 authorization remain pending.
+accessibility/interaction validation and M1 authorization were pending at this
+initial checkpoint; later approvals and implementation are recorded below.
 
 ## Scope and preservation
 
@@ -58,14 +61,6 @@ unrelated modification to `.github/agents/tech-lead.agent.md` was preserved.
 No browser-storage migration, publication rules, replacement transitions or
 decision writing was introduced. See `dependencies.md` for C1-C4 policy holds
 and separately scoped API integration dependencies.
-
-## Next actions
-
-1. Review the delivered M0 evidence and refined Admin shell references.
-2. Obtain M0 acceptance, visual selection and explicit M1 implementation
-   authorization. Do not treat visual exploration as permission to build M1.
-3. Before dependent features, escalate unresolved prototype/product conflicts
-   rather than selecting behavior implicitly.
 
 ## UX refinement follow-up (2026-11-09)
 
@@ -102,15 +97,18 @@ Owner review of this refined direction.
 
 On 2026-11-09 the Product Owner approved the refined visual reference and
 authorized Admin shell/responsive navigation implementation only. The depicted
-Position Workspace content remains illustrative and deferred. Active work is
-tracked in [WEB-NEXT-M1](../WEB-NEXT-M1/requirements.md); M1 acceptance is still
-required before M2. This does not imply a merge/deployment authorization.
+Position Workspace content remained illustrative and deferred for M1. M1
+acceptance is recorded in [WEB-NEXT-M1](../WEB-NEXT-M1/handoff.md). M2 was
+subsequently approved, implemented, and explicitly accepted on 2026-11-10; see
+its [handoff](../WEB-NEXT-M2/handoff.md). No merge/deployment authorization is
+implied.
 
 ## Commit continuity
 
 The M0 foundation and accepted M1 shell were committed together as `19fba65`
-on 2026-11-09 at the Product Owner's explicit request. Unrelated agent-file
-edits were excluded; existing frontend/backend/Prototype V2 remain unchanged.
-Earlier references to "no commit" above describe the original validation
-checkpoint, not the current delivery state. M1 acceptance is recorded in its
-[handoff](../WEB-NEXT-M1/handoff.md); M2 is planning/UX only.
+on 2026-11-09 at the Product Owner's explicit request; no synthetic history
+was reconstructed. Unrelated agent-file edits were excluded; existing
+frontend/backend/Prototype V2 remain unchanged. M0's standalone acceptance
+remains unrecorded. M1 acceptance is recorded in its
+[handoff](../WEB-NEXT-M1/handoff.md); M2 acceptance is recorded in its
+[handoff](../WEB-NEXT-M2/handoff.md).

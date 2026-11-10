@@ -85,5 +85,7 @@ mutation. Existing C1-C4 policy holds remain unresolved.
    The unrelated `.github/agents/tech-lead.agent.md` modification remains
    uncommitted and was excluded. Final precommit check passed22tests/lint/
    TypeScript/build; protected frontend/backend/prototype paths were unchanged.
-2. Prepare M2 scope and UX references only. Do not implement M2 until the Product
-   Owner approves both. No merge or deployment authorized.
+2. M2 was subsequently implemented and explicitly accepted by the Product
+   Owner on 2026-11-10; see the [M2 handoff](../WEB-NEXT-M2/handoff.md).
+   No merge/deployment authorization is implied. Do not begin M3 without
+   separately approved scope and authorization.
