@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>WEB-NEXT-M1 · UX screenshot comparison</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #263b47;
+        background: #f3f5f6;
+      }
+
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      header { padding: 22px clamp(16px, 4vw, 48px); background: #fff; border-bottom: 1px solid #d5dee2; }
+      h1 { margin: 0 0 8px; font-size: clamp(22px, 3vw, 30px); }
+      header p { max-width: 1000px; margin: 0; color: #596c75; line-height: 1.55; }
+      main { max-width: 1600px; margin: 0 auto; padding: 20px clamp(12px, 3vw, 40px) 48px; }
+      .scope-note { margin: 0 0 22px; padding: 12px 14px; border-left: 4px solid #739b98; border-radius: 6px; background: #fff; line-height: 1.5; }
+      .comparison { margin: 0 0 26px; }
+      .comparison h2 { margin: 0 0 5px; font-size: 19px; }
+      .comparison > p { margin: 0 0 12px; color: #596c75; line-height: 1.45; }
+      .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+      figure { min-width: 0; margin: 0; padding: 10px; border: 1px solid #d5dee2; border-radius: 10px; background: #fff; }
+      figcaption { min-height: 38px; margin: 0 0 8px; color: #405560; font-size: 13px; font-weight: 650; line-height: 1.4; }
+      .frame { width: 100%; aspect-ratio: var(--ratio); overflow: hidden; border: 1px solid #e0e6e9; background: #f3f5f6; }
+      .frame img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+      footer { color: #596c75; font-size: 13px; line-height: 1.5; }
+      @media (max-width: 700px) {
+        .pair { grid-template-columns: 1fr; }
+        figcaption { min-height: 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>M1 shell · approved reference and captured implementation</h1>
+      <p>Side-by-side local files for visual validation. Approved references include Position Workspace artwork that belongs to a later milestone; compare only the application shell, navigation, and viewing-context area. Each reference is top-cropped to the paired capture's aspect ratio.</p>
+    </header>
+    <main>
+      <p class="scope-note"><strong>Scope:</strong> M1 authorizes the shell, application navigation, and context selectors only. Missing position summary, poll, candidate, and decision artwork is intentional and is not scored as a defect.</p>
+
+      <section class="comparison" aria-labelledby="desktop-title">
+        <h2 id="desktop-title">Desktop · 1440px</h2>
+        <p>Expected: persistent 246px application sidebar and a wide context/workspace column.</p>
+        <div class="pair">
+          <figure>
+            <figcaption>Approved reference · 1440×1280 SVG; lower workspace artwork is out of M1 scope</figcaption>
+            <div class="frame" style="--ratio: 1440 / 900">
+              <img src="../WEB-NEXT-M0/visual-refinement/position-workspace-1440.svg" alt="Approved desktop reference, top-cropped to show the shell and context area">
+            </div>
+          </figure>
+          <figure>
+            <figcaption>Captured implementation · shell-1440.png (1440×900 PNG)</figcaption>
+            <div class="frame" style="--ratio: 1440 / 900">
+              <img src="shell-1440.png" alt="Captured implementation at the file's 1440 by 900 dimensions">
+            </div>
+          </figure>
+        </div>
+      </section>
+
+      <section class="comparison" aria-labelledby="mobile-title">
+        <h2 id="mobile-title">Mobile · 390px</h2>
+        <p>Expected: mobile header and selectors arranged with Church, Term/Department, and Position rows.</p>
+        <div class="pair">
+          <figure>
+            <figcaption>Approved reference · 390×2440 SVG; workspace illustration is out of M1 scope</figcaption>
+            <div class="frame" style="--ratio: 390 / 844">
+              <img src="../WEB-NEXT-M0/visual-refinement/position-workspace-390.svg" alt="Approved 390-pixel reference, top-cropped to show the shell and context area">
+            </div>
+          </figure>
+          <figure>
+            <figcaption>Captured implementation · shell-390.png (390×844 PNG)</figcaption>
+            <div class="frame" style="--ratio: 390 / 844">
+              <img src="shell-390.png" alt="Captured implementation at the file's 390 by 844 dimensions">
+            </div>
+          </figure>
+        </div>
+      </section>
+
+      <section class="comparison" aria-labelledby="compact-title">
+        <h2 id="compact-title">Compact · 320px</h2>
+        <p>Expected: four stacked context selectors, full labels, and no horizontal page overflow. The CSS viewport was 320px; its 305px content width excludes the vertical scrollbar gutter.</p>
+        <div class="pair">
+          <figure>
+            <figcaption>Approved reference · 320×2580 SVG; workspace illustration is out of M1 scope</figcaption>
+            <div class="frame" style="--ratio: 305 / 612">
+              <img src="../WEB-NEXT-M0/visual-refinement/position-workspace-320.svg" alt="Approved 320-pixel reference, top-cropped to show the shell and context area">
+            </div>
+          </figure>
+          <figure>
+            <figcaption>Captured implementation · shell-320.png (305×612 PNG; CSS viewport 320×568)</figcaption>
+            <div class="frame" style="--ratio: 305 / 612">
+              <img src="shell-320.png" alt="Captured compact implementation with 305-pixel content width at a 320-pixel CSS viewport">
+            </div>
+          </figure>
+        </div>
+      </section>
+
+      <section class="comparison" aria-labelledby="navigation-title">
+        <h2 id="navigation-title">Mobile navigation open · 390px</h2>
+        <p>Expected: labeled sheet with full Elections and Settings destinations; no hierarchy context in the menu.</p>
+        <div class="pair">
+          <figure>
+            <figcaption>Approved supplemental reference · 390×844 SVG</figcaption>
+            <div class="frame" style="--ratio: 390 / 844">
+              <img src="../WEB-NEXT-M0/visual-refinement/mobile-navigation-sheet-390.svg" alt="Approved mobile navigation sheet reference">
+            </div>
+          </figure>
+          <figure>
+            <figcaption>Captured implementation · navigation-open-390.png (390×844 PNG)</figcaption>
+            <div class="frame" style="--ratio: 390 / 844">
+              <img src="navigation-open-390.png" alt="Captured implementation with mobile navigation open">
+            </div>
+          </figure>
+        </div>
+      </section>
+
+      <footer>All images are local repository files; no external assets are loaded. See <a href="ux-validation.md">UX validation findings and recommendation</a>.</footer>
+    </main>
+  </body>
+</html>

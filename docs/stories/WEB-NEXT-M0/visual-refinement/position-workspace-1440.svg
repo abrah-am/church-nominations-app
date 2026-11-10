@@ -1,0 +1,172 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1280" viewBox="0 0 1440 1280" role="img" aria-labelledby="title desc">
+  <title id="title">Refined Church Nominations position workspace, desktop 1440 by 1280</title>
+  <desc id="desc">Illustrative static current-term position workspace. A full-label application sidebar contains Elections and Settings destinations only. The content header alone contains Church, Term, Department and Position selectors. The workspace shows the illustrative closed Round 1 source results, decisions, separate elected-candidate response, poll history and a distinct active Round 2 participant session.</desc>
+  <rect width="1440" height="1280" fill="#f3f5f6"/>
+  <rect width="246" height="1280" fill="#ffffff"/>
+  <path d="M245.5 0v1280" stroke="#d7dfe2"/>
+  <text x="24" y="46" fill="#233b48" font-size="16" font-weight="700" font-family="system-ui, sans-serif">Church nominations</text>
+  <text x="24" y="67" fill="#788890" font-size="11" font-family="system-ui, sans-serif">Administration</text>
+  <path d="M20 88h206" stroke="#e2e7e9"/>
+  <text x="24" y="119" fill="#76858c" font-size="10" font-weight="700" letter-spacing="1.1" font-family="system-ui, sans-serif">APPLICATION</text>
+  <rect x="14" y="132" width="218" height="44" rx="8" fill="#f0f3f4"/>
+  <rect x="28" y="145" width="17" height="17" rx="4" fill="none" stroke="#536873" stroke-width="1.5"/>
+  <path d="M32 153h9M32 157h6" stroke="#536873" stroke-width="1.3"/>
+  <text x="57" y="159" fill="#233b48" font-size="14" font-weight="650" font-family="system-ui, sans-serif">Elections</text>
+  <text x="24" y="210" fill="#76858c" font-size="10" font-weight="700" letter-spacing="1.1" font-family="system-ui, sans-serif">SETTINGS</text>
+  <rect x="29" y="226" width="16" height="16" rx="3" fill="none" stroke="#73828a" stroke-width="1.4"/>
+  <path d="M32 231h10M32 235h10M32 239h7" stroke="#73828a" stroke-width="1.2"/>
+  <text x="57" y="240" fill="#3f515b" font-size="13" font-family="system-ui, sans-serif">Church settings</text>
+  <circle cx="37" cy="279" r="7" fill="none" stroke="#73828a" stroke-width="1.4"/>
+  <path d="M37 275v5l3 2" fill="none" stroke="#73828a" stroke-width="1.3"/>
+  <text x="57" y="284" fill="#3f515b" font-size="13" font-family="system-ui, sans-serif">Term management</text>
+  <text x="24" y="1242" fill="#849198" font-size="10" font-family="system-ui, sans-serif">Application destinations only</text>
+  <rect x="246" y="0" width="1194" height="150" fill="#ffffff"/>
+  <path d="M246 149.5h1194" stroke="#d7dfe2"/>
+  <text x="280" y="31" fill="#71828a" font-size="10" font-weight="700" letter-spacing="1.1" font-family="system-ui, sans-serif">VIEWING CONTEXT · SELECT IN THE CONTENT HEADER</text>
+  <rect x="280" y="46" width="328" height="54" rx="7" fill="#fff" stroke="#cfd9dd"/>
+  <text x="294" y="64" fill="#71828a" font-size="10" font-family="system-ui, sans-serif">Church</text>
+  <text x="294" y="86" fill="#263e4b" font-size="13" font-weight="600" font-family="system-ui, sans-serif">Riverside Seventh-day Adventist Church</text>
+  <path d="M590 70l6 6 6-6" fill="none" stroke="#687b84" stroke-width="1.5"/>
+  <rect x="620" y="46" width="213" height="54" rx="7" fill="#fff" stroke="#cfd9dd"/>
+  <text x="634" y="64" fill="#71828a" font-size="10" font-family="system-ui, sans-serif">Term</text>
+  <text x="634" y="86" fill="#263e4b" font-size="13" font-weight="600" font-family="system-ui, sans-serif">2027 Church Board</text>
+  <path d="M815 70l6 6 6-6" fill="none" stroke="#687b84" stroke-width="1.5"/>
+  <rect x="845" y="46" width="178" height="54" rx="7" fill="#fff" stroke="#cfd9dd"/>
+  <text x="859" y="64" fill="#71828a" font-size="10" font-family="system-ui, sans-serif">Department</text>
+  <text x="859" y="86" fill="#263e4b" font-size="13" font-weight="600" font-family="system-ui, sans-serif">Ministry</text>
+  <path d="M1005 70l6 6 6-6" fill="none" stroke="#687b84" stroke-width="1.5"/>
+  <rect x="1035" y="46" width="210" height="54" rx="7" fill="#fff" stroke="#cfd9dd"/>
+  <text x="1049" y="64" fill="#71828a" font-size="10" font-family="system-ui, sans-serif">Position</text>
+  <text x="1049" y="86" fill="#263e4b" font-size="13" font-weight="600" font-family="system-ui, sans-serif">Church Elder</text>
+  <path d="M1227 70l6 6 6-6" fill="none" stroke="#687b84" stroke-width="1.5"/>
+  <text x="280" y="132" fill="#657780" font-size="11" font-family="system-ui, sans-serif">Context changes only what is viewed; they do not activate a participant session.</text>
+  <text x="280" y="188" fill="#263b47" font-size="26" font-weight="700" font-family="system-ui, sans-serif">Position workspace</text>
+  <text x="280" y="211" fill="#657780" font-size="13" font-family="system-ui, sans-serif">Church Elder · 2027 Church Board · Ministry</text>
+  <rect x="280" y="230" width="1124" height="142" rx="10" fill="#fff" stroke="#d5dee2"/>
+  <text x="300" y="257" fill="#6b7a82" font-size="10" font-weight="700" letter-spacing="1" font-family="system-ui, sans-serif">POSITION SUMMARY</text>
+  <path d="M300 270h1084" stroke="#e5eaec"/>
+  <text x="300" y="300" fill="#263e4b" font-size="22" font-weight="700" font-family="system-ui, sans-serif">2</text>
+  <text x="300" y="319" fill="#657780" font-size="11" font-family="system-ui, sans-serif">openings</text>
+  <path d="M390 286v44M492 286v44M594 286v44M736 286v44" stroke="#e1e7e9"/>
+  <text x="416" y="300" fill="#263e4b" font-size="22" font-weight="700" font-family="system-ui, sans-serif">1</text>
+  <text x="416" y="319" fill="#657780" font-size="11" font-family="system-ui, sans-serif">elected</text>
+  <text x="518" y="300" fill="#263e4b" font-size="22" font-weight="700" font-family="system-ui, sans-serif">0</text>
+  <text x="518" y="319" fill="#657780" font-size="11" font-family="system-ui, sans-serif">accepted</text>
+  <text x="620" y="300" fill="#263e4b" font-size="22" font-weight="700" font-family="system-ui, sans-serif">2</text>
+  <text x="620" y="319" fill="#657780" font-size="11" font-family="system-ui, sans-serif">unfilled</text>
+  <text x="760" y="293" fill="#465a64" font-size="12" font-weight="600" font-family="system-ui, sans-serif">Opening 1 · Elaine Brooks</text>
+  <text x="760" y="312" fill="#586b75" font-size="11" font-family="system-ui, sans-serif">Election decision: Elected</text>
+  <text x="760" y="331" fill="#586b75" font-size="11" font-family="system-ui, sans-serif">Candidate response: Awaiting response</text>
+  <text x="1080" y="293" fill="#465a64" font-size="12" font-weight="600" font-family="system-ui, sans-serif">Opening 2 · Vacant</text>
+  <text x="1080" y="312" fill="#586b75" font-size="11" font-family="system-ui, sans-serif">No election decision</text>
+  <text x="1080" y="331" fill="#586b75" font-size="11" font-family="system-ui, sans-serif">Response is separate</text>
+  <rect x="280" y="388" width="1124" height="120" rx="10" fill="#fff" stroke="#d5dee2"/>
+  <circle cx="301" cy="413" r="5" fill="#378276"/>
+  <text x="315" y="417" fill="#455b64" font-size="10" font-weight="750" letter-spacing=".9" font-family="system-ui, sans-serif">ACTIVE PARTICIPANT SESSION · SEPARATE FROM VIEWING</text>
+  <text x="300" y="443" fill="#263e4b" font-size="14" font-weight="700" font-family="system-ui, sans-serif">Church Elder · Round 2 · Open</text>
+  <text x="300" y="464" fill="#687980" font-size="11" font-family="system-ui, sans-serif">Sharing and preview actions below do not change the active poll.</text>
+  <rect x="300" y="474" width="125" height="30" rx="6" fill="#fff" stroke="#bac8cd"/>
+  <text x="362.5" y="494" text-anchor="middle" fill="#3e535e" font-size="11" font-weight="600" font-family="system-ui, sans-serif">Copy voter link</text>
+  <rect x="434" y="474" width="90" height="30" rx="6" fill="#fff" stroke="#bac8cd"/>
+  <text x="479" y="494" text-anchor="middle" fill="#3e535e" font-size="11" font-weight="600" font-family="system-ui, sans-serif">Show QR</text>
+  <rect x="533" y="474" width="112" height="30" rx="6" fill="#fff" stroke="#bac8cd"/>
+  <text x="589" y="494" text-anchor="middle" fill="#3e535e" font-size="11" font-weight="600" font-family="system-ui, sans-serif">Preview voter</text>
+  <rect x="654" y="474" width="124" height="30" rx="6" fill="#fff" stroke="#bac8cd"/>
+  <text x="716" y="494" text-anchor="middle" fill="#3e535e" font-size="11" font-weight="600" font-family="system-ui, sans-serif">Open Presentation</text>
+  <rect x="787" y="474" width="169" height="30" rx="6" fill="#fff" stroke="#bac8cd"/>
+  <text x="871.5" y="494" text-anchor="middle" fill="#3e535e" font-size="11" font-weight="600" font-family="system-ui, sans-serif">Copy presentation link</text>
+  <text x="980" y="494" fill="#6a7a82" font-size="10" font-family="system-ui, sans-serif">Share / preview only</text>
+  <rect x="280" y="520" width="1124" height="48" rx="8" fill="#fff" stroke="#d5dee2"/>
+  <rect x="296" y="527" width="82" height="34" rx="6" fill="#eef2f3"/>
+  <text x="337" y="549" text-anchor="middle" fill="#263e4b" font-size="13" font-weight="700" font-family="system-ui, sans-serif">Polls</text>
+  <text x="405" y="549" fill="#5c6e77" font-size="13" font-family="system-ui, sans-serif">Candidates</text>
+  <rect x="475" y="534" width="22" height="20" rx="10" fill="#edf1f2"/>
+  <text x="486" y="548" text-anchor="middle" fill="#455b64" font-size="10" font-weight="700" font-family="system-ui, sans-serif">5</text>
+  <rect x="280" y="586" width="228" height="590" rx="9" fill="#fff" stroke="#d5dee2"/>
+  <text x="300" y="614" fill="#687980" font-size="10" font-weight="700" letter-spacing="1" font-family="system-ui, sans-serif">POLL HISTORY</text>
+  <text x="300" y="637" fill="#263e4b" font-size="13" font-weight="650" font-family="system-ui, sans-serif">3 polls</text>
+  <path d="M300 650h188" stroke="#e4e9eb"/>
+  <rect x="292" y="663" width="204" height="68" rx="7" fill="#fff"/>
+  <text x="306" y="684" fill="#526670" font-size="12" font-weight="650" font-family="system-ui, sans-serif">Nomination 1</text>
+  <rect x="306" y="693" width="68" height="22" rx="11" fill="#eef1f2"/>
+  <text x="340" y="708" text-anchor="middle" fill="#566871" font-size="10" font-weight="650" font-family="system-ui, sans-serif">Approved</text>
+  <rect x="292" y="737" width="204" height="74" rx="7" fill="#f0f3f4" stroke="#c8d4d8"/>
+  <rect x="292" y="737" width="3" height="74" rx="1.5" fill="#6d9093"/>
+  <text x="306" y="759" fill="#263e4b" font-size="12" font-weight="700" font-family="system-ui, sans-serif">Round 1</text>
+  <rect x="306" y="771" width="62" height="22" rx="11" fill="#eef1f2"/>
+  <text x="337" y="786" text-anchor="middle" fill="#566871" font-size="10" font-weight="650" font-family="system-ui, sans-serif">Closed</text>
+  <text x="376" y="786" fill="#657780" font-size="10" font-weight="600" font-family="system-ui, sans-serif">Viewing</text>
+  <rect x="292" y="817" width="204" height="73" rx="7" fill="#fff"/>
+  <circle cx="306" cy="840" r="4" fill="#378276"/>
+  <text x="318" y="844" fill="#40545e" font-size="12" font-weight="650" font-family="system-ui, sans-serif">Round 2</text>
+  <rect x="306" y="854" width="52" height="22" rx="11" fill="#eaf3f1"/>
+  <text x="332" y="869" text-anchor="middle" fill="#3b716a" font-size="10" font-weight="650" font-family="system-ui, sans-serif">Open</text>
+  <text x="370" y="869" fill="#5f7478" font-size="10" font-weight="600" font-family="system-ui, sans-serif">Active</text>
+  <text x="300" y="929" fill="#697980" font-size="11" font-family="system-ui, sans-serif">Selection changes the view;</text>
+  <text x="300" y="947" fill="#697980" font-size="11" font-family="system-ui, sans-serif">Round 2 remains the active</text>
+  <text x="300" y="965" fill="#697980" font-size="11" font-family="system-ui, sans-serif">participant session.</text>
+  <rect x="524" y="586" width="880" height="688" rx="9" fill="#fff" stroke="#d5dee2"/>
+  <text x="548" y="615" fill="#6b7a82" font-size="10" font-weight="700" letter-spacing="1" font-family="system-ui, sans-serif">ROUND 1 · CLOSED</text>
+  <text x="548" y="643" fill="#263b47" font-size="19" font-weight="700" font-family="system-ui, sans-serif">Church Elder · Round 1</text>
+  <rect x="1160" y="606" width="220" height="28" rx="14" fill="#f0f3f4"/>
+  <text x="1270" y="624" text-anchor="middle" fill="#566a74" font-size="10" font-weight="650" font-family="system-ui, sans-serif">VIEWING ROUND 1 · SESSION UNCHANGED</text>
+  <path d="M548 657h832" stroke="#e2e8ea"/>
+  <rect x="548" y="672" width="166" height="34" rx="6" fill="#eef2f3"/>
+  <text x="631" y="694" text-anchor="middle" fill="#263e4b" font-size="12" font-weight="700" font-family="system-ui, sans-serif">Results &amp; decisions</text>
+  <text x="744" y="694" fill="#5b6d76" font-size="12" font-family="system-ui, sans-serif">Audit</text>
+  <text x="548" y="731" fill="#263e4b" font-size="16" font-weight="700" font-family="system-ui, sans-serif">8 ballots cast</text>
+  <text x="665" y="731" fill="#687980" font-size="12" font-family="system-ui, sans-serif">Final administrator totals · individual ballot selections are not shown</text>
+  <rect x="548" y="750" width="832" height="38" fill="#f5f7f8"/>
+  <text x="562" y="774" fill="#697980" font-size="10" font-weight="700" letter-spacing=".5" font-family="system-ui, sans-serif">CANDIDATE · RESULT</text>
+  <text x="806" y="774" fill="#697980" font-size="10" font-weight="700" letter-spacing=".5" font-family="system-ui, sans-serif">ELECTION DECISION</text>
+  <text x="1050" y="774" fill="#697980" font-size="10" font-weight="700" letter-spacing=".5" font-family="system-ui, sans-serif">CANDIDATE RESPONSE</text>
+  <path d="M548 788h832" stroke="#e2e8ea"/>
+  <text x="562" y="814" fill="#263e4b" font-size="13" font-weight="650" font-family="system-ui, sans-serif">Elaine Brooks</text>
+  <text x="562" y="837" fill="#536771" font-size="12" font-family="system-ui, sans-serif">3 votes · 38%</text>
+  <rect x="562" y="847" width="194" height="5" rx="2.5" fill="#edf0f1"/><rect x="562" y="847" width="73" height="5" rx="2.5" fill="#739b98"/>
+  <rect x="806" y="800" width="190" height="42" rx="6" fill="#fff" stroke="#cfd9dd"/>
+  <text x="820" y="826" fill="#263e4b" font-size="12" font-weight="600" font-family="system-ui, sans-serif">Elected</text>
+  <path d="M979 818l5 5 5-5" fill="none" stroke="#687b84" stroke-width="1.3"/>
+  <text x="1050" y="811" fill="#6b7a82" font-size="10" font-weight="650" font-family="system-ui, sans-serif">Awaiting response</text>
+  <rect x="1050" y="818" width="145" height="32" rx="6" fill="#fff" stroke="#bac8cd"/>
+  <text x="1122.5" y="839" text-anchor="middle" fill="#3e535e" font-size="10" font-weight="600" font-family="system-ui, sans-serif">Record acceptance</text>
+  <rect x="1203" y="818" width="137" height="32" rx="6" fill="#fff" stroke="#bac8cd"/>
+  <text x="1271.5" y="839" text-anchor="middle" fill="#3e535e" font-size="10" font-weight="600" font-family="system-ui, sans-serif">Record decline</text>
+  <path d="M548 866h832" stroke="#edf0f1"/>
+  <text x="562" y="892" fill="#263e4b" font-size="13" font-weight="650" font-family="system-ui, sans-serif">Marcus Hill</text>
+  <text x="562" y="915" fill="#536771" font-size="12" font-family="system-ui, sans-serif">2 votes · 25%</text>
+  <rect x="562" y="925" width="194" height="5" rx="2.5" fill="#edf0f1"/><rect x="562" y="925" width="49" height="5" rx="2.5" fill="#739b98"/>
+  <rect x="806" y="878" width="190" height="42" rx="6" fill="#fff" stroke="#cfd9dd"/>
+  <text x="820" y="904" fill="#263e4b" font-size="12" font-weight="600" font-family="system-ui, sans-serif">Advanced</text>
+  <path d="M979 896l5 5 5-5" fill="none" stroke="#687b84" stroke-width="1.3"/>
+  <text x="1050" y="902" fill="#919da1" font-size="11" font-family="system-ui, sans-serif">— Not elected</text>
+  <path d="M548 944h832" stroke="#edf0f1"/>
+  <text x="562" y="970" fill="#263e4b" font-size="13" font-weight="650" font-family="system-ui, sans-serif">Priya Nair</text>
+  <text x="562" y="993" fill="#536771" font-size="12" font-family="system-ui, sans-serif">2 votes · 25%</text>
+  <rect x="562" y="1003" width="194" height="5" rx="2.5" fill="#edf0f1"/><rect x="562" y="1003" width="49" height="5" rx="2.5" fill="#739b98"/>
+  <rect x="806" y="956" width="190" height="42" rx="6" fill="#fff" stroke="#cfd9dd"/>
+  <text x="820" y="982" fill="#263e4b" font-size="12" font-weight="600" font-family="system-ui, sans-serif">Advanced</text>
+  <path d="M979 974l5 5 5-5" fill="none" stroke="#687b84" stroke-width="1.3"/>
+  <text x="1050" y="980" fill="#919da1" font-size="11" font-family="system-ui, sans-serif">— Not elected</text>
+  <path d="M548 1022h832" stroke="#edf0f1"/>
+  <text x="562" y="1048" fill="#263e4b" font-size="13" font-weight="650" font-family="system-ui, sans-serif">Robert James</text>
+  <text x="562" y="1071" fill="#536771" font-size="12" font-family="system-ui, sans-serif">1 vote · 13%</text>
+  <rect x="562" y="1081" width="194" height="5" rx="2.5" fill="#edf0f1"/><rect x="562" y="1081" width="25" height="5" rx="2.5" fill="#739b98"/>
+  <rect x="806" y="1034" width="190" height="42" rx="6" fill="#fff" stroke="#cfd9dd"/>
+  <text x="820" y="1060" fill="#263e4b" font-size="12" font-weight="600" font-family="system-ui, sans-serif">Eliminated</text>
+  <path d="M979 1052l5 5 5-5" fill="none" stroke="#687b84" stroke-width="1.3"/>
+  <text x="1050" y="1058" fill="#919da1" font-size="11" font-family="system-ui, sans-serif">— Not elected</text>
+  <path d="M548 1100h832" stroke="#edf0f1"/>
+  <text x="562" y="1126" fill="#263e4b" font-size="13" font-weight="650" font-family="system-ui, sans-serif">Sofia Martinez</text>
+  <text x="562" y="1149" fill="#536771" font-size="12" font-family="system-ui, sans-serif">0 votes · 0%</text>
+  <rect x="562" y="1159" width="194" height="5" rx="2.5" fill="#edf0f1"/>
+  <rect x="806" y="1112" width="190" height="42" rx="6" fill="#fff" stroke="#cfd9dd"/>
+  <text x="820" y="1138" fill="#263e4b" font-size="12" font-weight="600" font-family="system-ui, sans-serif">Declined</text>
+  <path d="M979 1130l5 5 5-5" fill="none" stroke="#687b84" stroke-width="1.3"/>
+  <text x="1050" y="1136" fill="#919da1" font-size="11" font-family="system-ui, sans-serif">— Not elected</text>
+  <path d="M548 1178h832" stroke="#e2e8ea"/>
+  <text x="548" y="1203" fill="#6a7a82" font-size="11" font-family="system-ui, sans-serif">Decision note · “Committee reviewed the first poll and selected candidates for the next round.” (illustrative fixture)</text>
+  <rect x="548" y="1218" width="174" height="38" rx="7" fill="#304e5b"/>
+  <text x="635" y="1242" text-anchor="middle" fill="#fff" font-size="12" font-weight="650" font-family="system-ui, sans-serif">Save decision revision</text>
+  <text x="743" y="1242" fill="#71828a" font-size="10" font-family="system-ui, sans-serif">Static sample control · no action occurs</text>
+</svg>
