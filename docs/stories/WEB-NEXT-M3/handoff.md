@@ -64,6 +64,8 @@ plan, UX/review/QA records, screenshots, and this handoff. `apps/web`,
 
 M3 implementation and evidence commit: `30929ce`
 (`feat(web-next): complete M3 experience previews`).
+Product Owner acceptance and handoff reference commit: `2c92485`
+(`docs(web-next): record M3 acceptance and checkpoint`).
 Preserve unrelated worktree changes, including
 `.github/agents/tech-lead.agent.md` and prior approved product-policy and
 roadmap updates. No merge or deployment was performed.
