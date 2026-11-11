@@ -11,10 +11,9 @@ See its [README](apps/web-next/README.md) for tooling, module boundaries and loc
 commands, and [WEB-NEXT-M0](docs/stories/WEB-NEXT-M0/requirements.md) for scope.
 It does not replace the existing client yet. The approved
 [Prototype V2](docs/prototype-v2/README.md) remains the workflow/UX reference.
-The approved M1 Admin shell is implemented locally for acceptance review;
-Position Workspace content remains deferred. See the
-[M1 requirements](docs/stories/WEB-NEXT-M1/requirements.md) and
-[screenshot comparison](docs/stories/WEB-NEXT-M1/screenshot-comparison.html).
+The M1 Admin shell and accepted M2 read-only Position Workspace are implemented
+in `apps/web-next`. The approved M3–M6 frontend completion sequence is tracked
+in the [product backlog](docs/product/backlog.md).
 
 ### Web (`apps/web/src`)
 

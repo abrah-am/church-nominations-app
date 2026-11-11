@@ -1,6 +1,6 @@
 import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, useNavigate } from 'react-router-dom'
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import { AppRoutes } from './app/App'
 
@@ -14,10 +14,17 @@ function BackButton() {
   )
 }
 
+function CurrentRoute() {
+  const { pathname, search } = useLocation()
+
+  return <output data-testid="current-route">{pathname}{search}</output>
+}
+
 function renderRoutes(initialPath = '/admin') {
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
       <AppRoutes />
+      <CurrentRoute />
       <BackButton />
     </MemoryRouter>,
   )
@@ -146,5 +153,52 @@ describe('responsive navigation', () => {
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(trigger).toHaveFocus()
+  })
+})
+
+describe('experience preview navigation', () => {
+  it('navigates to the mock Voter view without changing Admin viewing context or active session', async () => {
+    const user = userEvent.setup()
+    renderRoutes()
+
+    const position = screen.getByRole('combobox', { name: 'Position' })
+    await user.click(position)
+    await user.click(await screen.findByRole('option', { name: 'Secretary' }))
+
+    await user.click(
+      within(getPrimaryNavigation()).getByRole('link', { name: 'Voter preview' }),
+    )
+    expect(screen.getByTestId('current-route')).toHaveTextContent(
+      '/voter/preview?state=voting',
+    )
+    expect(screen.getByText('Mock active participant session · separate from the Admin viewing context')).toBeInTheDocument()
+    expect(screen.getByText('Shared current poll: Church Elder · Round 2 · Open (unchanged)')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Church nominations' }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('link', { name: 'Admin preview' }))
+    expect(screen.getByTestId('current-route')).toHaveTextContent('/admin')
+    expect(screen.getByRole('combobox', { name: 'Position' })).toHaveTextContent(
+      'Secretary',
+    )
+    expect(screen.getByText('Church Elder · Round 2 · Open')).toBeInTheDocument()
+  })
+
+  it('routes Presentation preview directly to the hidden-results state', async () => {
+    const user = userEvent.setup()
+    renderRoutes()
+
+    await user.click(
+      within(getPrimaryNavigation()).getByRole('link', {
+        name: 'Presentation preview',
+      }),
+    )
+
+    expect(screen.getByTestId('current-route')).toHaveTextContent(
+      '/presentation/preview?results=hidden',
+    )
+    expect(screen.getByRole('link', { name: 'Church nominations' })).toBeInTheDocument()
+    expect(screen.getAllByRole('main')).toHaveLength(1)
   })
 })

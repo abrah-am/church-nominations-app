@@ -1,10 +1,10 @@
-# `web-next` admin shell
+# `web-next` frontend foundation
 
 An isolated React/TypeScript application for incrementally implementing the
 approved Prototype V2 experience. M1 established the responsive Admin shell;
-M2 adds the approved read-only Position Workspace with typed synthetic
-snapshots, poll history, aggregate results, candidate views, and a separate
-MOCK-only active-session toolbar. It is not a production election workflow.
+M2 adds the approved read-only Position Workspace; M3 adds navigable, read-only
+Voter and Presentation previews with shared mock election data. It is not a
+production election workflow.
 
 ## Runtime and commands
 
@@ -30,6 +30,8 @@ Button, Sheet, and Select primitives. `components.json` retains the configured
 | `/admin/setup` | Elections |
 | `/admin/setup/churches` | Church settings |
 | `/admin/setup/terms` | Term management |
+| `/voter/preview` | Mock participant flow (`?state=nomination`, `voting`, `confirmation`, `waiting`, or `closed`) |
+| `/presentation/preview` | Mock room display (`?results=hidden` or `visible`) |
 
 The Elections destination is the active application navigation item for the
 Position Workspace and `/admin/setup`. Settings contains only Church settings
@@ -57,9 +59,11 @@ The toolbar's presence during navigation is in-memory UI behavior, not browser
 or backend persistence.
 
 No backend requests, API adapter, authentication simulation, or election/session
-mutations are implemented. The read port is an application contract, not a
-backend wire schema. Loading, empty, missing-context, and recoverable error
-states preserve requested context and never substitute another fixture.
+mutations are implemented. M3 viewer actions navigate between preview states
+only; nomination/ballot confirmation does not submit or persist data. The read
+port is an application contract, not a backend wire schema. Loading, empty,
+missing-context, and recoverable error states preserve requested context and
+never substitute another fixture.
 
 The lockfile pins transitive `minimatch` to `11.0.1` because the current ESLint
 10 and typescript-eslint dependencies request `^10.2.x`, for which npm's
@@ -127,7 +131,7 @@ simulations, invitation-based opening reassignment, replacement selection,
 transitions, poll creation, result publication, and decision/response writing
 are excluded.
 
-## Integration dependencies and policy holds
+## Integration dependencies and policy decisions
 
 Before real workspace integration, verify persisted term/department context,
 unified poll history and roster snapshots, session and audience capabilities,
@@ -136,10 +140,10 @@ projection, auth/church ownership, and authorization mapping. Existing API
 contracts and POC behavior are not assumed to be finalized production wire
 schemas.
 
-Prototype/product conflicts remain unresolved and are excluded from this
-foundation: aggregate participation on Presentation versus API restrictions;
-closed-only explicit result reveal versus live audience totals; legacy
-`Declined` decision values versus separate response events; and prototype
-explicit later polls versus policy describing an Advanced-only draft. These
-are clarification gates for dependent viewer, result-publication, decision, and
-poll-transition features. M0 does not implement any of them.
+Product decisions approved 2026-11-10 resolve the earlier C1-C4 policy
+conflicts. M3 previews remain view-only: results/participation visibility are
+sample display states, not publication settings; participation is ballots cast
+for the current poll only. Future API work must implement the documented
+aggregate-only boundary. Automatic majority calculations versus recording
+Elected decisions remains flagged for later clarification; M3 does not change
+that policy.
