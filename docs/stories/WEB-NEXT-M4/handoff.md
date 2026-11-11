@@ -9,8 +9,10 @@ merge, or deployment is authorized.
 ## Commit references
 
 The M4 implementation and acceptance record are committed on
-`feat/web-next-m0-foundation`. Implementation commit: pending final commit.
-This handoff will receive the hash in a small documentation follow-up commit.
+`feat/web-next-m0-foundation`. Implementation commit:
+`b43bc71` (`feat(web-next): complete M4 essential mock interactions`).
+The backlog and this commit reference were recorded in the follow-up
+documentation commit.
 
 ## Current state
 
