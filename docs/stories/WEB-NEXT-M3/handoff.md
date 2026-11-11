@@ -62,7 +62,8 @@ M3 application changes are in `apps/web-next/src/app/`, `apps/web-next/src/data/
 plan, UX/review/QA records, screenshots, and this handoff. `apps/web`,
 `apps/api`, and `docs/prototype-v2` were not changed for M3.
 
-M3 implementation and evidence commit: pending final handoff commit reference.
+M3 implementation and evidence commit: `30929ce`
+(`feat(web-next): complete M3 experience previews`).
 Preserve unrelated worktree changes, including
 `.github/agents/tech-lead.agent.md` and prior approved product-policy and
 roadmap updates. No merge or deployment was performed.
