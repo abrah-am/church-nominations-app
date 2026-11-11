@@ -1,19 +1,21 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { BrowserRouter, Link, Navigate, Route, Routes, useSearchParams } from 'react-router-dom'
-import { createExperiencePreview } from '../data/experience-preview'
+import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom'
+import { createMockElectionStore } from '../data/mock-election-store'
+import { MockElectionProvider } from '../data/mock-election-provider'
 import { AdminShell } from '../features/admin-shell/admin-shell'
 import { ShellPlaceholder } from '../features/admin-shell/components/shell-placeholder'
-import { PresentationView } from '../features/presentation/presentation-view'
-import { VoterView, type VoterPreviewState } from '../features/voter/voter-view'
+import { InteractivePresentationView } from '../features/presentation/interactive-presentation-view'
+import { InteractiveVoterView } from '../features/voter/interactive-voter-view'
 import { WorkspaceRoute } from '../features/workspace/workspace-route'
 import { initialViewingContext } from '../data/mock-admin-context'
 
 export function AppRoutes() {
   const [viewingContext, setViewingContext] = useState(initialViewingContext)
-  const preview = useMemo(() => createExperiencePreview(), [])
+  const [store] = useState(createMockElectionStore)
 
   return (
+    <MockElectionProvider store={store}>
     <Routes>
       <Route
         path="/admin"
@@ -40,7 +42,7 @@ export function AppRoutes() {
         path="/voter/preview"
         element={
           <ExperiencePreviewPage current="voter">
-            <VoterPreviewRoute preview={preview} />
+            <InteractiveVoterView />
           </ExperiencePreviewPage>
         }
       />
@@ -48,37 +50,14 @@ export function AppRoutes() {
         path="/presentation/preview"
         element={
           <ExperiencePreviewPage current="presentation">
-            <PresentationPreviewRoute preview={preview} />
+            <InteractivePresentationView />
           </ExperiencePreviewPage>
         }
       />
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>
+    </MockElectionProvider>
   )
-}
-
-function VoterPreviewRoute({ preview }: { preview: ReturnType<typeof createExperiencePreview> }) {
-  const [searchParams] = useSearchParams()
-  const allowedStates: readonly VoterPreviewState[] = ['nomination', 'voting', 'confirmation', 'waiting', 'closed']
-  const requestedState = searchParams.get('state')
-  const state = allowedStates.find((item) => item === requestedState) ?? 'voting'
-
-  return (
-    <VoterView
-      preview={preview}
-      navigation={{
-        state,
-        hrefForState: (nextState) => `/voter/preview?state=${nextState}`,
-      }}
-    />
-  )
-}
-
-function PresentationPreviewRoute({ preview }: { preview: ReturnType<typeof createExperiencePreview> }) {
-  const [searchParams] = useSearchParams()
-  const resultsVisibility = searchParams.get('results') === 'visible' ? 'visible' : 'hidden'
-
-  return <PresentationView preview={preview} resultsVisibility={resultsVisibility} />
 }
 
 function ExperiencePreviewPage({

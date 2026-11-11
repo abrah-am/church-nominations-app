@@ -58,12 +58,14 @@ payload, viewer, publication, or capability. Clipboard failure is reported.
 The toolbar's presence during navigation is in-memory UI behavior, not browser
 or backend persistence.
 
-No backend requests, API adapter, authentication simulation, or election/session
-mutations are implemented. M3 viewer actions navigate between preview states
-only; nomination/ballot confirmation does not submit or persist data. The read
-port is an application contract, not a backend wire schema. Loading, empty,
-missing-context, and recoverable error states preserve requested context and
-never substitute another fixture.
+No backend requests, API adapter, authentication simulation, or production
+election persistence are implemented. M4 uses a shared typed in-memory mock
+service for Admin, Voter, and Presentation interactions; state resets on page
+refresh. Nomination and ballot submissions mutate only this mock state.
+Presentation visibility toggles update mock settings, not production
+publication settings. The read port is an application contract, not a backend
+wire schema. Loading, empty, missing-context, and recoverable error states
+preserve requested context and never substitute another fixture.
 
 The lockfile pins transitive `minimatch` to `11.0.1` because the current ESLint
 10 and typescript-eslint dependencies request `^10.2.x`, for which npm's
