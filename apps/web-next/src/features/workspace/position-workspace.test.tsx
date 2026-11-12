@@ -52,13 +52,49 @@ describe('read-only Position Workspace', () => {
     expectParagraphContaining('Active session: Church Elder · Round 2 · Open')
     const candidateRows = screen.getAllByRole('row')
     expect(candidateRows.find((row) => row.textContent?.includes('Sofia Martinez')))
-      .toHaveTextContent('Legacy recorded decision value; not a response.')
+      .toHaveTextContent('Declined (Legacy)')
     expect(candidateRows.find((row) => row.textContent?.includes('Elaine Brooks'))).toHaveTextContent('Awaiting response')
 
     await user.click(screen.getByRole('button', { name: 'Polls' }))
     await user.click(screen.getByRole('button', { name: /Round 2/ }))
     expect(screen.getByText(/4 ballots cast · aggregate counts only/)).toBeInTheDocument()
     expect(screen.getByText('MOCK admin snapshot · not live backend data')).toBeInTheDocument()
+    expectParagraphContaining('Active session: Church Elder · Round 2 · Open')
+  })
+
+  it('preserves the viewed poll when the shared position snapshot changes', async () => {
+    const user = userEvent.setup()
+    const position = createPositionFixtures()[0]!
+    const view = renderWorkspace(createInMemoryPositionReader([position]))
+
+    await screen.findByRole('heading', { name: 'Church Elder · Round 1' })
+    await user.click(screen.getByRole('button', { name: /Round 2/ }))
+    expectParagraphContaining('Viewed poll: Church Elder · Round 2 · Open')
+
+    const updatedPosition = structuredClone(position)
+    updatedPosition.polls.push({
+      ...structuredClone(updatedPosition.polls[1]!),
+      id: 'm5-voting-view-preservation',
+      title: 'Church Elder · Next draft',
+      number: 3,
+      status: 'Draft',
+      sourceCandidateIds: ['c-27-elaine'],
+      candidateNames: { 'c-27-elaine': 'Elaine Brooks' },
+      aggregateVotes: { 'c-27-elaine': 0 },
+      ballotsCast: 0,
+      recordedDecisions: [],
+    })
+    const updatedReader = createInMemoryPositionReader([updatedPosition])
+    view.rerender(
+      <PositionWorkspace
+        query={query}
+        context={context}
+        reader={updatedReader}
+      />,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Church Elder · Round 2' })).toBeInTheDocument()
+    expectParagraphContaining('Viewed poll: Church Elder · Round 2 · Open')
     expectParagraphContaining('Active session: Church Elder · Round 2 · Open')
   })
 
@@ -71,7 +107,7 @@ describe('read-only Position Workspace', () => {
     expect(within(detail).getByText('8 ballots cast · aggregate counts only')).toBeInTheDocument()
     expect(within(detail).getByText('Elaine Brooks')).toBeInTheDocument()
     expect(within(detail).getByText(/38%/)).toBeInTheDocument()
-    expect(within(detail).getByText('Legacy recorded decision value; not a response.')).toBeInTheDocument()
+    expect(within(detail).getByText('Declined (Legacy)')).toBeInTheDocument()
     expect(screen.queryByText(/voter|individual ballot|ballot choice/i)).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /Nomination Poll 1/ }))
@@ -112,6 +148,20 @@ describe('read-only Position Workspace', () => {
       ballotsCast: 0,
       recordedDecisions: [],
     })
+    position.polls.push({
+      ...structuredClone(roundOne),
+      id: 'p-elder-2027-next-draft',
+      title: 'Church Elder · Reviewed next round draft',
+      number: 4,
+      status: 'Draft',
+      choiceCount: 1,
+      sourcePollId: roundOne.id,
+      sourceCandidateIds: ['c-27-elaine'],
+      candidateNames: { 'c-27-elaine': 'Historical Elaine Snapshot' },
+      aggregateVotes: { 'c-27-elaine': 0 },
+      ballotsCast: 0,
+      recordedDecisions: [],
+    })
     const reader = createInMemoryPositionReader([position])
     renderWorkspace(reader)
 
@@ -130,6 +180,11 @@ describe('read-only Position Workspace', () => {
     await user.keyboard('{Enter}')
     expect(await screen.findByText('Draft snapshot · no results or candidate roster are present.')).toBeInTheDocument()
     expectParagraphContaining('Active session: Church Elder · Round 2 · Open')
+    await user.click(screen.getByRole('button', { name: /Reviewed next round draft/ }))
+    expect(await screen.findByRole('heading', { name: 'Draft candidate roster' })).toBeInTheDocument()
+    expect(screen.getByText('Historical Elaine Snapshot')).toBeInTheDocument()
+    expect(screen.getByText('0 ballots cast · draft results are not available.')).toBeInTheDocument()
+    expect(screen.getByText('1 exact choice per ballot')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /activate|create poll|record decision/i })).not.toBeInTheDocument()
   })
 

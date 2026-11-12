@@ -66,11 +66,12 @@ export function PositionWorkspace({
     void reader.getPosition({ churchId, termId, positionId }).then((snapshot) => {
       if (!current) return
       setPositionLoad({ key: positionRequestKey, status: 'loaded', snapshot })
-      setSelectedPollId(
-        snapshot.polls.find((poll) => poll.type === 'voting' && poll.status === 'Closed')?.id
+      setSelectedPollId((selectedPollId) => selectedPollId
+        && snapshot.polls.some((poll) => poll.id === selectedPollId)
+        ? selectedPollId
+        : snapshot.polls.find((poll) => poll.type === 'voting' && poll.status === 'Closed')?.id
           ?? snapshot.polls[0]?.id
-          ?? null,
-      )
+          ?? null)
       setDetailView('record')
     }).catch((error: unknown) => {
       if (!current) return

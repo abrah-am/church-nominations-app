@@ -60,28 +60,26 @@ documentation commit.
 
 ## Fresh Tech Lead handoff — M5
 
-Next milestone: **M5 — Progressive Admin Completion**. Scope is not yet
-approved; do not begin implementation until the Product Owner approves it.
-Expected areas are election decisions, candidate responses, explicit
-Create Next Poll, historical integrity/history, finalization and reopen, and
-replacement workflows.
+Next milestone: **M5 — Progressive Admin Completion**. Product Owner approved
+M5a/M5b scope and policy clarifications on 2026-11-11. M5a implementation is
+complete and pending Product Owner acceptance; M5b has not started.
+See the [M5 handoff](../WEB-NEXT-M5/handoff.md),
+[requirements](../WEB-NEXT-M5/requirements.md), and
+[implementation plan](../WEB-NEXT-M5/implementation-plan.md).
 
-Resolve these policy gates before implementing affected features:
+Key clarified policies: calculate majority as guidance but require explicit
+Admin confirmation before recording Elected; track responses separately and
+finalize only after every opening is Accepted; direct replacement
+recommendations use Advanced candidates from the associated completed round;
+manual replacement polls may use any historical names from the same position
+election with an audited reason and no automatic ranking/filtering. See the M5
+requirements and product decision updates for full rules.
 
-1. **PD-018 replacement eligibility exceptions:** clarify any exceptions and
-   boundaries for replacement eligibility, including continued
-   ranking/offer caps, automatic nomination, and committee process. Existing
-   approved exclusions, top-tie handling, and admin-selected replacement
-   paths remain in force unless the Product Owner explicitly changes them.
-2. **Automatic majority vs. manual decisions:** clarify the exact boundary
-   between majority-qualified automatic Elected outcomes and Admin-recorded
-   Elected/Advanced/Eliminated decisions for remaining candidates, including
-   overqualification and the remaining-opening cases. Preserve the approved
-   high-level policy; do not infer implementation details.
-
-Use the existing approved product decisions and requirements as the baseline.
-Prepare M5 requirements/acceptance criteria for approval first. M4's known
-browser tooling limitation is that Playwright locator clicks may time out
-waiting for stability; the accepted nomination publish/hide/edit/republish
-flow was verified in-browser using native button click events. This is a
-test-harness limitation, not a known application defect.
+Remaining out-of-scope decisions: response correction/reversal and contact
+details; committee/quorum process; automatic nomination; a candidate source
+when no historical names exist; and additional majority recommendations
+beyond the approved qualification indicator. M4's known browser tooling
+limitation remains: Playwright locator clicks may time out waiting for
+stability. The accepted nomination publish/hide/edit/republish flow was
+verified in-browser using native button click events; this is a harness
+limitation, not a known application defect.

@@ -190,7 +190,7 @@ export function ElectionAdminPanel() {
                 () => store.closeVotingPoll(),
                 'Voting is closed. No new or replacement ballots are accepted.',
               )}>Close voting poll</Button>
-            ) : <p>The first voting poll is closed. No further polls or decisions are part of this scope.</p>}
+            ) : <p>The poll is closed. Review its final aggregates and record candidate decisions in the Admin decision workflow.</p>}
           </div>
         ) : null}
       </section>

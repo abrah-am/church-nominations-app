@@ -54,6 +54,18 @@ The authenticated admin result path is separate from participant and presentatio
 
 These are acceptance/security invariants for dependent stories, not a completed implementation review of routes or code. Each implementation story must define concrete endpoint authorization, revocation enforcement, cache controls, and persistence mechanisms, then verify them with focused tests and review.
 
+## Future contract changes (Product Owner approved 2026-11-10; not implemented)
+
+The existing combined Audience Presentation switch and prohibition on participation aggregates are superseded for the future frontend/API contract:
+
+- Model aggregate result visibility and aggregate participation-count visibility as independent Admin-controlled Presentation settings. Result visibility may change while a poll is open and is independent of poll lifecycle.
+- Return only candidate-level aggregate results and the explicitly approved aggregate participation metric when their respective controls are enabled. Never return individual ballots, voter identities, identity-linked participation, or participation-to-choice mappings to either viewer.
+- The approved participation metric is ballots cast in the current poll only; do not include an eligible-voter denominator. Define its public API projection, update timing, and empty/hidden states before implementation. Do not infer named participation from aggregate counts.
+- Keep voter nomination reads scoped to the current eligible voter's own final submission. Presentation publication, if enabled under nomination policy, remains a separate read projection and must not broaden the participant's own-submission access.
+- Keep viewed poll context separate from active participant-session identity. A view selection must not activate or switch a participant session.
+
+These are product policy deltas, not endpoint or schema definitions. M6 must document and reconcile them with verified backend capabilities before any HTTP integration; no backend change is authorized by this decision.
+
 ## Nomination Reveal and Shared List (E6.9)
 
 **Revised Product Owner direction, 2026-11-02 and 2026-11-04; implementation contract review pending (PD-017/PD-018/PD-019):** During open intake, the admin may enable the room presentation to show incoming names live; the participant session link must not show open-intake names. If presentation is on at intake closure, it transitions to the closed list and the participant session is published; otherwise post-close Show publishes to both. Hide after closure clears/retracts the list from both viewer surfaces; Show republishes the current server-confirmed list. There is no separate nomination reveal button. Elected outcomes appear on both current-session viewer surfaces, without historical access. For voting, the authenticated admin sees live aggregate totals; the same Audience Presentation switch governs totals on participant and room viewer surfaces. Closing ends ballot access and requires no separate results reveal. A successful poll start supersedes nomination content and must initially hide/clear presentation under E4.7; the admin may enable it again during voting. The detailed operation/API semantics below still describe aspects of current implementation and must be reconciled before revised requirements are implemented.

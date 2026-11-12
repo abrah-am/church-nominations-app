@@ -68,6 +68,7 @@ describe('prototype-derived position summaries', () => {
         id: 'response-accepted',
         candidateId: 'candidate-1',
         openingId: 'position-1:opening:1',
+        decisionEventId: 'decision-elected',
         status: 'Accepted',
         respondedAt: '2026-01-03T12:00:00.000Z',
       },
@@ -78,6 +79,32 @@ describe('prototype-derived position summaries', () => {
     expect(getCurrentCandidateStatus(position, 'candidate-1')).toBe('Elected')
   })
 
+  it('does not reuse a prior response for a later Elected decision', () => {
+    const position = createPosition()
+    position.responseEvents = [{
+      id: 'response-old',
+      candidateId: 'candidate-1',
+      openingId: 'position-1:opening:1',
+      decisionEventId: 'decision-elected',
+      status: 'Accepted',
+      respondedAt: '2026-01-03T12:00:00.000Z',
+    }]
+    position.decisions.push({
+      id: 'decision-new-election',
+      candidateId: 'candidate-1',
+      pollId: 'poll-2',
+      status: 'Elected',
+      decidedAt: '2026-01-04T12:00:00.000Z',
+      supersedesEventId: 'decision-elected',
+    })
+
+    const opening = getOpeningSummaries(position)[0]
+    expect(opening?.candidate?.id).toBe('candidate-1')
+    expect(opening?.latestResponse).toBeUndefined()
+    expect(opening?.responseHistory.map((event) => event.id)).toEqual(['response-old'])
+    expect(opening?.filled).toBe(false)
+  })
+
   it('gates readiness while any poll is open', () => {
     const position = createPosition()
     position.responseEvents = [
@@ -85,6 +112,7 @@ describe('prototype-derived position summaries', () => {
         id: 'response-accepted',
         candidateId: 'candidate-1',
         openingId: 'position-1:opening:1',
+        decisionEventId: 'decision-elected',
         status: 'Accepted',
         respondedAt: '2026-01-03T12:00:00.000Z',
       },
@@ -101,6 +129,7 @@ describe('prototype-derived position summaries', () => {
         id: 'response-accepted',
         candidateId: 'candidate-1',
         openingId: 'position-1:opening:1',
+        decisionEventId: 'decision-elected',
         status: 'Accepted',
         respondedAt: '2026-01-03T12:00:00.000Z',
       },
@@ -108,6 +137,7 @@ describe('prototype-derived position summaries', () => {
         id: 'response-declined',
         candidateId: 'candidate-1',
         openingId: 'position-1:opening:1',
+        decisionEventId: 'decision-elected',
         status: 'Declined',
         respondedAt: '2026-01-04T12:00:00.000Z',
       },

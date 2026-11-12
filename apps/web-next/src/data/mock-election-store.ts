@@ -1,8 +1,12 @@
 import type {
   ActiveSessionSnapshot,
+  CandidateResponseStatus,
   PositionPollSummary,
   PositionSnapshot,
 } from '../domain/types'
+import { validateDecisionSet } from '../domain/election-decisions'
+import type { CandidateDecisionDraft } from '../domain/election-decisions'
+import { getCurrentCandidateDecisionEvent, getOpeningSummaries } from '../domain/position-summary'
 import { createPositionFixtures } from './position-fixtures'
 
 export type NominationStatus = 'not-created' | 'draft' | 'open' | 'closed' | 'confirmed'
@@ -83,6 +87,7 @@ interface InternalState {
   ownNominationSubmitted: boolean
   ownNominationNames: string[]
   ownBallot: string[]
+  nextEventNumber: number
 }
 
 export interface MockElectionStore {
@@ -106,6 +111,20 @@ export interface MockElectionStore {
   setParticipationVisible: (visible: boolean) => void
   setNominationRoomVisible: (visible: boolean) => void
   publishNominationList: (visible: boolean) => void
+  recordCandidateDecisions: (pollId: string, decisions: readonly CandidateDecisionDraft[]) => void
+  recordCandidateResponse: (
+    response: {
+      candidateId: string
+      openingId: string
+      decisionEventId: string
+      status: CandidateResponseStatus
+    },
+  ) => void
+  createNextPoll: (
+    sourcePollId: string,
+    candidateIds: readonly string[],
+    choiceCount: number,
+  ) => void
 }
 
 const churchName = 'Riverside Seventh-day Adventist Church'
@@ -134,6 +153,7 @@ function createInitialState(): InternalState {
     ownNominationSubmitted: false,
     ownNominationNames: [],
     ownBallot: [],
+    nextEventNumber: 1,
   }
 }
 
@@ -164,6 +184,7 @@ function makePoll(
   type: 'nomination' | 'voting',
   number: number,
   title: string,
+  choiceCount?: number,
 ): PositionPollSummary {
   return {
     id,
@@ -171,6 +192,7 @@ function makePoll(
     number,
     title,
     status: 'Draft',
+    ...(choiceCount !== undefined ? { choiceCount } : {}),
     sourceCandidateIds: [],
     candidateNames: {},
     aggregateVotes: {},
@@ -435,6 +457,7 @@ export function createMockElectionStore(): MockElectionStore {
           'voting',
           number,
           `${draft.position.name} · Round ${number}`,
+          choiceCount,
         )
         poll.sourceCandidateIds = draft.nomineeRoster.map((_, index) => `m4-nominee-${index + 1}`)
         poll.candidateNames = Object.fromEntries(draft.nomineeRoster.map((name, index) => [`m4-nominee-${index + 1}`, name]))
@@ -519,6 +542,154 @@ export function createMockElectionStore(): MockElectionStore {
             ? draft.nomineeRoster
             : draft.reviewedNames)]
         }
+      })
+    },
+    recordCandidateDecisions(pollId, decisions) {
+      const poll = state.position.polls.find((item) => item.id === pollId)
+      if (!poll) {
+        throw new ElectionRuleError('POLL_NOT_FOUND', 'Select a voting poll from this position history.')
+      }
+      if (state.position.decisions.some((event) => event.pollId === pollId)
+        || poll.recordedDecisions.length > 0) {
+        throw new ElectionRuleError('DECISIONS_ALREADY_RECORDED', 'This poll already has decisions; prior decisions cannot be overwritten.')
+      }
+      const errors = validateDecisionSet(state.position, poll, decisions)
+      if (errors.length) {
+        throw new ElectionRuleError('INVALID_DECISION_SET', errors.join(' '))
+      }
+      const decidedAt = new Date().toISOString()
+      commit((draft) => {
+        const target = draft.position.polls.find((item) => item.id === pollId)!
+        const events = decisions.map((decision) => ({
+          id: `decision-m5-${draft.nextEventNumber++}`,
+          candidateId: decision.candidateId,
+          pollId,
+          status: decision.status,
+          decidedAt,
+          ...(decision.status === 'Elected' ? { openingId: decision.openingId } : {}),
+        }))
+        draft.position.decisions.push(...events)
+        target.recordedDecisions = [
+          ...target.recordedDecisions,
+          ...decisions.map(({ candidateId, status }) => ({ candidateId, status })),
+        ]
+        target.auditEntries = [
+          ...target.auditEntries,
+          {
+            id: `audit-m5-${draft.nextEventNumber++}`,
+            action: 'Candidate decisions recorded',
+            at: decidedAt,
+            detail: `${events.length} explicit Admin decisions saved.`,
+          },
+        ]
+      })
+    },
+    recordCandidateResponse(response) {
+      if (response.status !== 'Accepted' && response.status !== 'Declined') {
+        throw new ElectionRuleError('INVALID_RESPONSE_STATUS', 'Select Accepted or Declined for the candidate response.')
+      }
+      const decision = state.position.decisions.find((event) =>
+        event.id === response.decisionEventId
+        && event.candidateId === response.candidateId
+        && event.status === 'Elected',
+      )
+      const currentDecision = getCurrentCandidateDecisionEvent(state.position, response.candidateId)
+      const opening = getOpeningSummaries(state.position).find((item) =>
+        item.openingId === response.openingId
+        && item.electedCandidate?.id === response.candidateId,
+      )
+      if (!decision || currentDecision?.id !== decision.id || !opening) {
+        throw new ElectionRuleError('INVALID_RESPONSE_LINK', 'Select the current Elected decision and its assigned opening.')
+      }
+      if (state.position.responseEvents.some((event) =>
+        event.decisionEventId === decision.id,
+      )) {
+        throw new ElectionRuleError('RESPONSE_ALREADY_RECORDED', 'A response is already recorded for this Elected decision. Prior responses cannot be overwritten.')
+      }
+      const respondedAt = new Date().toISOString()
+      commit((draft) => {
+        const eventId = `response-m5-${draft.nextEventNumber++}`
+        draft.position.responseEvents.push({
+          id: eventId,
+          candidateId: response.candidateId,
+          openingId: response.openingId,
+          decisionEventId: response.decisionEventId,
+          status: response.status,
+          respondedAt,
+        })
+        const poll = draft.position.polls.find((item) => item.id === decision.pollId)
+        if (poll) {
+          poll.auditEntries = [
+            ...poll.auditEntries,
+            {
+              id: `audit-m5-${draft.nextEventNumber++}`,
+              action: `Candidate response recorded: ${response.status}`,
+              at: respondedAt,
+              detail: `Response linked to ${response.candidateId}, ${response.openingId}, and decision ${decision.id}.`,
+            },
+          ]
+        }
+      })
+    },
+    createNextPoll(sourcePollId, candidateIds, choiceCount) {
+      const sourcePoll = state.position.polls.find((item) => item.id === sourcePollId)
+      if (!sourcePoll || sourcePoll.type !== 'voting' || sourcePoll.status !== 'Closed') {
+        throw new ElectionRuleError('SOURCE_POLL_NOT_CLOSED', 'Choose a closed voting poll with saved decisions.')
+      }
+      if (state.position.polls.some((item) =>
+        item.sourcePollId === sourcePollId
+        || (item.type === 'voting' && item.number > sourcePoll.number),
+      )) {
+        throw new ElectionRuleError('NEXT_POLL_ALREADY_CREATED', 'A next poll has already been created from these decisions.')
+      }
+      const sourceDecisions = state.position.decisions.filter((event) => event.pollId === sourcePollId)
+      if (sourceDecisions.length !== sourcePoll.sourceCandidateIds.length) {
+        throw new ElectionRuleError('DECISIONS_REQUIRED', 'Save a complete decision set before creating the next poll.')
+      }
+      const advancedIds = new Set(sourceDecisions
+        .filter((event) => event.status === 'Advanced')
+        .map((event) => event.candidateId))
+      if (!candidateIds.length
+        || new Set(candidateIds).size !== candidateIds.length
+        || candidateIds.some((candidateId) => !advancedIds.has(candidateId))) {
+        throw new ElectionRuleError('INVALID_NEXT_ROSTER', 'Choose one or more distinct Advanced candidates for Admin review.')
+      }
+      if (!Number.isInteger(choiceCount) || choiceCount < 1 || choiceCount > candidateIds.length) {
+        throw new ElectionRuleError('INVALID_CHOICE_COUNT', `Choose between 1 and ${candidateIds.length} distinct choices per ballot.`)
+      }
+      const number = Math.max(
+        0,
+        ...state.position.polls.filter((item) => item.type === 'voting').map((item) => item.number),
+      ) + 1
+      const createdAt = new Date().toISOString()
+      commit((draft) => {
+        const candidateNames = Object.fromEntries(candidateIds.map((candidateId) => [
+          candidateId,
+          sourcePoll.candidateNames[candidateId]
+            ?? draft.position.candidates.find((candidate) => candidate.id === candidateId)?.name
+            ?? 'Unknown candidate',
+        ]))
+        draft.position.polls.push({
+          id: `m5-voting-${number}`,
+          type: 'voting',
+          number,
+          title: `${draft.position.name} · Round ${number}`,
+          status: 'Draft',
+          choiceCount,
+          sourcePollId,
+          sourceCandidateIds: [...candidateIds],
+          candidateNames,
+          aggregateVotes: Object.fromEntries(candidateIds.map((candidateId) => [candidateId, 0])),
+          ballotsCast: 0,
+          recordedDecisions: [],
+          nominationSubmissions: [],
+          auditEntries: [{
+            id: `audit-m5-${draft.nextEventNumber++}`,
+            action: 'Next poll created',
+            at: createdAt,
+            detail: `Admin reviewed and confirmed ${candidateIds.length} Advanced candidate${candidateIds.length === 1 ? '' : 's'} from ${sourcePoll.title}, with ${choiceCount} choice${choiceCount === 1 ? '' : 's'} per ballot.`,
+          }],
+        })
       })
     },
   }

@@ -25,6 +25,8 @@ export interface CandidateDecisionEvent {
   pollId: string
   status: CandidateStatus
   decidedAt: string
+  /** Opening assignment is recorded only for an explicitly confirmed election. */
+  openingId?: string
   supersedesEventId?: string
 }
 
@@ -32,6 +34,8 @@ export interface CandidateResponseEvent {
   id: string
   candidateId: string
   openingId: string
+  /** Responses are scoped to one Elected event; a later invitation starts fresh. */
+  decisionEventId: string
   status: CandidateResponseStatus
   respondedAt: string
 }
@@ -48,6 +52,10 @@ export interface PositionPollSummary {
   number: number
   title: string
   status: PollStatus
+  /** Exact number of choices configured for this voting poll, when known. */
+  choiceCount?: number
+  voided?: boolean
+  sourcePollId?: string
   sourceCandidateIds: string[]
   candidateNames: Record<string, string>
   aggregateVotes: Record<string, number>

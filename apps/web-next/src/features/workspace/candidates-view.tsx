@@ -45,7 +45,7 @@ export function CandidatesView({ position, viewedPollId }: CandidatesViewProps) 
                   <th scope="row">{candidate.name}</th>
                   <td>
                     <span className="mobile-field-label">Current effective status</span>
-                    {currentStatus}
+                    {currentStatus === 'Declined' ? 'Declined (Legacy)' : currentStatus}
                     {currentStatus === 'Declined' ? <small className="legacy-note">Legacy recorded decision value; not a response.</small> : null}
                   </td>
                   <td>
@@ -54,7 +54,11 @@ export function CandidatesView({ position, viewedPollId }: CandidatesViewProps) 
                   </td>
                   <td>
                     <span className="mobile-field-label">Viewed poll record</span>
-                    {poll ? pollStatus ?? 'No record' : 'No poll selected'}
+                    {poll
+                      ? pollStatus === 'Declined'
+                        ? 'Declined (Legacy)'
+                        : pollStatus ?? 'No record'
+                      : 'No poll selected'}
                     {pollStatus === 'Declined' ? <small className="legacy-note">Legacy recorded decision value; not a response.</small> : null}
                   </td>
                   <td>

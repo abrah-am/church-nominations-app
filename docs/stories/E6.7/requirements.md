@@ -2,7 +2,7 @@
 
 - **Epic:** E6 Election Completion and History
 - **Priority:** P1 (proposed)
-- **Workflow status:** Product clarification needed
+- **Workflow status:** Partially clarified; see the 2026-11-11 Product Owner update and remaining edge cases
 - **User story:** As an election administrator, I want to choose an approved replacement process when an elected person declines so the position can be filled transparently.
 
 ## Acceptance Criteria
@@ -36,3 +36,15 @@ After a post-finalization Vacancy, the administrator selects a replacement path;
 - **No automatic follow-up:** An invitee's decline or an empty eligible pool leaves Vacancy derived. The administrator must choose another allowed path or add approved candidates. Do not infer continued ranking after a decline, offer/poll caps, automatic nomination, or committee/quorum process.
 
 These rules retain PD-018's tie requirement and supersede its less-specific 2026-11-02 ranking/roster wording. See [PD-018](../../product/product-decisions.md), [E6.6](../E6.6/requirements.md), and [E6.1](../E6.1/requirements.md). Still-open questions are committee/approval process for roster rationale, behavior if no eligible candidate remains or an invitee declines (beyond requiring another admin-selected allowed path or approved candidates), and any additional allowed replacement paths. Refine those before implementation.
+
+## WEB-NEXT-M5 replacement update (Product Owner approved, 2026-11-11)
+
+This update supersedes the 2026-11-07 same-round-only fresh-poll roster and blanket eligibility exclusions for the M5 mock workflow. It does not change prior results or historical decisions.
+
+- **Direct recommendation:** Use Advanced candidates from the most recent completed, non-voided round associated with the declined candidate. Exclude candidates Elected for another opening in the same position election, candidates who declined this position, and Eliminated/Removed candidates. Other positions/departments do not affect eligibility. Rank by votes and recommend only a unique highest candidate; a tie at the top requires an Admin-confirmed fresh tie-break poll containing only the tied top candidates.
+- **Invitations:** The Admin explicitly chooses each direct invitation. No automatic offers or numeric cap; after a decline the Admin may explicitly choose the next ranked candidate or another allowed replacement path.
+- **Manual replacement poll:** When direct recommendations are unavailable/exhausted, the Admin may start a replacement poll and manually enter/select any number of names from historical nomination or round data for this same position election. The Admin uses judgment: the application does not rank or filter this manual roster by prior Elected, Declined, or Eliminated status. Require an audited reason; preserve historical polls, decisions, responses, and results. Names from other positions/departments and automatic nominations are not allowed.
+- **Empty history:** If the position has no historical names for a replacement roster, keep Vacancy; do not create an empty poll or auto-nominate. A new candidate source requires separate Product Owner approval.
+- **Finalization:** A position is finalized only when every opening is Accepted and no poll is open. Reopen is explicit, confirmed, audited, and does not create/start a poll. See PD-020 and E6.6.
+
+Committee/quorum process and response correction/reversal remain unresolved and out of M5. Contact dates/details are not collected. If a candidate declines after an invitation, do not automatically send another offer.

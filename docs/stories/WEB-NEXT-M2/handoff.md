@@ -27,8 +27,17 @@ decision, response, finalization, activation or publication mutations.
 - Filled openings require Elected plus separate Accepted response. Percentages
   use ballots cast. Round 2 fixture:4ballots, Marcus3(75%), Priya1(25%).
 - M0's reduced model excludes replacements; do not apply it to replacement data.
-  [C1-C4 policy holds](../WEB-NEXT-M0/dependencies.md) remain unresolved.
-  Admin open-poll aggregates are already approved; audience publication is separate.
+  At M2 acceptance, [C1-C4 policy holds](../WEB-NEXT-M0/dependencies.md) were
+  unresolved; see the dated policy update below. Admin open-poll aggregates were
+  already approved; audience publication was separate.
+- **Policy update (2026-11-10):** The Product Owner resolved C1-C4 and approved
+  voter nomination privacy, explicit next-poll creation, legacy Declined
+  labeling, and independent Presentation result/participation controls. The
+  dated decisions and requirements addenda supersede the preceding unresolved
+  hold. The precise public participation metric remains an integration
+  projection detail; the approved count is ballots cast in the current poll,
+  without a denominator. See the [product decisions](../../product/product-decisions.md)
+  and [API contract](../../technical/api-contract.md).
 
 ## UX delivered and approved
 
@@ -83,5 +92,7 @@ treatments on 2026-11-09. Final M2 story acceptance followed on 2026-11-10.
 
 - No story work remains. The Product Owner accepted M2; any merge or deployment
   still requires separate explicit authorization.
+- The Product Owner approved the M3-M6 roadmap on 2026-11-10; implementation
+  has not started. See the [product backlog](../../product/backlog.md).
 - Keep the unrelated `.github/agents/tech-lead.agent.md` edit separate.
 - Do not begin M3 without its own approved scope and authorization.

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createMockElectionStore, ElectionRuleError, getActiveSession } from './mock-election-store'
 import { createPositionFixtures } from './position-fixtures'
+import { getOpeningSummaries } from '../domain/position-summary'
 
 function openNomination(store: ReturnType<typeof createMockElectionStore>, limit = 5) {
   store.configureNominationLimit(limit)
@@ -12,6 +13,20 @@ function currentPoll(store: ReturnType<typeof createMockElectionStore>, type: 'n
   return [...store.getAdminSnapshot().position.polls]
     .reverse()
     .find((poll) => poll.id.startsWith('m4-') && poll.type === type)
+}
+
+function createClosedVotingRound(store: ReturnType<typeof createMockElectionStore>) {
+  openNomination(store)
+  store.submitNomination(['M5 Candidate A', 'M5 Candidate B'])
+  store.closeNominationPoll()
+  store.confirmNomineeRoster()
+  store.createVotingPoll(1)
+  store.openVotingPoll()
+  const poll = currentPoll(store, 'voting')!
+  const candidateIds = [...poll.sourceCandidateIds]
+  store.submitBallot([candidateIds[0]!])
+  store.closeVotingPoll()
+  return { pollId: poll.id, candidateIds }
 }
 
 describe('shared mock election domain', () => {
@@ -183,5 +198,125 @@ describe('shared mock election domain', () => {
     store.createVotingPoll(1)
     store.openVotingPoll()
     expect(store.getPresentationSnapshot().nominationNames).toEqual([])
+  })
+
+  it('records explicit decisions, append-only linked responses, and a reviewed next-poll draft', () => {
+    const store = createMockElectionStore()
+    const originalPosition = store.getAdminSnapshot().position
+    const originalPolls = structuredClone(originalPosition.polls)
+    const originalDecisions = structuredClone(originalPosition.decisions)
+    const { pollId, candidateIds } = createClosedVotingRound(store)
+    const beforeDecision = store.getAdminSnapshot().position.polls.find((poll) => poll.id === pollId)!
+
+    expect(() => store.recordCandidateDecisions(pollId, [
+      { candidateId: candidateIds[0]!, status: 'Elected', openingId: `${originalPosition.id}:opening:2` },
+    ])).toThrow(/one decision for every candidate/)
+    expect(store.getAdminSnapshot().position.decisions).toEqual(originalDecisions)
+    expect(() => Reflect.apply(store.recordCandidateDecisions, store, [pollId, [
+      { candidateId: candidateIds[0], status: 'Declined' },
+      { candidateId: candidateIds[1], status: 'Advanced' },
+    ]])).toThrow(/Choose Elected, Advanced, or Eliminated/)
+
+    const eventsBefore = store.getAdminSnapshot().position.decisions.length
+    expect(store.getAdminSnapshot().position.polls).toHaveLength(originalPolls.length + 2)
+    store.recordCandidateDecisions(pollId, [
+      { candidateId: candidateIds[0]!, status: 'Elected', openingId: `${originalPosition.id}:opening:2` },
+      { candidateId: candidateIds[1]!, status: 'Advanced' },
+    ])
+    const afterDecision = store.getAdminSnapshot().position
+    const savedEvents = afterDecision.decisions.filter((event) => event.pollId === pollId)
+    expect(savedEvents).toHaveLength(2)
+    expect(savedEvents.find((event) => event.status === 'Elected')?.openingId)
+      .toBe(`${originalPosition.id}:opening:2`)
+    expect(afterDecision.decisions.slice(0, originalDecisions.length)).toEqual(originalDecisions)
+    expect(afterDecision.polls.slice(0, originalPolls.length)).toEqual(originalPolls)
+    const decidedPoll = afterDecision.polls.find((poll) => poll.id === pollId)!
+    expect(decidedPoll.aggregateVotes).toEqual(beforeDecision.aggregateVotes)
+    expect(decidedPoll.ballotsCast).toBe(beforeDecision.ballotsCast)
+    expect(decidedPoll.auditEntries.at(-1)?.action).toBe('Candidate decisions recorded')
+    expect(afterDecision.polls).toHaveLength(originalPolls.length + 2)
+    expect(afterDecision.decisions.length).toBe(eventsBefore + 2)
+    expect(() => store.recordCandidateDecisions(pollId, [
+      { candidateId: candidateIds[0]!, status: 'Advanced' },
+      { candidateId: candidateIds[1]!, status: 'Eliminated' },
+    ])).toThrow(/cannot be overwritten/)
+
+    const elected = savedEvents.find((event) => event.status === 'Elected')!
+    store.recordCandidateResponse({
+      candidateId: elected.candidateId,
+      openingId: elected.openingId!,
+      decisionEventId: elected.id,
+      status: 'Accepted',
+    })
+    const afterResponse = store.getAdminSnapshot().position
+    expect(afterResponse.responseEvents).toEqual([expect.objectContaining({
+      candidateId: elected.candidateId,
+      openingId: elected.openingId,
+      decisionEventId: elected.id,
+      status: 'Accepted',
+    })])
+    expect(getOpeningSummaries(afterResponse).find((opening) => opening.openingId === elected.openingId)?.filled)
+      .toBe(true)
+    expect(afterResponse.polls.find((poll) => poll.id === pollId)?.auditEntries.at(-1)?.action)
+      .toBe('Candidate response recorded: Accepted')
+    expect(() => store.recordCandidateResponse({
+      candidateId: elected.candidateId,
+      openingId: elected.openingId!,
+      decisionEventId: elected.id,
+      status: 'Declined',
+    })).toThrow(/cannot be overwritten/)
+    expect(() => Reflect.apply(store.recordCandidateResponse, store, [{
+      candidateId: elected.candidateId,
+      openingId: elected.openingId,
+      decisionEventId: elected.id,
+      status: 'Awaiting Acceptance',
+    }])).toThrow(/Select Accepted or Declined/)
+    expect(afterResponse.decisions).toEqual(store.getAdminSnapshot().position.decisions)
+    expect(afterResponse.polls.find((poll) => poll.id === pollId)?.aggregateVotes)
+      .toEqual(beforeDecision.aggregateVotes)
+
+    const nextRoster = [candidateIds[1]!]
+    expect(() => store.createNextPoll(pollId, nextRoster, 2)).toThrow(/between 1 and 1/)
+    store.createNextPoll(pollId, nextRoster, 1)
+    const nextPoll = store.getAdminSnapshot().position.polls.find((poll) => poll.sourcePollId === pollId)!
+    expect(nextPoll).toMatchObject({
+      status: 'Draft',
+      choiceCount: 1,
+      sourceCandidateIds: nextRoster,
+      aggregateVotes: { [candidateIds[1]!]: 0 },
+      ballotsCast: 0,
+    })
+    expect(nextPoll.auditEntries[0]?.action).toBe('Next poll created')
+    expect(store.getAdminSnapshot().position.polls.slice(0, originalPolls.length)).toEqual(originalPolls)
+    expect(store.getAdminSnapshot().position.polls.find((poll) => poll.id === pollId)?.aggregateVotes)
+      .toEqual(beforeDecision.aggregateVotes)
+    expect(JSON.stringify(store.getVoterSnapshot())).not.toMatch(/responseEvents|decisionEventId|auditEntries/)
+    expect(JSON.stringify(store.getPresentationSnapshot())).not.toMatch(/responseEvents|decisionEventId|auditEntries/)
+    expect(() => store.createNextPoll(pollId, nextRoster, 1)).toThrow(/already been created/)
+  })
+
+  it('requires saved decisions and an Advanced-only non-empty next-poll roster', () => {
+    const store = createMockElectionStore()
+    const historicalRound = store.getAdminSnapshot().position.polls.find(
+      (poll) => poll.id === 'p-elder-2027-1',
+    )!
+    const historicalAdvanced = historicalRound.recordedDecisions
+      .filter((decision) => decision.status === 'Advanced')
+      .map((decision) => decision.candidateId)
+    expect(() => store.createNextPoll(historicalRound.id, historicalAdvanced, 1))
+      .toThrow(/already been created/)
+
+    const { pollId, candidateIds } = createClosedVotingRound(store)
+    expect(() => store.createNextPoll(pollId, [candidateIds[0]!], 1)).toThrow(/Save a complete decision set/)
+    store.recordCandidateDecisions(pollId, [
+      {
+        candidateId: candidateIds[0]!,
+        status: 'Elected',
+        openingId: 'position-riverside-elder:opening:2',
+      },
+      { candidateId: candidateIds[1]!, status: 'Advanced' },
+    ])
+    expect(() => store.createNextPoll(pollId, [candidateIds[0]!], 1)).toThrow(/Advanced candidates/)
+    expect(() => store.createNextPoll(pollId, [], 1)).toThrow(/Advanced candidates/)
   })
 })
