@@ -14,6 +14,7 @@ interface PositionWorkspaceProps {
   query: PositionQuery
   context: { church: string; term: string; department: string; position: string }
   reader?: PositionReader
+  activeSessionOverride?: ActiveSessionSnapshot | null
 }
 
 type PositionLoadState =
@@ -36,7 +37,12 @@ function sessionQueryKey(churchId: string, termId: string) {
   return `${churchId}:${termId}`
 }
 
-export function PositionWorkspace({ query, context, reader = defaultReader }: PositionWorkspaceProps) {
+export function PositionWorkspace({
+  query,
+  context,
+  reader = defaultReader,
+  activeSessionOverride,
+}: PositionWorkspaceProps) {
   const { churchId, termId, positionId } = query
   const key = queryKey({ churchId, termId, positionId })
   const activeSessionKey = sessionQueryKey(churchId, termId)
@@ -60,11 +66,12 @@ export function PositionWorkspace({ query, context, reader = defaultReader }: Po
     void reader.getPosition({ churchId, termId, positionId }).then((snapshot) => {
       if (!current) return
       setPositionLoad({ key: positionRequestKey, status: 'loaded', snapshot })
-      setSelectedPollId(
-        snapshot.polls.find((poll) => poll.type === 'voting' && poll.status === 'Closed')?.id
+      setSelectedPollId((selectedPollId) => selectedPollId
+        && snapshot.polls.some((poll) => poll.id === selectedPollId)
+        ? selectedPollId
+        : snapshot.polls.find((poll) => poll.type === 'voting' && poll.status === 'Closed')?.id
           ?? snapshot.polls[0]?.id
-          ?? null,
-      )
+          ?? null)
       setDetailView('record')
     }).catch((error: unknown) => {
       if (!current) return
@@ -77,6 +84,7 @@ export function PositionWorkspace({ query, context, reader = defaultReader }: Po
   }, [positionRequestKey, reader, churchId, termId, positionId])
 
   useEffect(() => {
+    if (activeSessionOverride !== undefined) return
     let current = true
     void reader.getActiveSession({ churchId, termId }).then((activeSession) => {
       if (!current) return
@@ -98,14 +106,16 @@ export function PositionWorkspace({ query, context, reader = defaultReader }: Po
       setSessionLoad({ key: sessionRequestKey, status: 'error', message })
     })
     return () => { current = false }
-  }, [sessionRequestKey, reader, churchId, termId])
+  }, [sessionRequestKey, reader, churchId, termId, activeSessionOverride])
 
   const visiblePosition = positionLoad.key === positionRequestKey
     ? positionLoad
     : { key: positionRequestKey, status: 'loading' as const }
-  const visibleSession = sessionLoad.key === sessionRequestKey
-    ? sessionLoad
-    : { key: sessionRequestKey, status: 'loading' as const }
+  const visibleSession = activeSessionOverride !== undefined
+    ? { key: sessionRequestKey, status: 'loaded' as const, activeSession: activeSessionOverride }
+    : sessionLoad.key === sessionRequestKey
+      ? sessionLoad
+      : { key: sessionRequestKey, status: 'loading' as const }
   const snapshot = visiblePosition.status === 'loaded' ? visiblePosition.snapshot : undefined
   const activeSession = visibleSession.status === 'loaded' ? visibleSession.activeSession : null
   const viewedPoll = snapshot?.polls.find((poll) => poll.id === selectedPollId)

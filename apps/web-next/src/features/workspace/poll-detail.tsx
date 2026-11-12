@@ -84,7 +84,22 @@ export function PollDetail({ position, poll, detailView, onDetailViewChange }: P
                 {poll.status === 'Open' ? <span className="mock-label">MOCK admin snapshot · not live backend data</span> : null}
               </div>
               {poll.status === 'Draft' ? (
-                <p>Draft snapshot · no results or candidate roster are present.</p>
+                poll.sourceCandidateIds.length ? (
+                  <section aria-labelledby="draft-roster-heading" className="draft-roster">
+                    <p className="recorded-note">{poll.ballotsCast} ballots cast · draft results are not available.</p>
+                    {poll.choiceCount ? (
+                      <p>{poll.choiceCount} exact choice{poll.choiceCount === 1 ? '' : 's'} per ballot</p>
+                    ) : null}
+                    <h3 id="draft-roster-heading">Draft candidate roster</h3>
+                    <ul className="roster-list">
+                      {poll.sourceCandidateIds.map((candidateId) => (
+                        <li key={candidateId}>
+                          {poll.candidateNames[candidateId] ?? candidates.get(candidateId) ?? 'Unknown candidate'}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : <p>Draft snapshot · no results or candidate roster are present.</p>
               ) : (
                 <table className="result-table">
                   <caption className="visually-hidden">Poll aggregate results and recorded election decisions</caption>
@@ -108,8 +123,8 @@ export function PollDetail({ position, poll, detailView, onDetailViewChange }: P
                         </td>
                         <td>
                           <span className="mobile-field-label">Recorded decision</span>
-                          {decision?.status ?? 'No recorded decision'}
-                          {decision?.status === 'Declined' ? <small className="legacy-note">Legacy recorded decision value; not a response.</small> : null}
+                          {decision?.status === 'Declined' ? 'Declined (Legacy)' : decision?.status ?? 'No recorded decision'}
+                          {decision?.status === 'Declined' ? <small className="legacy-note">Historical decision value; it was not migrated to a candidate response.</small> : null}
                         </td>
                       </tr>
                     )

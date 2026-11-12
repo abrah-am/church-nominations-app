@@ -1,7 +1,7 @@
 import { Menu } from 'lucide-react'
 import { useState } from 'react'
 import { Link, Outlet } from 'react-router-dom'
-import { initialViewingContext } from '../../data/mock-admin-context'
+import type { ViewingContextSelection } from '../../data/mock-admin-context'
 import { Button } from '../../components/ui/button'
 import {
   Sheet,
@@ -14,9 +14,16 @@ import {
 import { ApplicationNavigation } from './components/application-navigation'
 import { ViewingContext } from './components/viewing-context'
 
-export function AdminShell() {
+interface AdminShellProps {
+  viewingContext: ViewingContextSelection
+  onViewingContextChange: (selection: ViewingContextSelection) => void
+}
+
+export function AdminShell({
+  viewingContext,
+  onViewingContextChange,
+}: AdminShellProps) {
   const [navigationOpen, setNavigationOpen] = useState(false)
-  const [viewingContext, setViewingContext] = useState(initialViewingContext)
 
   return (
     <div className="admin-shell">
@@ -76,7 +83,7 @@ export function AdminShell() {
 
         <ViewingContext
           selection={viewingContext}
-          onChange={setViewingContext}
+          onChange={onViewingContextChange}
         />
         <main
           className="main-content"

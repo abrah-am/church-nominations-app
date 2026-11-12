@@ -21,16 +21,18 @@ M0 ports are application contracts, not claimed existing backend schemas. Future
 HTTP adapters must map verified DTOs and pass shared contract tests. Mock mode
 must remain explicit; it must never silently replace a failed HTTP request.
 
-## Apparent prototype/product conflicts: escalated, not resolved
+## Product-policy conflicts: resolved by Product Owner (2026-11-10)
 
 | ID | Evidence | Disposition |
 | --- | --- | --- |
-| C1 | Prototype README/handoff allows separate aggregate participation on Presentation; API contract forbids participation counts/status | Do not implement audience projection in M0; Product Owner clarification before viewer work |
-| C2 | Prototype documents closed-only explicit result reveal; PD-019/API contract allow Audience Presentation-controlled live totals | Preserve reference; no publication logic ported; clarify before result/viewer work |
-| C3 | Prototype uses `Declined` as a decision status in legacy fixtures; PD-020 distinguishes Elected/Advanced/Eliminated decisions from separate responses | Legacy decision derivation may preserve source values without inventing conversion; no decision-writing UI/port until reconciled |
-| C4 | Prototype explicitly creates later polls; PD-019 says valid saved decisions create a fresh Advanced-only draft | No transition/poll-creation logic ported; clarify before decision-saving workflow |
+| C1 | Prototype allows aggregate participation on Presentation; the earlier API contract prohibited it | Admin may independently enable aggregate participation counts. Metric is ballots cast for the current poll only, with no eligible-voter denominator; public API projection remains M6 work. Never expose voter identity or ballot data. |
+| C2 | Earlier result visibility wording combined reveal with poll closure | Admin independently controls aggregate result visibility, including during an open poll; visibility does not follow poll lifecycle. |
+| C3 | Legacy data may use `Declined` as a decision value, while new policy separates decisions and candidate responses | Display historical values as `Declined (Legacy)` without migration. New decisions are Elected, Advanced, Eliminated; responses are Awaiting Acceptance, Accepted, Declined. |
+| C4 | Earlier policy created an Advanced-only draft on decision save | Saving decisions creates no poll. Admin explicitly chooses Create Next Poll; Advanced candidates are preselected for review. Historical polls remain unchanged. |
 
-M0 port scope deliberately excludes these behaviors. A pure derivation returning
-source status does not authorize exposing a legacy option as an election action.
-Likewise, prototype fixture ballots and localStorage migrations are not
-production-facing DTOs or persistence requirements.
+These decisions authorize future frontend mock behavior, not backend changes.
+The [product decisions](../../product/product-decisions.md),
+[requirements](../../product/requirements.md), and
+[API contract](../../technical/api-contract.md) are the current policy sources.
+M0 remains read-only; prototype fixture ballots and localStorage migrations are
+not production-facing DTOs or persistence requirements.

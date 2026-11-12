@@ -15,6 +15,13 @@ export function getCurrentCandidateStatus(
   position: PositionSnapshot,
   candidateId: string,
 ): CandidateDecisionEvent['status'] {
+  return getCurrentCandidateDecisionEvent(position, candidateId)?.status ?? 'Pending'
+}
+
+export function getCurrentCandidateDecisionEvent(
+  position: PositionSnapshot,
+  candidateId: string,
+): CandidateDecisionEvent | undefined {
   const events = position.decisions.filter((event) => event.candidateId === candidateId)
   const superseded = new Set(
     events.map((event) => event.supersedesEventId).filter((id) => id !== undefined),
@@ -24,7 +31,7 @@ export function getCurrentCandidateStatus(
     events
       .filter((event) => !superseded.has(event.id))
       .sort(byTimestamp)
-      .at(-1)?.status ?? 'Pending'
+      .at(-1)
   )
 }
 
@@ -61,12 +68,8 @@ export interface OpeningSummary {
 export function getOpeningSummaries(position: PositionSnapshot): OpeningSummary[] {
   const elected = position.candidates
     .flatMap((candidate) => {
-      const currentStatus = getCurrentCandidateStatus(position, candidate.id)
-      const election = position.decisions
-        .filter((event) => event.candidateId === candidate.id && event.status === 'Elected')
-        .sort(byTimestamp)
-        .at(-1)
-      return currentStatus === 'Elected' && election
+      const election = getCurrentCandidateDecisionEvent(position, candidate.id)
+      return election?.status === 'Elected'
         ? [{ candidate, electedAt: election.decidedAt }]
         : []
     })
@@ -76,19 +79,25 @@ export function getOpeningSummaries(position: PositionSnapshot): OpeningSummary[
     (_, index) => `${position.id}:opening:${index + 1}`,
   )
   const assigned = new Map<string, Candidate>()
-
   const responses = [...position.responseEvents].sort((left, right) =>
     left.respondedAt.localeCompare(right.respondedAt),
   )
 
-  for (const response of responses) {
-    const candidate = elected.find((item) => item.candidate.id === response.candidateId)?.candidate
-    if (candidate && openingIds.includes(response.openingId)) {
-      assigned.set(response.openingId, candidate)
+  const electedEvents = elected.map(({ candidate }) => ({
+    candidate,
+    event: getCurrentCandidateDecisionEvent(position, candidate.id)!,
+  }))
+
+  for (const { candidate, event } of electedEvents) {
+    if (event.openingId && openingIds.includes(event.openingId) && !assigned.has(event.openingId)) {
+      assigned.set(event.openingId, candidate)
     }
   }
 
-  for (const { candidate } of elected) {
+  // Legacy Elected events have no opening assignment. Keep them visible without
+  // rewriting history, assigning only the first unoccupied opening.
+  for (const { candidate, event } of electedEvents) {
+    if (event.openingId) continue
     if ([...assigned.values()].some((item) => item.id === candidate.id)) continue
     const openingId = openingIds.find((item) => !assigned.has(item))
     if (openingId) assigned.set(openingId, candidate)
@@ -96,9 +105,14 @@ export function getOpeningSummaries(position: PositionSnapshot): OpeningSummary[
 
   return openingIds.map((openingId, index) => {
     const candidate = assigned.get(openingId)
+    const election = candidate
+      ? getCurrentCandidateDecisionEvent(position, candidate.id)
+      : undefined
     const candidateResponses = candidate
       ? responses.filter(
-          (event) => event.openingId === openingId && event.candidateId === candidate.id,
+          (event) => event.openingId === openingId
+            && event.candidateId === candidate.id
+            && event.decisionEventId === election?.id,
         )
       : []
     const responseHistory = responses.filter(

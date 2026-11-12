@@ -74,7 +74,9 @@ technology test was performed.
 Opening-filled semantics (Elected plus separate Accepted response) and
 ballots-cast percentage denominator remain required future-work invariants.
 Viewing context never authorizes session activation; M1 exposes no session
-mutation. Existing C1-C4 policy holds remain unresolved.
+mutation. C1-C4 were unresolved at this handoff's creation and were resolved by
+the Product Owner on 2026-11-10; see the current
+[product decision record](../../product/product-decisions.md).
 
 ## Next steps
 
