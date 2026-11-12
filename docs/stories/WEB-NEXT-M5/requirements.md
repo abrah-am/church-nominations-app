@@ -3,8 +3,10 @@
 ## Status
 
 Product Owner approved M5a/M5b scope and the policy clarifications below on
-2026-11-11. M5a implementation is complete and pending Product Owner
-acceptance. M5b is not started. Do not integrate the backend, merge, or deploy.
+2026-11-11. **M5a was accepted by the Product Owner on 2026-11-11** after a
+focused browser keyboard smoke test (see [handoff.md](./handoff.md)); the
+M5a work is on `main` via PR #39. M5b is not started and requires explicit
+authorization. Do not integrate the backend or deploy.
 
 ## Goal and boundaries
 
