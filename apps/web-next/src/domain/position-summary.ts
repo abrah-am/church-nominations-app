@@ -54,6 +54,8 @@ export function getPositionLifecycle(
   return position.lifecycleEvents.at(-1)?.status ?? 'In Progress'
 }
 
+export type OpeningCondition = 'Unfilled' | 'Awaiting Acceptance' | 'Filled' | 'Vacancy'
+
 export interface OpeningSummary {
   openingId: string
   number: number
@@ -62,6 +64,7 @@ export interface OpeningSummary {
   latestResponse: CandidateResponseEvent | undefined
   responseHistory: CandidateResponseEvent[]
   filled: boolean
+  condition: OpeningCondition
 }
 
 // Invitation-based replacement assignment is deliberately outside this port.
@@ -88,10 +91,12 @@ export function getOpeningSummaries(position: PositionSnapshot): OpeningSummary[
     event: getCurrentCandidateDecisionEvent(position, candidate.id)!,
   }))
 
-  for (const { candidate, event } of electedEvents) {
-    if (event.openingId && openingIds.includes(event.openingId) && !assigned.has(event.openingId)) {
-      assigned.set(event.openingId, candidate)
-    }
+  for (const openingId of openingIds) {
+    const latest = electedEvents
+      .filter((item) => item.event.openingId === openingId)
+      .sort((left, right) => left.event.decidedAt.localeCompare(right.event.decidedAt))
+      .at(-1)
+    if (latest) assigned.set(openingId, latest.candidate)
   }
 
   // Legacy Elected events have no opening assignment. Keep them visible without
@@ -119,6 +124,15 @@ export function getOpeningSummaries(position: PositionSnapshot): OpeningSummary[
       (event) => event.openingId === openingId,
     )
     const latestResponse = candidateResponses.at(-1)
+    const filled = getCurrentCandidateStatus(position, candidate?.id ?? '') === 'Elected'
+      && latestResponse?.status === 'Accepted'
+    const condition: OpeningCondition = filled
+      ? 'Filled'
+      : latestResponse?.status === 'Declined'
+        ? 'Vacancy'
+        : candidate
+          ? 'Awaiting Acceptance'
+          : 'Unfilled'
 
     return {
       openingId,
@@ -127,10 +141,28 @@ export function getOpeningSummaries(position: PositionSnapshot): OpeningSummary[
       electedCandidate: candidate,
       latestResponse,
       responseHistory,
-      filled: getCurrentCandidateStatus(position, candidate?.id ?? '') === 'Elected'
-        && latestResponse?.status === 'Accepted',
+      filled,
+      condition,
     }
   })
+}
+
+export function getFinalizationBlockers(position: PositionSnapshot): string[] {
+  const blockers: string[] = []
+  if (getPositionLifecycle(position) === 'Finalized') {
+    blockers.push('This position is already finalized.')
+  }
+  if (position.polls.some((poll) => poll.status === 'Open')) {
+    blockers.push('Close the open poll before finalizing.')
+  }
+  if (getOpeningSummaries(position).some((opening) => !opening.filled)) {
+    blockers.push('Every opening must have an Accepted response before finalizing.')
+  }
+  return blockers
+}
+
+export function canReopenPosition(position: PositionSnapshot): boolean {
+  return getPositionLifecycle(position) === 'Finalized'
 }
 
 export interface PollResult {

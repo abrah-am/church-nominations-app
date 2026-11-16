@@ -43,8 +43,8 @@ export function PositionSummary({ position }: PositionSummaryProps) {
                 <span>Latest response: {opening.latestResponse?.status ?? 'Awaiting response'}</span>
               </div>
             ) : <p>Vacant · no elected candidate assigned</p>}
-            <span className={`workspace-status ${opening.filled ? 'is-positive' : ''}`}>
-              {opening.filled ? 'Filled' : 'Not filled'}
+            <span className={`workspace-status ${opening.condition === 'Filled' ? 'is-positive' : ''}`}>
+              {opening.condition}
             </span>
           </article>
         ))}

@@ -6,7 +6,8 @@ import type {
 } from '../domain/types'
 import { validateDecisionSet } from '../domain/election-decisions'
 import type { CandidateDecisionDraft } from '../domain/election-decisions'
-import { getCurrentCandidateDecisionEvent, getOpeningSummaries } from '../domain/position-summary'
+import { canReopenPosition, getCurrentCandidateDecisionEvent, getFinalizationBlockers, getOpeningSummaries, getPositionLifecycle } from '../domain/position-summary'
+import { getDirectReplacementRecommendation, getHistoricalReplacementNames } from '../domain/replacement-rules'
 import { createPositionFixtures } from './position-fixtures'
 
 export type NominationStatus = 'not-created' | 'draft' | 'open' | 'closed' | 'confirmed'
@@ -45,6 +46,7 @@ export interface VoterElectionSnapshot {
   choiceCount: number
   candidates: readonly { id: string; name: string }[]
   ownBallot: readonly string[]
+  participantSessionEnded: boolean
 }
 
 export interface PresentationElectionSnapshot {
@@ -125,14 +127,24 @@ export interface MockElectionStore {
     candidateIds: readonly string[],
     choiceCount: number,
   ) => void
+  finalizePosition: () => void
+  reopenPosition: () => void
+  inviteReplacement: (openingId: string, candidateId: string) => void
+  createTieBreakPoll: (openingId: string) => void
+  createManualReplacementPoll: (
+    openingId: string,
+    names: readonly string[],
+    choiceCount: number,
+    reason: string,
+  ) => void
 }
 
 const churchName = 'Riverside Seventh-day Adventist Church'
 const termName = '2027'
 const defaultNominationLimit = 5
 
-function createInitialState(): InternalState {
-  const fixture = createPositionFixtures().find((item) => item.id === 'position-riverside-elder')
+function createInitialState(initialPosition?: PositionSnapshot): InternalState {
+  const fixture = initialPosition ?? createPositionFixtures().find((item) => item.id === 'position-riverside-elder')
   if (!fixture) throw new Error('The M4 mock election fixture is incomplete.')
 
   // Keep the accepted M2 history in the shared position snapshot; M4 polls are additive.
@@ -177,6 +189,71 @@ function updatePoll(
   state.position.polls = state.position.polls.map((poll) =>
     poll.id === pollId ? update(poll) : poll,
   )
+}
+
+function requireWritable(state: InternalState, action: string) {
+  if (getPositionLifecycle(state.position) === 'Finalized') {
+    throw new ElectionRuleError('POSITION_FINALIZED', `Reopen the position before you ${action}.`)
+  }
+}
+
+function requireNoActiveVotingPoll(state: InternalState) {
+  if (state.votingStatus === 'open' || state.votingStatus === 'draft'
+    || state.position.polls.some((poll) => poll.type === 'voting' && (poll.status === 'Open' || poll.status === 'Draft'))) {
+    throw new ElectionRuleError('VOTING_POLL_ACTIVE', 'Close or finish the current voting poll before creating another.')
+  }
+}
+
+function addFreshVotingPoll(
+  draft: InternalState,
+  input: {
+    title: string
+    candidateIds: string[]
+    candidateNames: Record<string, string>
+    sourcePollId?: string
+    choiceCount: number
+    auditAction: string
+    auditDetail: string
+    at: string
+  },
+) {
+  const number = Math.max(
+    0,
+    ...draft.position.polls.filter((poll) => poll.type === 'voting').map((poll) => poll.number),
+  ) + 1
+  draft.position.polls.push({
+    id: `m5-voting-${number}`,
+    type: 'voting',
+    number,
+    title: input.title,
+    status: 'Draft',
+    choiceCount: input.choiceCount,
+    ...(input.sourcePollId ? { sourcePollId: input.sourcePollId } : {}),
+    sourceCandidateIds: [...input.candidateIds],
+    candidateNames: input.candidateNames,
+    aggregateVotes: Object.fromEntries(input.candidateIds.map((candidateId) => [candidateId, 0])),
+    ballotsCast: 0,
+    recordedDecisions: [],
+    nominationSubmissions: [],
+    auditEntries: [{
+      id: `audit-m5-${draft.nextEventNumber++}`,
+      action: input.auditAction,
+      at: input.at,
+      detail: input.auditDetail,
+    }],
+  })
+}
+
+function candidateIdForName(draft: InternalState, name: string) {
+  const existing = draft.position.candidates.find((candidate) => candidate.name === name)
+  if (existing) return existing.id
+  for (const poll of draft.position.polls) {
+    const match = Object.entries(poll.candidateNames).find(([, candidateName]) => candidateName === name)
+    if (match) return match[0]
+  }
+  const id = `replacement-${draft.nextEventNumber++}`
+  draft.position.candidates.push({ id, name })
+  return id
 }
 
 function makePoll(
@@ -250,6 +327,7 @@ function buildVoterSnapshot(state: InternalState): VoterElectionSnapshot {
     choiceCount: state.choiceCount,
     candidates: Object.freeze(candidates),
     ownBallot: Object.freeze([...state.ownBallot]),
+    participantSessionEnded: getPositionLifecycle(state.position) === 'Finalized',
   })
 }
 
@@ -290,8 +368,8 @@ function buildPresentationSnapshot(state: InternalState): PresentationElectionSn
   })
 }
 
-export function createMockElectionStore(): MockElectionStore {
-  let state = createInitialState()
+export function createMockElectionStore(initialPosition?: PositionSnapshot): MockElectionStore {
+  let state = createInitialState(initialPosition)
   let adminSnapshot = buildAdminSnapshot(state)
   let voterSnapshot = buildVoterSnapshot(state)
   let presentationSnapshot = buildPresentationSnapshot(state)
@@ -377,6 +455,9 @@ export function createMockElectionStore(): MockElectionStore {
       })
     },
     submitNomination(names) {
+      if (getPositionLifecycle(state.position) === 'Finalized') {
+        throw new ElectionRuleError('POSITION_FINALIZED', 'This position is complete. No participant action is available.')
+      }
       requireStatus(state.nominationStatus, 'open', 'submit nominations')
       if (state.ownNominationSubmitted) {
         throw new ElectionRuleError('NOMINATION_ALREADY_SUBMITTED', 'Nomination submission is final for this open poll.')
@@ -485,6 +566,9 @@ export function createMockElectionStore(): MockElectionStore {
       })
     },
     submitBallot(candidateIds) {
+      if (getPositionLifecycle(state.position) === 'Finalized') {
+        throw new ElectionRuleError('POSITION_FINALIZED', 'This position is complete. No participant action is available.')
+      }
       requireStatus(state.votingStatus, 'open', 'submit or replace a ballot')
       if (candidateIds.length !== state.choiceCount
         || new Set(candidateIds).size !== candidateIds.length
@@ -545,6 +629,7 @@ export function createMockElectionStore(): MockElectionStore {
       })
     },
     recordCandidateDecisions(pollId, decisions) {
+      requireWritable(state, 'record decisions')
       const poll = state.position.polls.find((item) => item.id === pollId)
       if (!poll) {
         throw new ElectionRuleError('POLL_NOT_FOUND', 'Select a voting poll from this position history.')
@@ -585,6 +670,7 @@ export function createMockElectionStore(): MockElectionStore {
       })
     },
     recordCandidateResponse(response) {
+      requireWritable(state, 'record a response')
       if (response.status !== 'Accepted' && response.status !== 'Declined') {
         throw new ElectionRuleError('INVALID_RESPONSE_STATUS', 'Select Accepted or Declined for the candidate response.')
       }
@@ -632,6 +718,7 @@ export function createMockElectionStore(): MockElectionStore {
       })
     },
     createNextPoll(sourcePollId, candidateIds, choiceCount) {
+      requireWritable(state, 'create a poll')
       const sourcePoll = state.position.polls.find((item) => item.id === sourcePollId)
       if (!sourcePoll || sourcePoll.type !== 'voting' || sourcePoll.status !== 'Closed') {
         throw new ElectionRuleError('SOURCE_POLL_NOT_CLOSED', 'Choose a closed voting poll with saved decisions.')
@@ -690,6 +777,170 @@ export function createMockElectionStore(): MockElectionStore {
             detail: `Admin reviewed and confirmed ${candidateIds.length} Advanced candidate${candidateIds.length === 1 ? '' : 's'} from ${sourcePoll.title}, with ${choiceCount} choice${choiceCount === 1 ? '' : 's'} per ballot.`,
           }],
         })
+      })
+    },
+    finalizePosition() {
+      if (state.votingStatus === 'open') {
+        throw new ElectionRuleError('OPEN_POLL', 'Close the open poll before finalizing.')
+      }
+      const blockers = getFinalizationBlockers(state.position)
+      if (blockers.length) {
+        throw new ElectionRuleError('FINALIZATION_BLOCKED', blockers.join(' '))
+      }
+      const at = new Date().toISOString()
+      const presentationBefore = {
+        resultsVisible: state.resultsVisible,
+        participationVisible: state.participationVisible,
+        nominationRoomVisible: state.nominationRoomVisible,
+        nominationListPublished: state.nominationListPublished,
+      }
+      commit((draft) => {
+        draft.position.lifecycleEvents.push({
+          id: `lifecycle-m5-${draft.nextEventNumber++}`,
+          status: 'Finalized',
+          at,
+          detail: 'Admin confirmed finalization. No poll was created.',
+        })
+        draft.resultsVisible = presentationBefore.resultsVisible
+        draft.participationVisible = presentationBefore.participationVisible
+        draft.nominationRoomVisible = presentationBefore.nominationRoomVisible
+        draft.nominationListPublished = presentationBefore.nominationListPublished
+      })
+    },
+    reopenPosition() {
+      if (!canReopenPosition(state.position)) {
+        throw new ElectionRuleError('REOPEN_UNAVAILABLE', 'Reopen is available only after finalization.')
+      }
+      const pollCount = state.position.polls.length
+      const at = new Date().toISOString()
+      commit((draft) => {
+        draft.position.lifecycleEvents.push({
+          id: `lifecycle-m5-${draft.nextEventNumber++}`,
+          status: 'Reopened',
+          at,
+          detail: 'Admin confirmed reopen. Prior polls, decisions, responses, and results were preserved. No poll was created or started.',
+        })
+        if (draft.position.polls.length !== pollCount) {
+          throw new ElectionRuleError('POLL_CREATED', 'Reopen must not create a poll.')
+        }
+      })
+    },
+    inviteReplacement(openingId, candidateId) {
+      requireWritable(state, 'invite a replacement')
+      const recommendation = getDirectReplacementRecommendation(state.position, openingId)
+      if (recommendation.outcome !== 'unique' || recommendation.candidateIds[0] !== candidateId) {
+        throw new ElectionRuleError('INVITE_NOT_RECOMMENDED', recommendation.outcome === 'tie'
+          ? 'Tied top candidates require a confirmed tie-break poll. No invitation was sent.'
+          : recommendation.reason)
+      }
+      const decidedAt = new Date().toISOString()
+      commit((draft) => {
+        const decisionId = `decision-m5-${draft.nextEventNumber++}`
+        draft.position.decisions.push({
+          id: decisionId,
+          candidateId,
+          pollId: recommendation.sourcePollId ?? openingId,
+          status: 'Elected',
+          decidedAt,
+          openingId,
+        })
+        const poll = draft.position.polls.find((item) => item.id === recommendation.sourcePollId)
+        if (poll) {
+          poll.auditEntries = [...poll.auditEntries, {
+            id: `audit-m5-${draft.nextEventNumber++}`,
+            action: 'Replacement invitation recorded',
+            at: decidedAt,
+            detail: `Admin explicitly invited ${candidateId} for ${openingId}. No poll was created.`,
+          }]
+        }
+      })
+    },
+    createTieBreakPoll(openingId) {
+      requireWritable(state, 'create a tie-break poll')
+      requireNoActiveVotingPoll(state)
+      const recommendation = getDirectReplacementRecommendation(state.position, openingId)
+      if (recommendation.outcome !== 'tie' || !recommendation.sourcePollId) {
+        throw new ElectionRuleError('TIE_BREAK_UNAVAILABLE', recommendation.reason)
+      }
+      const createdAt = new Date().toISOString()
+      const before = structuredClone(state.position.polls)
+      commit((draft) => {
+        const source = draft.position.polls.find((item) => item.id === recommendation.sourcePollId)
+        const candidateNames = Object.fromEntries(recommendation.candidateIds.map((candidateId) => [
+          candidateId,
+          source?.candidateNames[candidateId]
+            ?? draft.position.candidates.find((candidate) => candidate.id === candidateId)?.name
+            ?? 'Unknown candidate',
+        ]))
+        addFreshVotingPoll(draft, {
+          title: `${draft.position.name} · Tie-break`,
+          candidateIds: [...recommendation.candidateIds],
+          candidateNames,
+          ...(recommendation.sourcePollId ? { sourcePollId: recommendation.sourcePollId } : {}),
+          choiceCount: 1,
+          auditAction: 'Tie-break poll created',
+          auditDetail: `Admin confirmed a fresh tie-break draft containing only ${recommendation.candidateIds.join(', ')}.`,
+          at: createdAt,
+        })
+        before.forEach((poll) => {
+          const current = draft.position.polls.find((item) => item.id === poll.id)
+          if (!current || current.aggregateVotes !== undefined && JSON.stringify({
+            votes: current.aggregateVotes,
+            ballotsCast: current.ballotsCast,
+            recordedDecisions: current.recordedDecisions,
+          }) !== JSON.stringify({
+            votes: poll.aggregateVotes,
+            ballotsCast: poll.ballotsCast,
+            recordedDecisions: poll.recordedDecisions,
+          })) {
+            throw new ElectionRuleError('HISTORY_MUTATED', 'Creating a tie-break poll must not change prior results.')
+          }
+        })
+      })
+    },
+    createManualReplacementPoll(openingId, names, choiceCount, reason) {
+      requireWritable(state, 'create a replacement poll')
+      requireNoActiveVotingPoll(state)
+      const historical = getHistoricalReplacementNames(state.position)
+      if (!historical.length) {
+        throw new ElectionRuleError('NO_HISTORICAL_NAMES', 'No historical names exist for this position. Vacancy remains until a candidate source is separately approved.')
+      }
+      const opening = getOpeningSummaries(state.position).find((item) => item.openingId === openingId)
+      if (!opening || opening.condition !== 'Vacancy') {
+        throw new ElectionRuleError('REPLACEMENT_UNAVAILABLE', 'A manual replacement poll is available only for a vacant opening.')
+      }
+      const selected = names.map((name) => name.trim())
+      if (!selected.length || new Set(selected).size !== selected.length || selected.some((name) => !historical.includes(name))) {
+        throw new ElectionRuleError('INVALID_REPLACEMENT_ROSTER', 'Select one or more historical names from this position election. The application does not filter that roster by prior status.')
+      }
+      const auditedReason = reason.trim()
+      if (!auditedReason) {
+        throw new ElectionRuleError('REPLACEMENT_REASON_REQUIRED', 'Enter an audited reason before creating a replacement poll.')
+      }
+      if (!Number.isInteger(choiceCount) || choiceCount < 1 || choiceCount > selected.length) {
+        throw new ElectionRuleError('INVALID_CHOICE_COUNT', `Choose between 1 and ${selected.length} distinct choices per ballot.`)
+      }
+      const createdAt = new Date().toISOString()
+      const decisionCount = state.position.decisions.length
+      const responseCount = state.position.responseEvents.length
+      commit((draft) => {
+        const candidateIds = selected.map((name) => candidateIdForName(draft, name))
+        const candidateNames = Object.fromEntries(candidateIds.map((candidateId, index) => [candidateId, selected[index]!]))
+        addFreshVotingPoll(draft, {
+          title: `${draft.position.name} · Replacement poll`,
+          candidateIds,
+          candidateNames,
+          ...(draft.position.decisions.find((event) => event.id === opening.latestResponse?.decisionEventId)?.pollId
+            ? { sourcePollId: draft.position.decisions.find((event) => event.id === opening.latestResponse?.decisionEventId)!.pollId }
+            : {}),
+          choiceCount,
+          auditAction: 'Manual replacement poll created',
+          auditDetail: `Admin reason: ${auditedReason}`,
+          at: createdAt,
+        })
+        if (draft.position.decisions.length !== decisionCount || draft.position.responseEvents.length !== responseCount) {
+          throw new ElectionRuleError('HISTORY_MUTATED', 'A replacement poll must not change prior decisions or responses.')
+        }
       })
     },
   }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createMockElectionStore, ElectionRuleError, getActiveSession } from './mock-election-store'
 import { createPositionFixtures } from './position-fixtures'
 import { getOpeningSummaries } from '../domain/position-summary'
+import type { PositionSnapshot } from '../domain/types'
 
 function openNomination(store: ReturnType<typeof createMockElectionStore>, limit = 5) {
   store.configureNominationLimit(limit)
@@ -318,5 +319,151 @@ describe('shared mock election domain', () => {
     ])
     expect(() => store.createNextPoll(pollId, [candidateIds[0]!], 1)).toThrow(/Advanced candidates/)
     expect(() => store.createNextPoll(pollId, [], 1)).toThrow(/Advanced candidates/)
+  })
+})
+
+function lifecyclePosition(response: 'Accepted' | 'Declined' = 'Accepted'): PositionSnapshot {
+  return {
+    id: 'position-final',
+    churchId: 'church-1',
+    termId: 'term-1',
+    departmentId: 'department-1',
+    name: 'Elder',
+    openings: 1,
+    candidates: [
+      { id: 'elected', name: 'Elected Person' },
+      { id: 'advanced', name: 'Advanced Person' },
+      { id: 'tied', name: 'Tied Person' },
+      { id: 'eliminated', name: 'Eliminated Person' },
+    ],
+    polls: [{
+      id: 'round-1',
+      type: 'voting',
+      number: 1,
+      title: 'Round 1',
+      status: 'Closed',
+      sourceCandidateIds: ['elected', 'advanced', 'tied', 'eliminated'],
+      candidateNames: {
+        elected: 'Elected Person',
+        advanced: 'Advanced Person',
+        tied: 'Tied Person',
+        eliminated: 'Eliminated Person',
+      },
+      aggregateVotes: { elected: 5, advanced: 4, tied: 2, eliminated: 1 },
+      ballotsCast: 6,
+      recordedDecisions: [],
+      nominationSubmissions: [{ id: 'nom-1', name: 'Old Nominee', submittedAt: '2026-01-01T00:00:00.000Z' }],
+      auditEntries: [],
+    }],
+    decisions: [
+      { id: 'd-elected', candidateId: 'elected', pollId: 'round-1', status: 'Elected', openingId: 'position-final:opening:1', decidedAt: '2026-03-01T00:00:00.000Z' },
+      { id: 'd-advanced', candidateId: 'advanced', pollId: 'round-1', status: 'Advanced', decidedAt: '2026-03-01T00:00:00.000Z' },
+      { id: 'd-tied', candidateId: 'tied', pollId: 'round-1', status: 'Advanced', decidedAt: '2026-03-01T00:00:00.000Z' },
+      { id: 'd-eliminated', candidateId: 'eliminated', pollId: 'round-1', status: 'Eliminated', decidedAt: '2026-03-01T00:00:00.000Z' },
+    ],
+    responseEvents: [{
+      id: 'response-1',
+      candidateId: 'elected',
+      openingId: 'position-final:opening:1',
+      decisionEventId: 'd-elected',
+      status: response,
+      respondedAt: '2026-03-02T00:00:00.000Z',
+    }],
+    lifecycleEvents: [],
+  }
+}
+
+describe('M5b lifecycle and replacement', () => {
+  it('finalizes only when every opening is accepted and no poll is open', () => {
+    const blocked = createMockElectionStore(lifecyclePosition('Declined'))
+    expect(() => blocked.finalizePosition()).toThrow(/Accepted response/)
+    const openPoll = lifecyclePosition()
+    openPoll.polls[0]!.status = 'Open'
+    expect(() => createMockElectionStore(openPoll).finalizePosition()).toThrow(/open poll/i)
+
+    const store = createMockElectionStore(lifecyclePosition())
+    const presentationBefore = store.getPresentationSnapshot()
+    store.finalizePosition()
+    expect(store.getAdminSnapshot().position.lifecycleEvents.at(-1)?.status).toBe('Finalized')
+    expect(store.getPresentationSnapshot()).toEqual(presentationBefore)
+    expect(store.getVoterSnapshot().participantSessionEnded).toBe(true)
+    expect(JSON.stringify(store.getVoterSnapshot())).not.toMatch(/Elected Person|Accepted|audit/)
+    expect(JSON.stringify(store.getPresentationSnapshot())).not.toMatch(/lifecycleEvents|responseEvents/)
+    expect(() => store.recordCandidateResponse({
+      candidateId: 'elected',
+      openingId: 'position-final:opening:1',
+      decisionEventId: 'd-elected',
+      status: 'Declined',
+    })).toThrow(/Reopen/)
+
+    const pollCount = store.getAdminSnapshot().position.polls.length
+    store.reopenPosition()
+    expect(store.getAdminSnapshot().position.polls).toHaveLength(pollCount)
+    expect(store.getAdminSnapshot().position.lifecycleEvents.at(-1)?.status).toBe('Reopened')
+    expect(store.getVoterSnapshot().participantSessionEnded).toBe(false)
+    expect(store.getPresentationSnapshot()).toEqual(presentationBefore)
+  })
+
+  it('invites only the unique recommendation and keeps a tie behind an explicit draft', () => {
+    const unique = createMockElectionStore(lifecyclePosition('Declined'))
+    const before = unique.getAdminSnapshot().position.polls[0]
+    expect(() => unique.inviteReplacement('position-final:opening:1', 'tied')).toThrow(/explicit Admin action|Recommend/)
+    unique.inviteReplacement('position-final:opening:1', 'advanced')
+    expect(unique.getAdminSnapshot().position.polls[0]).toMatchObject({
+      aggregateVotes: before?.aggregateVotes,
+      ballotsCast: before?.ballotsCast,
+    })
+    expect(unique.getAdminSnapshot().position.decisions.at(-1)).toMatchObject({
+      candidateId: 'advanced',
+      status: 'Elected',
+      openingId: 'position-final:opening:1',
+    })
+
+    const tied = lifecyclePosition('Declined')
+    tied.polls[0]!.aggregateVotes['advanced'] = 4
+    tied.polls[0]!.aggregateVotes['tied'] = 4
+    const tieStore = createMockElectionStore(tied)
+    expect(() => tieStore.inviteReplacement('position-final:opening:1', 'advanced')).toThrow(/tie-break/)
+    tieStore.createTieBreakPoll('position-final:opening:1')
+    const draft = tieStore.getAdminSnapshot().position.polls.at(-1)!
+    expect(draft).toMatchObject({
+      status: 'Draft',
+      ballotsCast: 0,
+      sourceCandidateIds: ['advanced', 'tied'],
+      aggregateVotes: { advanced: 0, tied: 0 },
+    })
+    expect(tieStore.getAdminSnapshot().position.polls[0]?.aggregateVotes).toEqual({
+      elected: 5,
+      advanced: 4,
+      tied: 4,
+      eliminated: 1,
+    })
+    expect(JSON.stringify(tieStore.getVoterSnapshot())).not.toContain('Tie-break')
+  })
+
+  it('creates an unfiltered manual replacement draft and refuses an empty historical source', () => {
+    const store = createMockElectionStore(lifecyclePosition('Declined'))
+    const decisionCount = store.getAdminSnapshot().position.decisions.length
+    store.createManualReplacementPoll(
+      'position-final:opening:1',
+      ['Eliminated Person', 'Old Nominee'],
+      1,
+      'Committee asked for a fresh ballot after the decline.',
+    )
+    const draft = store.getAdminSnapshot().position.polls.at(-1)!
+    expect(draft.status).toBe('Draft')
+    expect(draft.ballotsCast).toBe(0)
+    expect(draft.auditEntries[0]?.detail).toContain('Committee asked')
+    expect(draft.sourceCandidateIds).toHaveLength(2)
+    expect(store.getAdminSnapshot().position.decisions).toHaveLength(decisionCount)
+    expect(JSON.stringify(store.getVoterSnapshot())).not.toContain('Committee asked')
+    expect(JSON.stringify(store.getPresentationSnapshot())).not.toContain('Committee asked')
+
+    const empty = lifecyclePosition('Declined')
+    empty.candidates = []
+    empty.polls = []
+    const emptyStore = createMockElectionStore(empty)
+    expect(() => emptyStore.createManualReplacementPoll('position-final:opening:1', ['Anyone'], 1, 'Need a name')).toThrow(/Vacancy remains/)
+    expect(emptyStore.getAdminSnapshot().position.polls).toHaveLength(0)
   })
 })
