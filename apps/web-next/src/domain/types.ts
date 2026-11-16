@@ -44,6 +44,8 @@ export interface PositionLifecycleEvent {
   id: string
   status: PositionLifecycleStatus
   at: string
+  /** Admin-only audit detail. Never project this to Voter or Presentation. */
+  detail?: string
 }
 
 export interface PositionPollSummary {

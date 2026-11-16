@@ -60,7 +60,12 @@ export function InteractiveVoterView() {
       {error ? <p className="workflow-feedback workflow-error" role="alert">{error}</p> : null}
       {message ? <p className="workflow-feedback" role="status">{message}</p> : null}
 
-      {nominationActive ? (
+      {snapshot.participantSessionEnded ? (
+        <section className="workflow-step" aria-labelledby="voter-complete-heading">
+          <h2 id="voter-complete-heading">This position is complete</h2>
+          <p>No nomination or ballot action is available. Results and candidate decisions are not shown in this participant session.</p>
+        </section>
+      ) : nominationActive ? (
         <section className="workflow-step" aria-labelledby="voter-nomination-heading">
           <h2 id="voter-nomination-heading">Nomination intake is open</h2>
           <p>Submit up to {snapshot.nominationNameLimit} free-text names once. Submission is final.</p>
@@ -107,7 +112,7 @@ export function InteractiveVoterView() {
         </section>
       )}
 
-      {votingActive ? (
+      {!snapshot.participantSessionEnded && votingActive ? (
         <section className="workflow-step" aria-labelledby="voter-ballot-heading">
           <h2 id="voter-ballot-heading">Voting poll is open</h2>
           <p>{snapshot.pollTitle} · Select exactly {snapshot.choiceCount} distinct candidate{snapshot.choiceCount === 1 ? '' : 's'}.</p>

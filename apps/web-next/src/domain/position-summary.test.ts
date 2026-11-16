@@ -74,6 +74,7 @@ describe('prototype-derived position summaries', () => {
       },
     ]
 
+    expect(getOpeningSummaries(position)[0]?.condition).toBe('Filled')
     expect(getOpeningSummaries(position)[0]?.filled).toBe(true)
     expect(getPositionCondition(position)).toBe('Ready to Finalize')
     expect(getCurrentCandidateStatus(position, 'candidate-1')).toBe('Elected')
@@ -103,6 +104,35 @@ describe('prototype-derived position summaries', () => {
     expect(opening?.latestResponse).toBeUndefined()
     expect(opening?.responseHistory.map((event) => event.id)).toEqual(['response-old'])
     expect(opening?.filled).toBe(false)
+    expect(opening?.condition).toBe('Awaiting Acceptance')
+  })
+
+  it('assigns a later replacement election to the same opening without dropping history', () => {
+    const position = createPosition()
+    position.decisions[0]!.openingId = 'position-1:opening:1'
+    position.responseEvents = [{
+      id: 'response-declined',
+      candidateId: 'candidate-1',
+      openingId: 'position-1:opening:1',
+      decisionEventId: 'decision-elected',
+      status: 'Declined',
+      respondedAt: '2026-01-03T12:00:00.000Z',
+    }]
+    position.candidates.push({ id: 'candidate-2', name: 'Candidate Two' })
+    position.decisions.push({
+      id: 'decision-replacement',
+      candidateId: 'candidate-2',
+      pollId: 'poll-1',
+      status: 'Elected',
+      openingId: 'position-1:opening:1',
+      decidedAt: '2026-01-05T12:00:00.000Z',
+    })
+
+    const opening = getOpeningSummaries(position)[0]
+    expect(opening?.candidate?.id).toBe('candidate-2')
+    expect(opening?.condition).toBe('Awaiting Acceptance')
+    expect(opening?.responseHistory.map((event) => event.id)).toEqual(['response-declined'])
+    expect(getCurrentCandidateStatus(position, 'candidate-1')).toBe('Elected')
   })
 
   it('gates readiness while any poll is open', () => {

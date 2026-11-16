@@ -6,6 +6,7 @@ import { useAdminElectionSnapshot } from '../../data/mock-election-hooks'
 import { getActiveSession } from '../../data/mock-election-store'
 import { ElectionAdminPanel } from './election-admin-panel'
 import { ElectionDecisionsPanel } from './election-decisions-panel'
+import { PositionLifecyclePanel } from './position-lifecycle-panel'
 import { PositionWorkspace } from './position-workspace'
 
 function findLabel<T extends { id: string; label: string }>(items: readonly T[], id: string | null) {
@@ -43,6 +44,7 @@ export function WorkspaceRoute() {
         <>
           <ElectionAdminPanel />
           <ElectionDecisionsPanel />
+          <PositionLifecyclePanel />
         </>
       ) : null}
       <PositionWorkspace
