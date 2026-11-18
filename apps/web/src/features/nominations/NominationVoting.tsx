@@ -1,4 +1,4 @@
-import { FormEvent, RefObject, SetStateAction, Dispatch } from 'react';
+import { FormEvent, RefObject, SetStateAction, Dispatch, useState } from 'react';
 import {
 	CandidateDecision,
 	VotingRound,
@@ -16,6 +16,7 @@ type NominationVotingProps = {
 	hasSavedSnapshot: boolean;
 	firstRoundPrepared: boolean;
 	firstRoundSetupVisible: boolean;
+	nextRoundPrepared: boolean;
 	firstRoundDraftStale: boolean;
 	showClosedRoundDecisions: boolean;
 	openingCount: number;
@@ -65,6 +66,8 @@ type NominationVotingProps = {
 	onResetRound: () => void;
 	onCopyVotingLink: (round: VotingRound) => void;
 	onEditCandidateList: () => void;
+	onUpdateNextRoundCandidates: (candidateNames: string[]) => void;
+	onPrepareNextRound: (candidateNames: string[]) => void;
 	copiedRoundId: string | null;
 };
 
@@ -74,6 +77,7 @@ export default function NominationVoting({
 	hasSavedSnapshot,
 	firstRoundPrepared,
 	firstRoundSetupVisible,
+	nextRoundPrepared,
 	firstRoundDraftStale,
 	showClosedRoundDecisions,
 	openingCount,
@@ -123,8 +127,12 @@ export default function NominationVoting({
 	onResetRound,
 	onCopyVotingLink,
 	onEditCandidateList,
+	onUpdateNextRoundCandidates,
+	onPrepareNextRound,
 	copiedRoundId,
 }: NominationVotingProps) {
+	const [editingNextRoundRoster, setEditingNextRoundRoster] = useState(false);
+	const [editedNextRoundNames, setEditedNextRoundNames] = useState<string[]>(selectionCandidates);
 	if (!isExpanded || !(hasActiveRound || hasSavedSnapshot && (rounds.length > 0 || firstRoundPrepared))) return null;
 
 	return <details className={`workflow-details voting-round-configuration${firstRoundSetupVisible ? ' is-first-round-setup' : ''}${hasActiveRound ? ' is-voting-active' : ''}`} open>
@@ -167,7 +175,31 @@ export default function NominationVoting({
 					</li>)}
 				</ul>}
 				{draftRoundId && !firstRoundSetupVisible && <p className="state-message saved-round-summary" role="status">Draft round {rounds.find((round) => round.id === draftRoundId)?.roundNumber}: allows {rounds.find((round) => round.id === draftRoundId)?.selectionCount} {rounds.find((round) => round.id === draftRoundId)?.selectionCount === 1 ? 'selection' : 'selections'} from {rounds.find((round) => round.id === draftRoundId)?.candidates.length} candidates.</p>}
-				{firstRoundSetupVisible && !hasActiveRound ? <VotingRoundSetup
+				{latestClosedRound && !firstRoundSetupVisible && !nextRoundPrepared && selectionCandidates.length >= 2 ? <section className="workflow-details consolidation-details next-round-review" aria-label={`Round ${latestClosedRound.roundNumber + 1} candidate review`}>
+					<div className="consolidation-list-heading">
+						<h3>Candidates advancing to round {latestClosedRound.roundNumber + 1}</h3>
+						<span>{selectionCandidates.length} candidates</span>
+					</div>
+					{editingNextRoundRoster ? <>
+						<ol className="member-list shared-nomination-list" aria-label="Edit advancing candidates">
+							{selectionCandidates.map((name) => <li className="shared-nomination-row" key={name}>
+								<label><input type="checkbox" checked={editedNextRoundNames.includes(name)} onChange={(event) => setEditedNextRoundNames((current) => event.target.checked ? [...current, name] : current.filter((candidate) => candidate !== name))} /> {name}</label>
+							</li>)}
+						</ol>
+						<div className="form-actions">
+							<button className="secondary-button" type="button" onClick={() => { setEditedNextRoundNames(selectionCandidates); setEditingNextRoundRoster(false); }}>Cancel</button>
+							<button className="primary-button" type="button" disabled={editedNextRoundNames.length < 2} onClick={() => { onUpdateNextRoundCandidates(editedNextRoundNames); setEditingNextRoundRoster(false); }}>Save list</button>
+						</div>
+					</> : <>
+						<ol className="member-list shared-nomination-list" aria-label="Candidates advancing to this round">
+							{selectionCandidates.map((name) => <li key={name}><span className="shared-nomination-name">{name}</span></li>)}
+						</ol>
+						<div className="form-actions">
+							<button className="secondary-button" type="button" onClick={() => { setEditedNextRoundNames(selectionCandidates); setEditingNextRoundRoster(true); }}>Edit list</button>
+							<button className="primary-button" type="button" onClick={() => onPrepareNextRound(selectionCandidates)}>Prepare round {latestClosedRound.roundNumber + 1}</button>
+						</div>
+					</>}
+				</section> : firstRoundSetupVisible && !hasActiveRound ? <VotingRoundSetup
 					roundNumber={1}
 					candidateNames={selectionCandidates}
 					selectionCount={selectionCount}
@@ -176,7 +208,26 @@ export default function NominationVoting({
 					isLoading={roundsLoading}
 					hasSavedDraft={draftRound?.roundNumber === 1 && draftRound.status === 'DRAFT'}
 					resetCount={draftRound?.resetCount ?? 0}
+					showCandidateRoster={Boolean(draftRound)}
 					canStart={Boolean(Number.isInteger(Number(selectionCount)) && Number(selectionCount) >= 1 && Number(selectionCount) <= selectionCandidates.length && !roundsSaving && !roundsLoading && !firstRoundDraftStale)}
+					error={roundsError}
+					success={roundsSuccess}
+					cancelDraftLabel="Cancel and rebuild draft"
+					onSelectionCountChange={(value) => { setSelectionCount(value); onDraftStateChange(value !== selectionCountBaseline); }}
+					onExpectedVoterCountChange={setExpectedVoterCount}
+					onStart={(event, trigger) => onSaveAndOpenStartDialog(event, trigger)}
+					onCancel={onCancelFirstRoundDraft}
+				/> : nextRoundPrepared && latestClosedRound && !hasActiveRound ? <VotingRoundSetup
+					roundNumber={latestClosedRound.roundNumber + 1}
+					candidateNames={selectionCandidates}
+					selectionCount={selectionCount}
+					expectedVoterCount={expectedVoterCount}
+					isSaving={roundsSaving}
+					isLoading={roundsLoading}
+					hasSavedDraft={Boolean(draftRound)}
+					resetCount={draftRound?.resetCount ?? 0}
+					showCandidateRoster={Boolean(draftRound)}
+					canStart={Boolean(Number.isInteger(Number(selectionCount)) && Number(selectionCount) >= 1 && Number(selectionCount) <= selectionCandidates.length && !roundsSaving && !roundsLoading)}
 					error={roundsError}
 					success={roundsSuccess}
 					cancelDraftLabel="Cancel and rebuild draft"

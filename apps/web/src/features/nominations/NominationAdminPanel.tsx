@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import Card from 'react-bootstrap/Card';
 import {
 	NominationIntake,
 	NominationsApiError,
@@ -100,6 +101,8 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	const [presentationError, setPresentationError] = useState('');
 	const [presentationBusy, setPresentationBusy] = useState(false);
 	const [firstRoundPrepared, setFirstRoundPrepared] = useState(false);
+	const [nextRoundPrepared, setNextRoundPrepared] = useState(false);
+	const [nextRoundCandidateNames, setNextRoundCandidateNames] = useState<string[] | null>(null);
 	const [sharedListEditing, setSharedListEditing] = useState(false);
 	const [focusClosedStatus, setFocusClosedStatus] = useState(false);
 	const [focusPrepareRound, setFocusPrepareRound] = useState(false);
@@ -269,13 +272,16 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			.filter(Boolean)
 			.sort((first, second) => first.localeCompare(second, undefined, { sensitivity: 'base' }))
 		: [];
-	const candidateOptions = latestClosedRound
+	const advancedCandidateOptions = latestClosedRound
 		? (roundResults[latestClosedRound.id]?.candidates ?? [])
 			.filter((candidate) => candidate.decision === 'ADVANCED')
 			.map((candidate) => candidate.name)
 		: draftRound
 			? draftRound.roundNumber === 1 ? confirmedNames : draftRound.candidates.map((candidate) => candidate.name)
 			: confirmedNames;
+	const candidateOptions = latestClosedRound && !draftRound && nextRoundCandidateNames
+		? nextRoundCandidateNames
+		: advancedCandidateOptions;
 	const currentWorkflowTask = isLoading
 		? { stage: 0, title: 'Loading position workflow', description: 'Loading the current intake and round state.' }
 		: error
@@ -851,6 +857,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			setDraftRoundId(saved.id);
 			setSelectionCount(String(saved.selectionCount));
 			setSelectionCountBaseline(String(saved.selectionCount));
+			setRoundsSuccess('');
 			setRoundsSuccess('Draft round configuration saved.');
 			onLifecycleChange();
 			return saved;
@@ -867,7 +874,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 	async function saveAndOpenStartDialog(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		if (roundsSaving || roundsLoading) return;
-		if (draftRound && draftRound.roundNumber === 1 && !firstRoundDraftStale
+		if (draftRound && !firstRoundDraftStale
 			&& Number.isInteger(Number(selectionCount))
 			&& Number(selectionCount) >= 1
 			&& Number(selectionCount) <= candidateOptions.length
@@ -877,7 +884,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			return;
 		}
 		const saved = await persistRoundConfiguration();
-		if (saved?.roundNumber === 1 && saved.selectionCount !== null) openStartDialog(saved);
+		if (saved?.selectionCount !== null && saved?.selectionCount !== undefined) openStartDialog(saved);
 	}
 
 	function openStartDialog(round: VotingRound) {
@@ -907,6 +914,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 			const active = await startVotingRound(credentials, electionId, positionId, startRoundId, count);
 			setRounds((current) => current.map((round) => round.id === active.id ? active : round));
 			setDraftRoundId(null);
+			setNextRoundPrepared(false);
 			startDialogCompletedRef.current = true;
 			setStartRoundId(null);
 			setRoundsSuccess('Voting is active. Share the private ballot link with voters.');
@@ -995,6 +1003,14 @@ export default function NominationAdminPanel({ credentials, electionId, position
 				setRoundResults((current) => ({ ...current, [roundId]: currentResult }));
 			}
 			setRoundsSuccess('Candidate decisions saved.');
+			const nextRoundCandidateCount = currentResult.candidates.filter((candidate) => candidate.decision === 'ADVANCED').length;
+			setNextRoundCandidateNames(currentResult.candidates
+				.filter((candidate) => candidate.decision === 'ADVANCED')
+				.map((candidate) => candidate.name));
+			if (nextRoundCandidateCount >= 2 && !rounds.some((round) => round.roundNumber > currentResult.roundNumber)) {
+				setNextRoundPrepared(false);
+				setRoundsSuccess('');
+			}
 			onLifecycleChange(completionMayChange);
 		} catch (requestError) {
 			setRoundsError(requestError instanceof Error ? requestError.message : 'Could not save all candidate decisions. Successfully saved decisions are retained.');
@@ -1207,7 +1223,7 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					{presentationError && <p className="error-message" role="alert">{presentationError}</p>}
 				</AudiencePresentationCard>
 			</section>
-			<div className={`workflow-stage-group${!intake ? ' is-intake-setup' : ''}${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}${firstRoundSetupVisible ? ' is-round-setup-primary' : ''}${hasActiveRound ? ' is-voting-active' : ''}`}>
+			<Card className={`workflow-stage-group${!intake ? ' is-intake-setup' : ''}${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}${firstRoundSetupVisible ? ' is-round-setup-primary' : ''}${hasActiveRound ? ' is-voting-active' : ''}`}>
 				<section className={`guided-workflow${hasActiveRound ? ' is-voting-active' : ''}`} aria-label="Position workflow progress">
 					<div aria-live="polite" aria-atomic="true">
 						<NominationAdminPanelHeader
@@ -1222,15 +1238,16 @@ export default function NominationAdminPanel({ credentials, electionId, position
 					</div>
 				</section>
 			<NominationIntakeComponent {...intakeWorkflowProps} view="stage" />
-			</div>
+			</Card>
 			<div className={`position-workflow-grid${!intake ? ' is-intake-setup' : ''}${intake?.status === 'OPEN' ? ' is-intake-open' : ''}${intake?.status === 'CLOSED' ? ' is-intake-closed' : ''}${firstRoundSetupVisible ? ' is-round-setup-primary' : ''}${hasActiveRound ? ' is-voting-active' : ''}`}>
-				<div className="position-workflow-main">
+				<Card className="position-workflow-main">
 			<NominationIntakeComponent {...intakeWorkflowProps} view="editor" />
 			<NominationVoting
 				isExpanded={isExpanded}
 				hasActiveRound={hasActiveRound}
 				hasSavedSnapshot={hasSavedSnapshot}
 				firstRoundPrepared={firstRoundPrepared}
+				nextRoundPrepared={nextRoundPrepared}
 				firstRoundSetupVisible={firstRoundSetupVisible}
 				firstRoundDraftStale={firstRoundDraftStale}
 				showClosedRoundDecisions={showClosedRoundDecisions}
@@ -1281,9 +1298,17 @@ export default function NominationAdminPanel({ credentials, electionId, position
 				onResetRound={() => { void confirmResetRound(); }}
 				onCopyVotingLink={(round) => { void copyVotingLink(round); }}
 				onEditCandidateList={editSharedList}
+				onUpdateNextRoundCandidates={(candidateNames) => setNextRoundCandidateNames(candidateNames)}
+				onPrepareNextRound={(candidateNames) => {
+					setNextRoundCandidateNames(candidateNames);
+					const initialCount = String(Math.min(latestClosedRound?.selectionCount ?? 2, candidateNames.length));
+					setSelectionCount(initialCount);
+					setSelectionCountBaseline(initialCount);
+					setNextRoundPrepared(true);
+				}}
 				copiedRoundId={copiedRoundId}
 			/>
-				</div>
+				</Card>
 			</div>
 		</section>
 	);

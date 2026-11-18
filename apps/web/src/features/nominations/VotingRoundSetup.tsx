@@ -9,6 +9,7 @@ export type VotingRoundSetupProps = {
 	isLoading: boolean;
 	hasSavedDraft: boolean;
 	resetCount: number;
+	showCandidateRoster?: boolean;
 	canStart: boolean;
 	error: string;
 	success: string;
@@ -19,7 +20,7 @@ export type VotingRoundSetupProps = {
 	onCancel: () => void;
 };
 
-export default function VotingRoundSetup({ roundNumber, candidateNames, selectionCount, expectedVoterCount, isSaving, isLoading, hasSavedDraft, resetCount, canStart, error, success, cancelDraftLabel = 'Cancel draft', onSelectionCountChange, onExpectedVoterCountChange, onStart, onCancel }: VotingRoundSetupProps) {
+export default function VotingRoundSetup({ roundNumber, candidateNames, selectionCount, expectedVoterCount, isSaving, isLoading, hasSavedDraft, resetCount, showCandidateRoster = true, canStart, error, success, cancelDraftLabel = 'Cancel draft', onSelectionCountChange, onExpectedVoterCountChange, onStart, onCancel }: VotingRoundSetupProps) {
 	const headingRef = useRef<HTMLHeadingElement>(null);
 	const startButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -47,12 +48,12 @@ export default function VotingRoundSetup({ roundNumber, candidateNames, selectio
 				{error && <p className="error-message" role="alert">{error}</p>}
 				{success && <p className="state-message" role="status">{success}</p>}
 			</div>
-			<aside className="round-poll-setup-roster" aria-label={`Round ${roundNumber} candidate roster`}>
+			{showCandidateRoster && <aside className="round-poll-setup-roster" aria-label={`Round ${roundNumber} candidate roster`}>
 				<p className="eyebrow">Round {roundNumber} · candidate roster</p>
 				<h4>People on the ballot</h4>
 				<p className="form-note">Confirmed candidates for this poll. The ballot uses this same list.</p>
 				<ol aria-label="Candidates in this poll">{candidateNames.map((name, index) => <li key={`${index}-${name}`}>{name}</li>)}</ol>
-			</aside>
+			</aside>}
 		</section>
 	);
 }

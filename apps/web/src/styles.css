@@ -247,6 +247,8 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .workflow-heading h2 { margin: 0; font-size: 1.3rem; }
 .workflow-heading p:last-child { margin: 5px 0 0; color: var(--muted); font-size: .88rem; }
 .guided-workflow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 17px; align-items: start; margin: 0 0 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: 4px; background: rgba(255, 255, 255, .82); }
+.workflow-stage-group.card, .position-workflow-main.card { display: block; }
+.position-workflow-main.card { border: 0; border-radius: 0; background: transparent; color: inherit; }
 .workflow-stage-group.is-intake-setup { overflow: hidden; margin-bottom: 22px; padding: 18px 20px; border: 1px solid #cbd8cc; border-radius: 4px; background: #fff; }
 .workflow-stage-group.is-intake-setup .guided-workflow { padding: 0; border: 0; border-radius: 0; background: transparent; }
 .workflow-stage-group.is-intake-setup .workflow-intake-action { padding: 14px 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; }
